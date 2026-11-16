@@ -1067,8 +1067,11 @@ function renderStyleCards(styles = [], chosenIndex = null, cardsLocked = false) 
         renderWorkspace();
         syncRightPaneToCampaign();
         refreshHistory();
-        if ((updated.variants?.length || 0) > countBefore) {
-          status.textContent = 'New style “' + option.name + '” created. The previous style keeps its preview.';
+        const opened = updated.variants?.find(v => v.id === updated.activeVariant);
+        if (opened?.previewId || opened?.finalId) {
+          status.textContent = 'Opened the style “' + (opened.label || option.name) + '” that already has a preview.';
+        } else if ((updated.variants?.length || 0) > countBefore) {
+          status.textContent = 'Draft style “' + option.name + '” started. The previous style keeps its preview.';
         }
       } catch (e) {
         status.textContent = e.message;

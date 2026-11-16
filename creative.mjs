@@ -457,6 +457,12 @@ FIND THE IDEAS (work through this before drawing)
 5. For each, choose the way of making that shows this idea most vividly for this brand (photograph, render, drawing, type, flat graphics, interface, or a mix). The way of making follows the idea; it is never the difference by itself.
 6. Test: mentally cover the copy and logo. A stranger should still say what each picture shows and what is surprising in it, and no two keyframes could pass for the same campaign. If they could, replace one and test again.
 
+ONE BOLD DIRECTION
+- The first two directions are made the way this brand usually makes its pictures. The third is always the bold one: it leaves the brand's usual way of making and its usual layout of the frame. If the brand's pictures are photographs, the bold one is a render, a drawing, an object made for the idea, a type-led frame or flat graphics; if the brand usually draws or sets type, the bold one is photographed or built in three dimensions. It may also drop the brand's usual frame layout (a split, a field, a grid) for one of its own.
+- What it keeps: the identity (the logo, the primary colour, the typeface, the roles of the colours in the graphic layer, the tone of voice, the product truth) and everything the brand says it never shows or says. What it may leave: the brand's usual medium, finish, layout and kind of picture.
+- Bold is one decided move, not more decoration. With the logo covered it is still recognisably this brand by its colour, type and taste, and it still has to pass the aim: attractive, in the brand's taste, and the idea seen at once.
+- Start its "direction" line with "Bold:" and say in one sentence which usual way it leaves and why that shows the idea better.
+
 WHEN THE SUBJECT IS NOT A PHYSICAL THING (a service, software, a promise, the work itself), give it a body. There are several ways, and the three ideas do not all take the same one:
 - a thing or a moment from the viewer's life that stands for it;
 - the brand's own screens, cards or pieces of work placed in a real space, with the light and the perspective of that space;
@@ -482,7 +488,7 @@ KEYFRAMES
 
 DIRECTION TEXT
 - "idea": one sentence a stranger could retell: what the picture shows and its turn.
-- "direction": start with one line, "Approach: <what the picture shows> · <way of making> · <world> · Turn: <the turn>". Then the full production notes: ${kind === 'multi' ? 'for each beat of the scenario, what is in the frame and how it shows what the viewer should understand there, with the one subject or world that carries through all beats; ' : ''}hero, grid and composition per orientation; typography (faces, weights, scale, and its role in this world); colour beyond the brand anchors; the brand's devices used and their role; how every visual element is produced (supplied asset, generated picture, code) ${kind === 'poster' ? 'and the finishing details.' : kind === 'single' ? 'and a plan for the loop in a line or two: what moves, how it returns to its start, and what stays still.' : 'and a plan for motion in a line or two: per scene, what moves and the transition into the next scene.'}
+- "direction": start with one line, "Approach: <what the picture shows> · <way of making> · <world> · Turn: <the turn>" (for the third direction, a "Bold: …" line before it). Then the full production notes: ${kind === 'multi' ? 'for each beat of the scenario, what is in the frame and how it shows what the viewer should understand there, with the one subject or world that carries through all beats; ' : ''}hero, grid and composition per orientation; typography (faces, weights, scale, and its role in this world); colour beyond the brand anchors; the brand's devices used and their role; how every visual element is produced (supplied asset, generated picture, code) ${kind === 'poster' ? 'and the finishing details.' : kind === 'single' ? 'and a plan for the loop in a line or two: what moves, how it returns to its start, and what stays still.' : 'and a plan for motion in a line or two: per scene, what moves and the transition into the next scene.'}
 - Read the core guidelines and representative references first. Skip license texts, font binaries and redundant screenshots.
 OUTPUT: only JSON {"styles":[{"name":"short distinctive name","idea":"one sentence: what the picture shows and its turn","direction":"Approach: … · Turn: …\\n\\n…","svg":"<svg xmlns=…>…</svg>"}]} with exactly three entries. Escape markup as valid JSON.`;
   return [P0, P1[kind] || P1.multi, p6].join('\n\n');
@@ -495,6 +501,7 @@ export function styleRevisionPrompt({previous = [], revise = 'all', hasFeedback 
 - The note is the brief for this round. Apply specific requests literally (a colour, a medium, a mood, a reference, something to drop) and taste notes in spirit ("too safe", "too cold", "not premium enough").
 - If the note rejects the overall route, move all three away from it, not just one. If it praises a quality, keep that quality and change the rest.
 - Never return a previous direction unchanged, recoloured or merely rearranged. The three new directions must still differ in subject from each other and pass the FIND THE IDEAS test above.
+- The third new direction is again the bold one (see ONE BOLD DIRECTION).
 - Output contract unchanged: exactly three styles, each with a new name.`;
   const target = previous[revise] || {};
   const kept = previous.filter((_, i) => i !== revise).map(s => JSON.stringify(s.name)).join(' and ');
@@ -504,6 +511,7 @@ export function styleRevisionPrompt({previous = [], revise = 'all', hasFeedback 
     ? '"feedback" is the client\'s note about this direction. Apply specific requests literally and taste notes in spirit. Keep what the note does not touch only if it is still strong.'
     : 'There is no note: the client simply did not connect with this direction. Replace it with a stronger, clearly different approach.'}
 - Never return it unchanged, recoloured or merely rearranged.
+- ${revise === 2 ? 'This is the bold direction: the new one is bold too (see ONE BOLD DIRECTION).' : 'This is one of the two directions made the brand\'s usual way: the new one is too; the bold one is direction 3.'}
 - It must stay different in kind from the two kept directions: it may not share their subject, and it may not repeat their turn.
 - Keep the name only if the identity survives; otherwise rename it. It must not match the other two names.
 OUTPUT (this replaces the output line above): only JSON {"style":{"name":"short distinctive name","idea":"one sentence: what the picture shows and its turn","direction":"Approach: … · Turn: …\\n\\n…","svg":"<svg xmlns=…>…</svg>"}} with exactly one direction, following the KEYFRAMES and DIRECTION TEXT rules above. Escape markup as valid JSON.`;

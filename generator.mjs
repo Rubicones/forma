@@ -29,7 +29,15 @@ async function runQuery({prompt, options, task, dir, log, onText, model, effort,
   const sketchCount = () => (text.match(/"svg"\s*:/g) || []).length;
   const display = file => path.isAbsolute(String(file)) && !String(file).startsWith(dir + path.sep) ? path.basename(String(file)) : path.relative(dir, path.resolve(dir, String(file || '')));
   for await (const event of query({prompt,options})) {
-    if(event.type==='system' && event.subtype==='init') log('Claude connected · '+(event.model || model || 'default model')+(effort ? ' · effort '+effort : ''), {level:'step'});
+    if(event.type==='system' && event.subtype==='init') {
+      log('Claude connected · '+(event.model || model || 'default model')+(effort ? ' · effort '+effort : ''), {level:'step'});
+      const extras=[
+        ...(event.mcp_servers || []).filter(s=>s.source && s.source!=='sdk').map(s=>'MCP '+s.name+' ('+s.source+')'),
+        ...(event.plugins || []).map(p=>'plugin '+p.name),
+        ...(event.skills || []).map(name=>'skill '+name),
+      ];
+      log('Session context · tools: '+(event.tools || []).join(', ')+(extras.length ? ' · extra: '+extras.join(', ') : ' · no skills, plugins or outside MCP'), {level:extras.length ? 'warn' : 'info', quiet:!extras.length});
+    }
     if(event.type==='system' && event.subtype==='api_retry') log('Claude is retrying the request ('+event.error+'), delay '+Math.ceil(event.retry_delay_ms/1000)+' s', {level:'warn'});
     if(event.type==='stream_event'){
       const part=event.event;
@@ -90,6 +98,8 @@ async function runQuery({prompt, options, task, dir, log, onText, model, effort,
 
 const baseOptions = ({dir, billing, controller, model, effort}) => ({cwd:dir,
   ...(billing==='subscription' && {env:subscriptionEnv()}), settingSources:[], persistSession:false,
+  // Isolation: only our own MCP server; no claude.ai connectors, and no skills or plugins synced from claude.ai (this run only).
+  strictMcpConfig:true, settings:{disableClaudeAiConnectors:true, syncClaudeAiSkills:false, syncClaudeAiPlugins:false},
   abortController:controller, includePartialMessages:true, model: model || process.env.CLAUDE_MODEL, effort});
 
 // log(message, {level, detail, media, cost}) — journal; onText(text) — the text block being streamed right now.

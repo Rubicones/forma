@@ -881,7 +881,7 @@ describe('campaigns.mjs: HTTP endpoints, gating and history integration', () => 
     const ch2NewVar = await req('POST', `/api/campaigns/${cid}/styles/choose`, {index: 2});
     assert.equal(ch2NewVar.status, 200);
     assert.equal(ch2NewVar.body.variants.length, 2);
-    const v2Id = ch2NewVar.body.activeVariant;
+    let v2Id = ch2NewVar.body.activeVariant;
     assert.notEqual(v2Id, v1Id);
 
     // Verify v1 is completely untouched
@@ -898,6 +898,22 @@ describe('campaigns.mjs: HTTP endpoints, gating and history integration', () => 
     assert.equal(v2.label, 'Tactile Paper Receipt');
     assert.equal(v2.previewId, null);
     assert.equal(v2.finalId, null);
+
+    // Looking at directions does not pile up styles: the draft slot is reused...
+    const look0 = await req('POST', `/api/campaigns/${cid}/styles/choose`, {index: 0});
+    assert.equal(look0.body.variants.length, 2);
+    assert.equal(look0.body.activeVariant, v2Id);
+    assert.equal(look0.body.variants.find(v => v.id === v2Id).styles.chosenIndex, 0);
+    // ...picking the direction that already has a preview reopens that style and drops the draft...
+    const back1 = await req('POST', `/api/campaigns/${cid}/styles/choose`, {index: 1});
+    assert.equal(back1.body.activeVariant, v1Id);
+    assert.equal(back1.body.variants.length, 1);
+    assert.equal(back1.body.variants[0].previewId, v1PreviewEntryId);
+    // ...and a new look from the built style starts one draft again.
+    const again2 = await req('POST', `/api/campaigns/${cid}/styles/choose`, {index: 2});
+    assert.equal(again2.body.variants.length, 2);
+    v2Id = again2.body.activeVariant;
+    assert.notEqual(v2Id, v1Id);
 
     // Per-variant gating: v2 cannot build final before v2 has an approved preview (even though v1 is approved!)
     const fin2Blocked = await req('POST', `/api/campaigns/${cid}/final`, {});

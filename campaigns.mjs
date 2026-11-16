@@ -1672,31 +1672,50 @@ export function registerCampaignRoutes(app, {
       : '';
 
     let activeVariant = targetVar.id;
-
-    // §4.2: A variant that has a preview is never mutated by a style choice; only new variants are created.
-    if (targetVar.preview?.entryId) {
-      const newVar = createVariantRecord({
-        label: customLabel || chosen.name || `Style ${variants.length + 1}`,
-        createdAt: new Date().toISOString(),
-        author: currentAuthor(),
-        styles: {
-          entryId: targetVar.styles.entryId,
-          chosenIndex: index,
-          direction,
-        },
-      });
-      variants.push(newVar);
-      activeVariant = newVar.id;
-    } else {
+    const built = v => Boolean(v.preview?.entryId || v.final?.entryId);
+    const sameSet = v => v.styles?.entryId === targetVar.styles.entryId;
+    const applyChoice = v => {
       const prevStyleNames = new Set(styles.map(s => s?.name).filter(Boolean));
-      const hadAutoLabel = !targetVar.label || /^(?:Style|Стиль) \d+$/.test(targetVar.label) || prevStyleNames.has(targetVar.label);
-      targetVar.styles.chosenIndex = index;
-      targetVar.styles.direction = direction;
-      if (customLabel) {
-        targetVar.label = customLabel;
-      } else if (chosen.name && hadAutoLabel) {
-        targetVar.label = chosen.name;
+      const hadAutoLabel = !v.label || /^(?:Style|Стиль) \d+$/.test(v.label) || prevStyleNames.has(v.label);
+      v.styles.chosenIndex = index;
+      v.styles.direction = direction;
+      if (customLabel) v.label = customLabel;
+      else if (chosen.name && hadAutoLabel) v.label = chosen.name;
+    };
+
+    // Looking at a direction is not making a style. A style that already has a preview or final for this
+    // direction is reopened as it is; otherwise the choice goes into the one draft slot (no preview yet) of
+    // this set of directions. §4.2 still holds: a variant with a preview is never mutated by a style choice.
+    const existing = variants.find(v => v.id !== targetVar.id && sameSet(v) && built(v) && v.styles.chosenIndex === index);
+    if (existing && !customLabel && !(typeof req.body?.direction === 'string' && req.body.direction.trim())) {
+      activeVariant = existing.id;
+    } else if (built(targetVar)) {
+      const draft = variants.find(v => v.id !== targetVar.id && sameSet(v) && !built(v));
+      if (draft) {
+        applyChoice(draft);
+        activeVariant = draft.id;
+      } else {
+        const newVar = createVariantRecord({
+          label: customLabel || chosen.name || `Style ${variants.length + 1}`,
+          createdAt: new Date().toISOString(),
+          author: currentAuthor(),
+          styles: {
+            entryId: targetVar.styles.entryId,
+            chosenIndex: index,
+            direction,
+          },
+        });
+        variants.push(newVar);
+        activeVariant = newVar.id;
       }
+    } else {
+      applyChoice(targetVar);
+    }
+
+    // Drop leftover drafts of this set (no preview, no final): at most one draft per set, and only the active one.
+    for (let i = variants.length - 1; i >= 0; i--) {
+      const v = variants[i];
+      if (v.id !== activeVariant && sameSet(v) && !built(v)) variants.splice(i, 1);
     }
 
     const steps = syncActiveVariantSteps(campaign.steps.scenario, variants, activeVariant);

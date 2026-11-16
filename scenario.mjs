@@ -52,17 +52,17 @@ export function parseScenario(text) {
     .replace(/^`{3}(?:jsonc?|javascript)?\s*/i, '')
     .replace(/`{3}\s*$/, '')
     .trim();
-  if (!raw) throw Error('Модель вернула пустой сценарий.');
+  if (!raw) throw Error('The model returned an empty script.');
   let parsed;
   try {
     parsed = JSON.parse(raw);
   } catch (err) {
-    throw Error('Не удалось разобрать JSON сценария: ' + err.message);
+    throw Error('Could not parse the script JSON: ' + err.message);
   }
   const res = scenarioSchema.safeParse(parsed);
   if (!res.success) {
     const details = res.error.issues.map(i => (i.path.length ? i.path.join('.') + ': ' : '') + i.message).join('; ');
-    throw Error('Некорректный формат сценария: ' + details);
+    throw Error('Invalid script format: ' + details);
   }
   return res.data;
 }

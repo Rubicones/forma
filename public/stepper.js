@@ -5,9 +5,9 @@ import {state, stepCostLabel} from '/campaign.js';
 import {$} from './dom.js';
 
 const KIND_LABELS = {
-  poster: 'Постер',
-  single: 'Односценовое видео',
-  multi: 'Многосценовое видео',
+  poster: 'Poster',
+  single: 'Single-scene video',
+  multi: 'Multi-scene video',
 };
 
 export function stepInfo(campaign, stepNum, busyStep = null) {
@@ -15,7 +15,7 @@ export function stepInfo(campaign, stepNum, busyStep = null) {
     return {
       state: 'locked',
       badge: String(stepNum),
-      status: stepNum === 1 ? 'Настройте кампанию' : stepNum === 2 ? 'Сначала утвердите сценарий' : 'Сначала утвердите превью',
+      status: stepNum === 1 ? 'Set up your campaign' : stepNum === 2 ? 'Approve the script first' : 'Approve the preview first',
       cost: '',
       locked: true,
       approved: false,
@@ -31,20 +31,20 @@ export function stepInfo(campaign, stepNum, busyStep = null) {
   if (stepNum === 1) {
     const cost = stepCostLabel(entries.scenario?.cost);
     if (busyStep === 1) {
-      return {state: 'generating', badge: '1', status: 'Генерация…', cost, locked: false, approved: false, stale: false};
+      return {state: 'generating', badge: '1', status: 'Generating…', cost, locked: false, approved: false, stale: false};
     }
     if (s.scenario?.stale || s.scenario?.needs?.length) {
       const status = s.scenario?.needs?.includes('translation')
-        ? '⚠ Нужен перевод'
+        ? '⚠ Translation needed'
         : s.scenario?.needs?.includes('cuts')
-          ? '⚠ Нужна нарезка'
-          : '⚠ Устарело — пересоберите';
+          ? '⚠ Cuts needed'
+          : '⚠ Out of date · Rebuild';
       return {state: 'stale', badge: '⚠', status, cost, locked: false, approved: false, stale: true};
     }
     if (scApproved) {
-      return {state: 'approved', badge: '✓', status: '✓ Утверждено', cost, locked: false, approved: true, stale: false};
+      return {state: 'approved', badge: '✓', status: '✓ Approved', cost, locked: false, approved: true, stale: false};
     }
-    return {state: 'active', badge: '1', status: 'В работе', cost, locked: false, approved: false, stale: false};
+    return {state: 'active', badge: '1', status: 'In progress', cost, locked: false, approved: false, stale: false};
   }
 
   if (stepNum === 2) {
@@ -52,36 +52,36 @@ export function stepInfo(campaign, stepNum, busyStep = null) {
     const cost = stepCostLabel(sumCost);
     const hasWork = Boolean(s.styles?.entryId || s.preview?.entryId);
     if (!scApproved && !hasWork) {
-      return {state: 'locked', badge: '2', status: 'Сначала утвердите сценарий', cost, locked: true, approved: false, stale: false};
+      return {state: 'locked', badge: '2', status: 'Approve the script first', cost, locked: true, approved: false, stale: false};
     }
     if (busyStep === 2) {
-      return {state: 'generating', badge: '2', status: 'Генерация…', cost, locked: false, approved: false, stale: false};
+      return {state: 'generating', badge: '2', status: 'Generating…', cost, locked: false, approved: false, stale: false};
     }
     if (s.preview?.stale || (!scApproved && hasWork)) {
-      return {state: 'stale', badge: '⚠', status: '⚠ Устарело — пересоберите', cost, locked: false, approved: false, stale: true};
+      return {state: 'stale', badge: '⚠', status: '⚠ Out of date · Rebuild', cost, locked: false, approved: false, stale: true};
     }
     if (prevApproved) {
-      return {state: 'approved', badge: '✓', status: '✓ Утверждено', cost, locked: false, approved: true, stale: false};
+      return {state: 'approved', badge: '✓', status: '✓ Approved', cost, locked: false, approved: true, stale: false};
     }
-    return {state: 'active', badge: '2', status: 'В работе', cost, locked: false, approved: false, stale: false};
+    return {state: 'active', badge: '2', status: 'In progress', cost, locked: false, approved: false, stale: false};
   }
 
   // Step 3: Финал / Видео
   const cost = stepCostLabel(entries.final?.cost);
   const hasFinal = Boolean(s.final?.entryId);
   if (!prevApproved && !hasFinal) {
-    return {state: 'locked', badge: '3', status: 'Сначала утвердите превью', cost, locked: true, approved: false, stale: false};
+    return {state: 'locked', badge: '3', status: 'Approve the preview first', cost, locked: true, approved: false, stale: false};
   }
   if (busyStep === 3) {
-    return {state: 'generating', badge: '3', status: 'Генерация…', cost, locked: false, approved: false, stale: false};
+    return {state: 'generating', badge: '3', status: 'Generating…', cost, locked: false, approved: false, stale: false};
   }
   if (s.final?.stale || (!prevApproved && hasFinal)) {
-    return {state: 'stale', badge: '⚠', status: '⚠ Устарело — пересоберите', cost, locked: false, approved: false, stale: true};
+    return {state: 'stale', badge: '⚠', status: '⚠ Out of date · Rebuild', cost, locked: false, approved: false, stale: true};
   }
   if (hasFinal) {
-    return {state: 'approved', badge: '✓', status: '✓ Готово', cost, locked: false, approved: true, stale: false};
+    return {state: 'approved', badge: '✓', status: '✓ Ready', cost, locked: false, approved: true, stale: false};
   }
-  return {state: 'active', badge: '3', status: 'В работе', cost, locked: false, approved: false, stale: false};
+  return {state: 'active', badge: '3', status: 'In progress', cost, locked: false, approved: false, stale: false};
 }
 
 function combineStepCosts(c1, c2) {
@@ -110,12 +110,12 @@ export function renderCampaignBar({onRename, onOpenSetup, onForkCampaign, onNewC
 
   const nameInput = $('#campaignName');
   if (document.activeElement !== nameInput) {
-    nameInput.value = c.name || 'Новая кампания';
+    nameInput.value = c.name || 'New campaign';
   }
   nameInput.onchange = () => {
     const val = nameInput.value.trim();
     if (val && val !== c.name) onRename?.(val);
-    else nameInput.value = c.name || 'Новая кампания';
+    else nameInput.value = c.name || 'New campaign';
   };
 
   const setup = c.setup || {};
@@ -128,7 +128,7 @@ export function renderCampaignBar({onRename, onOpenSetup, onForkCampaign, onNewC
       chip.className = 'bar-chip' + (idx === 0 ? ' primary' : '');
       const info = language(code);
       chip.textContent = (idx === 0 ? '★ ' : '') + code.toUpperCase();
-      chip.title = info.name + (idx === 0 ? ' (основной)' : '');
+      chip.title = info.name + (idx === 0 ? ' (primary)' : '');
       return chip;
     })
   );
@@ -143,7 +143,7 @@ export function renderCampaignBar({onRename, onOpenSetup, onForkCampaign, onNewC
       ...(setup.lengths || []).map(l => {
         const chip = document.createElement('span');
         chip.className = 'bar-chip';
-        chip.textContent = `${l} с`;
+        chip.textContent = `${l} s`;
         return chip;
       })
     );
@@ -179,8 +179,8 @@ export function renderStepper({busyStep = null, onSelectStep, onSelectVariant} =
   const c = state.campaign;
   nav.classList.toggle('muted', !c);
 
-  const step3Title = c?.setup?.kind === 'poster' ? 'Финал' : 'Видео';
-  const titles = {1: 'Сценарий', 2: 'Превью', 3: step3Title};
+  const step3Title = c?.setup?.kind === 'poster' ? 'Final' : 'Video';
+  const titles = {1: 'Script', 2: 'Preview', 3: step3Title};
 
   const infos = {
     1: stepInfo(c, 1, busyStep),
@@ -232,7 +232,7 @@ export function renderStepper({busyStep = null, onSelectStep, onSelectVariant} =
     }
     menuWrap.hidden = false;
     const activeVar = variants.find(v => v.id === c.activeVariant) || variants[0];
-    menuLabel.textContent = `Стиль: ${activeVar?.label || 'Стиль 1'}`;
+    menuLabel.textContent = `Style: ${activeVar?.label || 'Style 1'}`;
     menuBtn.disabled = Boolean(busyStep);
     menuBtn.onclick = e => {
       e.stopPropagation();
@@ -257,7 +257,7 @@ export function renderStepper({busyStep = null, onSelectStep, onSelectVariant} =
         }
         const lbl = document.createElement('span');
         lbl.className = 'stepper-style-item-label';
-        lbl.textContent = v.label || 'Стиль';
+        lbl.textContent = v.label || 'Style';
         item.append(lbl);
 
         const mark = document.createElement('small');

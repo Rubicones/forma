@@ -27,7 +27,7 @@ const light = ({log, ...entry}) => {
     const firstLine = dir.includes('\n\n') ? dir.split('\n\n')[0].trim() : '';
     const v0 = {
       id: vid,
-      label: s.styles?.label || (firstLine && firstLine.length <= 80 ? firstLine : 'Стиль 1'),
+      label: s.styles?.label || (firstLine && firstLine.length <= 80 ? firstLine : 'Style 1'),
       createdAt: out.createdAt || new Date().toISOString(),
       author: out.author ?? null,
       styles: {
@@ -223,7 +223,7 @@ export async function importExisting(dataDir) {
         media: assets
           .filter(a => a.startsWith('generated/'))
           .map(a => ({kind: /\.mp4$/i.test(a) ? 'video' : 'image', file: a, path: '/p/' + project + '/assets/' + a})),
-        log: [{at: 0, level: 'info', msg: 'Импортировано из data/ (журнал до появления истории не сохранялся)'}],
+        log: [{at: 0, level: 'info', msg: 'Imported from data/ (logs were unavailable for these earlier builds)'}],
       });
       known.add(rel);
       added++;
@@ -334,8 +334,8 @@ const runs = {
     if (campaignId && campaignRunLock.has(campaignId)) {
       const activeId = campaignRunLock.get(campaignId);
       const activeRun = activeRuns.get(activeId);
-      const who = activeRun?.author ? ` (запущен ${activeRun.author})` : '';
-      const err = Object.assign(Error(`Дождитесь окончания текущего шага${who}.`), {status: 409});
+      const who = activeRun?.author ? ` (started by ${activeRun.author})` : '';
+      const err = Object.assign(Error(`Wait for the current step to finish${who}.`), {status: 409});
       throw err;
     }
     const now = new Date().toISOString();

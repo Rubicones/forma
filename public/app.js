@@ -47,7 +47,7 @@ import {
 } from '/player.js';
 
 import {$, el} from './dom.js';
-import {libraryCard, listBrands, listBrandCampaigns, saveBrand} from './brand-library.js';
+import {campaignCard, libraryCard, listBrands, listBrandCampaigns, saveBrand} from './brand-library.js';
 const items = new Map();
 let busy = false;
 let busyStep = null;
@@ -82,8 +82,8 @@ const choices = $('#choices');
 const keyframe = $('#keyframe');
 let previousCaption = '';
 
-const providerName = {claude: 'Claude', codex: 'Codex', demo: 'Тестовый шаблон'};
-const KIND_NAMES = {poster: 'Постер', single: 'Односценовое', multi: 'Многосценовое'};
+const providerName = {claude: 'Claude', codex: 'Codex', demo: 'Demo template'};
+const KIND_NAMES = {poster: 'Poster', single: 'Single scene', multi: 'Multi-scene'};
 
 // ---- Journal and live preview ----
 const logList = $('#log');
@@ -109,7 +109,7 @@ function addLog({at, level = 'info', msg, detail, media, cost}) {
       ' ',
       Object.assign(document.createElement('b'), {
         className: 'cost',
-        textContent: typeof cost.usd === 'number' ? moneyPrecise(cost.usd) : 'цена ?',
+        textContent: typeof cost.usd === 'number' ? moneyPrecise(cost.usd) : 'Unknown cost',
       })
     );
   }
@@ -129,7 +129,7 @@ function addLog({at, level = 'info', msg, detail, media, cost}) {
     const box = document.createElement('details');
     const summary = document.createElement('summary');
     const pre = document.createElement('pre');
-    summary.textContent = level === 'think' ? 'мысли' : 'подробнее';
+    summary.textContent = level === 'think' ? 'Reasoning' : 'Details';
     pre.textContent = detail;
     box.append(summary, pre);
     li.append(box);
@@ -149,16 +149,16 @@ function costText(c) {
   if (!c) return '';
   const parts = [
     c.llm && 'LLM ' + moneyPrecise(c.llm),
-    c.image && 'изображения ' + moneyPrecise(c.image),
-    c.video && 'видео ' + moneyPrecise(c.video),
+    c.image && 'images ' + moneyPrecise(c.image),
+    c.video && 'video ' + moneyPrecise(c.video),
   ].filter(Boolean);
   return c.total || c.unknown
-    ? '≈ ' + moneyPrecise(c.total) + (c.unknown ? ' + неизвестно' : '') + (parts.length > 1 ? ' (' + parts.join(' · ') + ')' : '')
+    ? '≈ ' + moneyPrecise(c.total) + (c.unknown ? ' + unknown' : '') + (parts.length > 1 ? ' (' + parts.join(' · ') + ')' : '')
     : '';
 }
 
 function showCosts(c) {
-  $('#costNow').textContent = costText(c) ? 'по API ' + costText(c) : '';
+  $('#costNow').textContent = costText(c) ? 'at API rates ' + costText(c) : '';
 }
 
 function resetLog() {
@@ -183,7 +183,7 @@ function showLive(media) {
     mediaEl.muted = mediaEl.loop = mediaEl.autoplay = mediaEl.playsInline = true;
   }
   badge.textContent =
-    (media.attached ? 'Вложение · ' : 'Сгенерировано · ') +
+    (media.attached ? 'Attachment · ' : 'Generated · ') +
     media.file +
     (typeof media.cost === 'number' ? ' · ' + moneyPrecise(media.cost) : '');
   live.replaceChildren(mediaEl, badge);
@@ -198,7 +198,7 @@ const hideLive = () => {
 function closeKeyframe() {
   if (!keyframe.hidden && previousCaption) $('#caption').textContent = previousCaption;
   keyframe.hidden = true;
-  $('#replay').textContent = '↻ Повторить';
+  $('#replay').textContent = '↻ Replay';
 }
 
 $('#replay').onclick = () => {
@@ -254,7 +254,7 @@ function applyProgress(p, task, trackerState) {
     if (keyframe.hidden) previousCaption = $('#caption').textContent;
     keyframe.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(p.sketches.at(-1));
     keyframe.hidden = false;
-    $('#caption').textContent = 'Эскиз ' + trackerState.sketches + ' из 3';
+    $('#caption').textContent = 'Sketch ' + trackerState.sketches + ' of 3';
   }
 }
 
@@ -281,7 +281,7 @@ function startTracking(requestId, task, message, onStatus = () => {}) {
       trackerState.message +
       ' · ' +
       Math.floor((Date.now() - started) / 1000) +
-      ' с' +
+      ' s' +
       (trackerState.costs?.total ? ' · ≈ ' + moneyPrecise(trackerState.costs.total) : '');
     status.textContent = text;
     onStatus(text);
@@ -306,7 +306,7 @@ function displayMaterials() {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.textContent = '×';
-    btn.setAttribute('aria-label', 'Убрать ' + name);
+    btn.setAttribute('aria-label', 'Remove ' + name);
     btn.onclick = () => {
       items.delete(name);
       displayMaterials();
@@ -316,8 +316,13 @@ function displayMaterials() {
   }
 }
 
+// OS and VCS clutter (.DS_Store, __MACOSX, Thumbs.db, hidden folders) is never brand material, and the server rejects dotfiles.
+const isJunkPath = name => String(name).split('/').some(seg => (seg.startsWith('.') && seg !== '.' && seg !== '..') || seg === '__MACOSX' || /^(thumbs\.db|desktop\.ini)$/i.test(seg));
+
 function addMaterial(f, n) {
-  items.set(n || f.webkitRelativePath || f.name, f);
+  const name = n || f.webkitRelativePath || f.name;
+  if (isJunkPath(name)) return;
+  items.set(name, f);
 }
 
 async function walkEntry(entry, prefix = '') {
@@ -375,17 +380,18 @@ function showLibraryPage(page, title = '') {
   for (const id of ['brandsPage', 'campaignsPage', 'brandEditor', 'pipelinePage']) {
     $('#' + id).hidden = id !== page;
   }
+  if (page !== 'campaignsPage') $('#campaignCards').replaceChildren();
   $('#libraryNav').hidden = page === 'brandsPage';
   const parent = page === 'pipelinePage' || (page === 'brandEditor' && editingBrand);
   $('#brandBack').hidden = !parent;
-  $('#brandBack').textContent = selectedBrand()?.name || 'Без бренда';
+  $('#brandBack').textContent = selectedBrand()?.name || 'Unassigned';
   $('#currentCrumb').textContent = title;
   $('#brandMessage').textContent = '';
 }
 
 function renderBrandCards() {
-  const cards = brandLibrary.map(b => libraryCard(b.name, 'Файлов: ' + b.files.length, () => openBrand(b.id), true));
-  $('#brandCards').replaceChildren(...(cards.length ? cards : [el('p', 'library-empty', 'Добавьте первый бренд, чтобы создать кампанию с его материалами.')]));
+  const cards = brandLibrary.map(b => libraryCard(b.name, 'Files: ' + b.files.length, () => openBrand(b.id), true));
+  $('#brandCards').replaceChildren(...(cards.length ? cards : [el('p', 'library-empty', 'Add your first brand to start a campaign with its materials.')]));
 }
 
 function openBrands() {
@@ -406,18 +412,18 @@ async function openBrand(id) {
   editingSetup = false;
   closeBrandEditor();
   const brand = selectedBrand();
-  const title = brand?.name || 'Без бренда';
+  const title = brand?.name || 'Unassigned';
   showLibraryPage('campaignsPage', title);
   $('#brandHeading').textContent = title;
   $('#editBrand').hidden = $('#addCampaign').hidden = !brand;
-  $('#campaignCards').replaceChildren(el('p', 'library-empty', 'Загрузка кампаний…'));
+  $('#campaignCards').replaceChildren(el('p', 'library-empty', 'Loading campaigns…'));
   window.scrollTo(0, 0);
   try {
-    const list = await listBrandCampaigns(activeBrandId);
+    const list = await listBrandCampaigns(activeBrandId, true);
     if (request !== brandNavigation) return;
-    const cards = list.map(c => libraryCard(c.name,
-      [KIND_NAMES[c.kind], c.updatedAt && when(c.updatedAt)].filter(Boolean).join(' · '), () => openCampaign(c.id)));
-    $('#campaignCards').replaceChildren(...(cards.length ? cards : [el('p', 'library-empty', 'Здесь пока нет кампаний.')]));
+    const cards = list.map(c => campaignCard(c,
+      [KIND_NAMES[c.kind], c.updatedAt && when(c.updatedAt)].filter(Boolean).join(' · '), state.config, () => openCampaign(c.id)));
+    $('#campaignCards').replaceChildren(...(cards.length ? cards : [el('p', 'library-empty', 'No campaigns yet.')]));
   } catch (err) {
     if (request === brandNavigation) $('#campaignCards').replaceChildren(el('p', 'library-empty', err.message));
   }
@@ -447,7 +453,7 @@ function beginCampaign() {
   $('#newCampaignName').value = '';
   openThread(null);
   renderWorkspace();
-  showEmptyStage('Настройте кампанию и утвердите сценарий');
+  showEmptyStage('Set up the campaign and approve its script.');
   refreshUI();
 }
 
@@ -462,12 +468,12 @@ function editBrand(brand, source = null) {
   importingCampaign = source;
   $('#drop').hidden = Boolean(source);
   $('#importBrandNote').hidden = !source;
-  $('#importBrandNote').textContent = source ? `В бренд войдут материалы кампании «${source.name}».` : '';
+  $('#importBrandNote').textContent = source ? `This brand will use the materials from “${source.name}”.` : '';
   editingBrand = brand;
   items.clear();
   for (const file of brand?.files || []) items.set(file.name, file);
   $('#brandName').value = brand?.name || source?.name || '';
-  const title = brand ? 'Редактирование бренда' : 'Новый бренд';
+  const title = brand ? 'Edit brand' : 'New brand';
   $('#editorHeading').textContent = title;
   showLibraryPage('brandEditor', title);
   $('#brandMessage').textContent = '';
@@ -502,7 +508,7 @@ $('#brandEditor').onsubmit = async e => {
     closeBrandEditor();
     busy = false;
     await openBrand(brand.id);
-    if (!$('#campaignsPage').hidden && activeBrandId === brand.id) $('#brandMessage').textContent = 'Бренд сохранён.';
+    if (!$('#campaignsPage').hidden && activeBrandId === brand.id) $('#brandMessage').textContent = 'Brand saved.';
   } catch (err) { $('#brandMessage').textContent = err.message; }
   finally { busy = false; refreshUI(); }
 };
@@ -554,7 +560,7 @@ function renderLangChips() {
 
       const star = el('button', 'lang-star', '★');
       star.type = 'button';
-      star.title = idx === 0 ? 'Основной язык' : 'Сделать основным языком';
+      star.title = idx === 0 ? 'Primary language' : 'Set as primary language';
       star.setAttribute('aria-pressed', String(idx === 0));
       star.onclick = () => {
         if (busy || idx === 0) return;
@@ -565,13 +571,13 @@ function renderLangChips() {
 
       const label = el('span', 'lang-label', `${code.toUpperCase()} · ${info.name}`);
       if (idx === 0) {
-        const badge = el('small', 'primary-tag', 'основной');
+        const badge = el('small', 'primary-tag', 'primary');
         label.append(' ', badge);
       }
 
       const rm = el('button', 'lang-remove', '×');
       rm.type = 'button';
-      rm.setAttribute('aria-label', 'Убрать ' + info.name);
+      rm.setAttribute('aria-label', 'Remove ' + info.name);
       rm.onclick = () => {
         if (busy) return;
         setupDraft.languages = setupDraft.languages.filter(c => c !== code);
@@ -651,7 +657,7 @@ function renderLengthsPicker() {
   const box = $('#lengthPresets');
   box.replaceChildren(
     ...allNums.map(n => {
-      const btn = el('button', '', `${n} с`);
+      const btn = el('button', '', `${n} s`);
       btn.type = 'button';
       const on = setupDraft.lengths.includes(n);
       btn.setAttribute('aria-pressed', String(on));
@@ -683,7 +689,7 @@ $('#customLengthAdd').onclick = () => {
   const minLen = setupDraft.kind === 'multi' ? 4 : 2;
   const val = Math.round(Number($('#customLengthInput').value));
   if (!Number.isFinite(val) || val < minLen || val > 60) {
-    $('#setupReason').textContent = `Введите длину от ${minLen} до 60 секунд.`;
+    $('#setupReason').textContent = `Enter a length between ${minLen} and 60 seconds.`;
     return;
   }
   if (!setupDraft.lengths.includes(val)) {
@@ -705,7 +711,7 @@ function renderFormatPicker() {
       const idx = setupDraft.formats.indexOf(f.id);
       const on = idx >= 0;
       b.append((idx === 0 ? '★ ' : '') + f.label);
-      small.textContent = idx === 0 ? f.name + ' · основной' : f.name;
+      small.textContent = idx === 0 ? f.name + ' · primary' : f.name;
       b.append(small);
       b.setAttribute('aria-pressed', String(on));
       b.onclick = () => {
@@ -739,7 +745,7 @@ function updateEffort(mField = modelField, eField = effortField, providerMode = 
 function updateModelSummaryText() {
   const selected = mode.value;
   if (selected === 'demo') {
-    $('#modelSummaryText').textContent = 'Тестовый шаблон · без токенов';
+    $('#modelSummaryText').textContent = 'Demo template · no tokens';
   } else {
     const pName = providerName[selected] || selected;
     $('#modelSummaryText').textContent = [pName, modelField.value, effortField.value].filter(Boolean).join(' · ');
@@ -820,23 +826,23 @@ function validateSetupForm() {
   let reason = '';
 
   if (!['poster', 'single', 'multi'].includes(setupDraft.kind)) {
-    reason = 'Выберите тип креатива.';
+    reason = 'Choose a creative type.';
   } else if (!setupDraft.languages.length) {
-    reason = 'Выберите хотя бы один язык кампании.';
+    reason = 'Select at least one campaign language.';
   } else if (setupDraft.kind !== 'poster') {
     const minLen = setupDraft.kind === 'multi' ? 4 : 2;
     if (!setupDraft.lengths.length) {
-      reason = 'Выберите хотя бы одну длину ролика.';
+      reason = 'Select at least one video length.';
     } else if (setupDraft.lengths.some(l => l < minLen || l > 60)) {
-      reason = `Длина ролика должна быть от ${minLen} до 60 секунд.`;
+      reason = `Video length must be between ${minLen} and 60 seconds.`;
     }
   }
-  if (!reason && !state.campaign && !selectedBrand()) reason = 'Выберите бренд или создайте новый.';
+  if (!reason && !state.campaign && !selectedBrand()) reason = 'Choose a brand or create one.';
   if (!reason && !setupDraft.formats.length) {
-    reason = 'Выберите хотя бы один формат.';
+    reason = 'Select at least one format.';
   }
   const providerWarning = !reason && !isProviderReady()
-    ? ($('#hint').textContent || 'Выбранный провайдер не настроен.')
+    ? ($('#hint').textContent || 'The selected provider is not configured.')
     : '';
 
   reasonEl.textContent = reason || providerWarning;
@@ -891,24 +897,24 @@ function renderStep1Panel() {
   if (s.stale) {
     banner.hidden = false;
     banner.className = 'step-banner warn';
-    bannerText.textContent = 'Настройки кампании изменились. Сценарий устарел — перегенерируйте или обновите его.';
+    bannerText.textContent = 'Campaign settings have changed. Update or regenerate the script.';
     unlockBtn.hidden = false;
-    unlockBtn.textContent = 'Пересобрать';
+    unlockBtn.textContent = 'Rebuild';
     unlockBtn.onclick = () => $('#generateScenarioBtn').click();
   } else if (s.needs?.length) {
     banner.hidden = false;
     banner.className = 'step-banner warn';
     const needParts = [];
-    if (s.needs.includes('translation')) needParts.push('перевод на новые языки');
-    if (s.needs.includes('cuts')) needParts.push('расчёт нарезки по длинам');
-    bannerText.textContent = 'Настройки изменились: требуется ' + needParts.join(' и ') + '.';
+    if (s.needs.includes('translation')) needParts.push('translation into new languages');
+    if (s.needs.includes('cuts')) needParts.push('updated cuts for each duration');
+    bannerText.textContent = 'Settings changed. Required: ' + needParts.join(' and ') + '.';
     unlockBtn.hidden = true;
   } else if (s.approvedAt) {
     banner.hidden = false;
     banner.className = 'step-banner ok';
-    bannerText.textContent = '✓ Сценарий утверждён. Вы можете править его здесь или ответвить новый пайплайн.';
+    bannerText.textContent = '✓ Script approved. Edit it here or start a new branch.';
     unlockBtn.hidden = false;
-    unlockBtn.textContent = '⎘ В новую ветку';
+    unlockBtn.textContent = '⎘ Create branch';
     unlockBtn.onclick = () => handleForkCampaign({targetStep: 1});
   } else {
     banner.hidden = true;
@@ -936,12 +942,12 @@ async function handleSwitchVariant(variantId, {targetStep = null} = {}) {
 }
 
 function variantStatusText(v) {
-  if (v.finalPath && !v.finalStale) return {text: '✓ Финал', cls: 'st-ok'};
-  if (v.previewStale || v.finalStale) return {text: '⚠ Устарело', cls: 'st-warn'};
-  if (v.previewApproved) return {text: '✓ Утверждено', cls: 'st-ok'};
-  if (v.previewPath) return {text: 'Превью', cls: 'st-active'};
-  if (v.styles?.chosenIndex !== null && v.styles?.chosenIndex !== undefined) return {text: 'Эскиз выбран', cls: 'st-active'};
-  return {text: 'Черновик', cls: 'st-muted'};
+  if (v.finalPath && !v.finalStale) return {text: '✓ Final', cls: 'st-ok'};
+  if (v.previewStale || v.finalStale) return {text: '⚠ Out of date', cls: 'st-warn'};
+  if (v.previewApproved) return {text: '✓ Approved', cls: 'st-ok'};
+  if (v.previewPath) return {text: 'Preview', cls: 'st-active'};
+  if (v.styles?.chosenIndex !== null && v.styles?.chosenIndex !== undefined) return {text: 'Sketch selected', cls: 'st-active'};
+  return {text: 'Draft', cls: 'st-muted'};
 }
 
 function renderVariantsStrip() {
@@ -979,13 +985,13 @@ function renderVariantsStrip() {
       const nameInput = document.createElement('input');
       nameInput.type = 'text';
       nameInput.className = 'variant-label-input';
-      nameInput.value = v.label || 'Стиль';
-      nameInput.setAttribute('aria-label', 'Название стиля');
+      nameInput.value = v.label || 'Style';
+      nameInput.setAttribute('aria-label', 'Style name');
       nameInput.disabled = busy;
       nameInput.onchange = async () => {
         const nextLabel = nameInput.value.trim();
         if (!nextLabel || nextLabel === v.label) {
-          nameInput.value = v.label || 'Стиль';
+          nameInput.value = v.label || 'Style';
           return;
         }
         try {
@@ -995,7 +1001,7 @@ function renderVariantsStrip() {
           syncRightPaneToCampaign({keepTime: true});
           refreshHistory();
         } catch (err) {
-          nameInput.value = v.label || 'Стиль';
+          nameInput.value = v.label || 'Style';
           status.textContent = err.message;
         }
       };
@@ -1056,7 +1062,7 @@ function renderStyleCards(styles = [], chosenIndex = null, cardsLocked = false) 
       if (keyframe.hidden) previousCaption = $('#caption').textContent;
       keyframe.src = img.src;
       keyframe.hidden = false;
-      $('#caption').textContent = 'Эскиз · ' + option.name;
+      $('#caption').textContent = 'Sketch · ' + option.name;
       try {
         pickingOtherDirection = false;
         const updated = await chooseStyle(state.campaign.id, {index: idx, direction: defaultDir});
@@ -1092,14 +1098,14 @@ function renderStep2Panel() {
   if (s.preview?.stale) {
     banner.hidden = false;
     banner.className = 'step-banner warn';
-    bannerText.textContent = 'Сценарий изменился после сборки превью. Превью устарело — пересоберите его, чтобы двигаться дальше.';
+    bannerText.textContent = 'The script has changed since this preview was built. Rebuild the preview to continue.';
     unlockBtn.hidden = true;
     rebuildBtn.hidden = false;
     rebuildBtn.onclick = () => handleBuildPreview();
   } else if (s.preview?.approvedAt && prevEntry) {
     banner.hidden = false;
     banner.className = 'step-banner ok';
-    bannerText.textContent = '✓ Превью утверждено. Вы можете переключиться на другой стиль или добавить новый.';
+    bannerText.textContent = '✓ Preview approved. Switch to another style or add a new one.';
     unlockBtn.hidden = true;
     rebuildBtn.hidden = false;
     rebuildBtn.onclick = () => handleBuildPreview();
@@ -1121,7 +1127,7 @@ function renderStep2Panel() {
     }
     $('#styleDirection').disabled = busy || reviewMode;
     $('#buildPreviewBtn').disabled = busy || reviewMode;
-    $('#buildPreviewBtn').textContent = prevEntry ? 'Пересобрать превью' : 'Собрать превью';
+    $('#buildPreviewBtn').textContent = prevEntry ? 'Rebuild preview' : 'Build preview';
   } else {
     dirBox.hidden = true;
   }
@@ -1131,7 +1137,7 @@ function renderStep2Panel() {
     approveBox.hidden = false;
     const isApproved = Boolean(s.preview?.approvedAt && !s.preview?.stale);
     $('#approvePreviewBtn').disabled = busy || Boolean(s.preview?.stale);
-    $('#approvePreviewBtn').textContent = isApproved ? '✓ Превью утверждено — к финалу →' : 'Утвердить превью →';
+    $('#approvePreviewBtn').textContent = isApproved ? '✓ Preview approved · Continue to final →' : 'Approve preview →';
   } else {
     approveBox.hidden = true;
   }
@@ -1144,8 +1150,8 @@ function renderStep3Panel() {
   const s = c.steps || {};
   const isPoster = setup.kind === 'poster';
 
-  $('#step3Heading').textContent = isPoster ? 'Шаг 3 · Финал (Постер)' : 'Шаг 3 · Видео';
-  $('#buildFinalBtn').textContent = isPoster ? 'Собрать финал' : 'Собрать видео';
+  $('#step3Heading').textContent = isPoster ? 'Step 3 · Final poster' : 'Step 3 · Video';
+  $('#buildFinalBtn').textContent = isPoster ? 'Build final' : 'Build video';
 
   const banner = $('#step3Banner');
   banner.hidden = !s.final?.stale;
@@ -1157,10 +1163,10 @@ function renderStep3Panel() {
   const summaryEl = $('#finalSummary');
   if (isPoster) {
     const total = fCount * lCount;
-    summaryEl.textContent = `Будет собрано: ${fCount} формат(а) × ${lCount} язык(а) = ${total} вариант(ов)`;
+    summaryEl.textContent = `Build: ${fCount} formats × ${lCount} languages = ${total} variants`;
   } else {
     const total = fCount * lCount * dCount;
-    summaryEl.textContent = `Будет собрано: ${fCount} формат(а) × ${lCount} язык(а) × ${dCount} длин(ы) = ${total} вариант(ов)`;
+    summaryEl.textContent = `Build: ${fCount} formats × ${lCount} languages × ${dCount} lengths = ${total} variants`;
   }
 
   $('#finalVideoLabel').hidden = isPoster;
@@ -1207,7 +1213,7 @@ function syncRightPaneToCampaign({keepTime = false} = {}) {
       scenes: scenesList,
       keepTime,
     });
-    $('#caption').textContent = `Превью · ${entryCaption(previewEntry)}`;
+    $('#caption').textContent = `Preview · ${entryCaption(previewEntry)}`;
     openThread(previewEntry.id);
     return;
   }
@@ -1226,7 +1232,7 @@ function syncRightPaneToCampaign({keepTime = false} = {}) {
       scenes: scenesList,
       keepTime,
     });
-    $('#caption').textContent = `Финал · ${entryCaption(finalEntry)}`;
+    $('#caption').textContent = `Final · ${entryCaption(finalEntry)}`;
     openThread(finalEntry.id);
     return;
   }
@@ -1245,7 +1251,7 @@ function syncRightPaneToCampaign({keepTime = false} = {}) {
       scenes: scenesList,
       keepTime,
     });
-    $('#caption').textContent = `Превью · ${entryCaption(previewEntry)}`;
+    $('#caption').textContent = `Preview · ${entryCaption(previewEntry)}`;
     openThread(previewEntry.id);
     return;
   }
@@ -1255,27 +1261,27 @@ function syncRightPaneToCampaign({keepTime = false} = {}) {
   const chosenStyle = c.entries?.styles?.output?.styles?.[chosenIdx];
   if (chosenStyle?.svg) {
     openThread(null);
-    showEmptyStage('Здесь появится превью после шага «Сценарий»');
+    showEmptyStage('Your preview will appear here after the script step.');
     $('#stageEmpty').hidden = true;
     $('.artboard').hidden = false;
     layoutArtboard();
     keyframe.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(chosenStyle.svg);
     keyframe.hidden = false;
-    $('#caption').textContent = 'Эскиз · ' + chosenStyle.name;
+    $('#caption').textContent = 'Sketch · ' + chosenStyle.name;
     return;
   }
 
   // No preview/final yet
   closeKeyframe();
   openThread(null);
-  showEmptyStage('Здесь появится превью после шага «Сценарий»');
-  $('#caption').textContent = c.name || 'Новая кампания';
+  showEmptyStage('Your preview will appear here after the script step.');
+  $('#caption').textContent = c.name || 'New campaign';
 }
 
 function renderWorkspace() {
   const c = state.campaign;
   if (c) activeBrandId = c.brandId || '';
-  showLibraryPage('pipelinePage', c?.name || 'Новая кампания');
+  showLibraryPage('pipelinePage', c?.name || 'New campaign');
   $('#newCampaignBtn').hidden = !selectedBrand();
   $('#importBrand').hidden = !c || Boolean(c.brandId);
   $('#newCampaignNameGroup').hidden = Boolean(c);
@@ -1332,7 +1338,7 @@ function renderWorkspace() {
     setupCard.hidden = false;
     $('#setupPopoverHead').hidden = !c;
     $('#setupCancelEditBtn').hidden = !c;
-    $('#startCampaignBtn .label').textContent = c ? 'Сохранить настройки' : 'Начать — к сценарию →';
+    $('#startCampaignBtn .label').textContent = c ? 'Save settings' : 'Continue to script →';
     s1.hidden = true;
     s2.hidden = true;
     s3.hidden = true;
@@ -1395,14 +1401,14 @@ function renderStoreStatusPill() {
   if (!st || st.driver === 'file') {
     pill.classList.remove('is-error');
     pill.removeAttribute('title');
-    txt.textContent = 'Локальный стенд';
+    txt.textContent = 'Local storage';
     return;
   }
-  const authorLabel = st.author || 'автор';
-  txt.textContent = `Облако · ${authorLabel}`;
+  const authorLabel = st.author || 'author';
+  txt.textContent = `Cloud · ${authorLabel}`;
   if (!st.ready || st.error) {
     pill.classList.add('is-error');
-    pill.title = st.error || 'Хранилище недоступно';
+    pill.title = st.error || 'Storage unavailable';
   } else {
     pill.classList.remove('is-error');
     pill.removeAttribute('title');
@@ -1423,18 +1429,18 @@ function refreshUI() {
   const ready = isProviderReady();
   const key = codex ? 'CODEX_API_KEY' : 'ANTHROPIC_API_KEY';
   $('#hint').textContent = demo
-    ? 'Проверка всего флоу на демо-шаблонах без расхода токенов.'
+    ? 'Try the full workflow with demo templates. No tokens required.'
     : subscription
       ? ready
-        ? 'Используется квота вашей подписки Claude.'
-        : 'В папке стенда выполните npm run claude:login и обновите страницу.'
+        ? 'This run uses your Claude subscription.'
+        : 'Run npm run claude:login in the project folder, then refresh the page.'
       : chat
         ? ready
-          ? 'Генерация использует лимит Codex вашей подписки ChatGPT.'
-          : 'Войдите через ChatGPT командой codex login.'
+          ? 'This run uses the Codex allowance from your ChatGPT subscription.'
+          : 'Run codex login and sign in with ChatGPT.'
         : ready
-          ? 'Бриф и материалы будут отправлены ' + (codex ? 'OpenAI.' : 'Anthropic.')
-          : 'Добавьте ' + key + ' в .env и перезапустите сервер.';
+          ? 'The brief and materials will be sent to ' + (codex ? 'OpenAI.' : 'Anthropic.')
+          : 'Add ' + key + ' to .env and restart the server.';
 
   const mediaReady = Boolean(cfg?.media?.ready);
   const campMode = state.campaign?.setup?.provider?.mode || mode.value;
@@ -1444,16 +1450,16 @@ function refreshUI() {
     ? ''
     : mediaReady
       ? $('#mediaImages').checked || $('#mediaVideo').checked
-        ? 'Модель сама решит, что сгенерировать, и проверит результат. Лимит на сборку: ' +
+        ? 'The model chooses which assets to generate and checks the results. Build limit: ' +
           cfg.media.limits.images +
-          ' изобр., ' +
+          ' images, ' +
           cfg.media.limits.videos +
-          ' видео. Модели: ' +
+          ' videos. Models: ' +
           cfg.media.imageModel +
           ($('#mediaVideo').checked ? ', ' + cfg.media.videoModel : '') +
           '.'
         : ''
-      : 'Добавьте OPENROUTER_API_KEY в .env и перезапустите сервер.';
+      : 'Add OPENROUTER_API_KEY to .env and restart the server.';
 
   for (const control of document.querySelectorAll('.library-nav button, .library-page button, .library-editor button, .library-editor input, #importBrand')) {
     control.disabled = busy || pending > 0;
@@ -1485,7 +1491,7 @@ $('#brief').onsubmit = async e => {
     if (state.campaign && editingSetup) {
       const effects = describeSetupInvalidation(state.campaign.setup, newSetup, state.campaign);
       if (effects.length > 0) {
-        const ok = confirm('Изменение настроек приведёт к следующему:\n• ' + effects.join('\n• ') + '\n\nПрименить изменения?');
+        const ok = confirm('Changing these settings has the following effects:\n• ' + effects.join('\n• ') + '\n\nApply changes?');
         if (!ok) return;
       }
       const updated = await patchCampaign(state.campaign.id, {setup: newSetup});
@@ -1493,19 +1499,19 @@ $('#brief').onsubmit = async e => {
       setCampaign(updated);
       renderWorkspace();
       syncRightPaneToCampaign();
-      status.textContent = 'Настройки кампании обновлены.';
+      status.textContent = 'Campaign settings updated.';
       return;
     }
 
     const brand = selectedBrand();
-    if (!brand) throw Error('Выберите бренд или сохраните новый бренд с материалами.');
+    if (!brand) throw Error('Select a brand or save a new one with its materials.');
     const created = await createCampaign({brandId:brand.id, brandVersion:brand.version, name:$('#newCampaignName').value.trim(), setup:newSetup});
     editingSetup = false;
     setCampaign(created, {chooseStep: true});
     renderWorkspace();
     syncRightPaneToCampaign();
     refreshHistory();
-    status.textContent = 'Кампания создана. Сгенерируйте сценарий на шаге 1.';
+    status.textContent = 'Campaign created. Generate a script in step 1.';
   } catch (err) {
     status.textContent = err.message;
   } finally {
@@ -1529,7 +1535,7 @@ async function runCampaignTask({stepNum, task, startMsg, triggerBtn, fn}) {
   setStepError(stepNum, null);
   if (triggerBtn) {
     triggerBtn.classList.add('is-loading');
-    triggerBtn.textContent = 'Генерация…';
+    triggerBtn.textContent = 'Generating…';
     triggerBtn.disabled = true;
   }
   refreshUI();
@@ -1552,7 +1558,7 @@ async function runCampaignTask({stepNum, task, startMsg, triggerBtn, fn}) {
     return res;
   } catch (err) {
     await tracker?.stop();
-    const msg = controller.signal.aborted ? 'Генерация остановлена.' : err.message;
+    const msg = controller.signal.aborted ? 'Generation stopped.' : err.message;
     status.textContent = msg;
     if (!controller.signal.aborted) {
       setStepError(stepNum, err.message, () => runCampaignTask({stepNum, task, startMsg, triggerBtn, fn}));
@@ -1586,7 +1592,7 @@ bindScenarioControls({
       setCampaign(res.campaign);
       state.reviewUnlocked[1] = false;
       renderWorkspace();
-      status.textContent = 'Сценарий сохранён.';
+      status.textContent = 'Script saved.';
     } catch (e) {
       setStepError(1, e.message);
     }
@@ -1595,37 +1601,37 @@ bindScenarioControls({
     runCampaignTask({
       stepNum: 1,
       task: 'scenario',
-      startMsg: 'Генерация сценария…',
+      startMsg: 'Generating script…',
       triggerBtn: $('#generateScenarioBtn'),
       fn: ({requestId, signal}) => generateScenario(state.campaign.id, {requestId, notes, signal}),
     }).then(() => {
       state.reviewUnlocked[1] = false;
       renderWorkspace();
-      status.textContent = 'Сценарий готов. Проверьте строки и утвердите.';
+      status.textContent = 'Script ready. Review the copy and approve it.';
     }).catch(() => {});
   },
   onTranslate: () => {
     runCampaignTask({
       stepNum: 1,
       task: 'scenario',
-      startMsg: 'Перевод сценария…',
+      startMsg: 'Translating script…',
       triggerBtn: $('#translateScenarioBtn'),
       fn: ({requestId, signal}) => translateScenario(state.campaign.id, {requestId, signal}),
     }).then(() => {
       renderWorkspace();
-      status.textContent = 'Перевод выполнен.';
+      status.textContent = 'Translation complete.';
     }).catch(() => {});
   },
   onRecalcCuts: () => {
     runCampaignTask({
       stepNum: 1,
       task: 'scenario',
-      startMsg: 'Расчёт нарезки по длинам…',
+      startMsg: 'Recalculating cuts by duration…',
       triggerBtn: $('#recalcCutsBtn'),
       fn: ({requestId, signal}) => recalcCuts(state.campaign.id, {requestId, signal}),
     }).then(() => {
       renderWorkspace();
-      status.textContent = 'Нарезка обновлена.';
+      status.textContent = 'Cuts updated.';
     }).catch(() => {});
   },
   onApprove: async () => {
@@ -1637,7 +1643,7 @@ bindScenarioControls({
       state.activeStep = 2;
       renderWorkspace();
       syncRightPaneToCampaign();
-      status.textContent = 'Сценарий утверждён. Предложите 3 визуальных направления.';
+      status.textContent = 'Script approved. Generate three visual directions.';
     } catch (e) {
       setStepError(1, e.message);
     }
@@ -1651,14 +1657,14 @@ function handleProposeStyles(triggerBtn = $('#proposeStylesBtn')) {
   runCampaignTask({
     stepNum: 2,
     task: 'style',
-    startMsg: 'Подбор 3 визуальных направлений…',
+    startMsg: 'Generating three visual directions…',
     triggerBtn,
     fn: ({requestId, signal}) => proposeStyles(state.campaign.id, {requestId, signal}),
   }).then(() => {
     state.reviewUnlocked[2] = false;
     renderWorkspace();
     syncRightPaneToCampaign();
-    status.textContent = 'Выберите одно из трёх визуальных направлений.';
+    status.textContent = 'Choose one of the three visual directions.';
   }).catch(() => {});
 }
 
@@ -1670,7 +1676,7 @@ $('#pickOtherDirectionBtn').onclick = () => {
   pickingOtherDirection = !pickingOtherDirection;
   renderStep2Panel();
   if (pickingOtherDirection) {
-    status.textContent = 'Выберите одно из трёх направлений ниже — будет создан новый стиль кампании.';
+    status.textContent = 'Choose a direction below to create a new campaign style.';
     choices.scrollIntoView({behavior: 'smooth', block: 'nearest'});
   }
 };
@@ -1678,14 +1684,14 @@ $('#pickOtherDirectionBtn').onclick = () => {
 async function handleForkCampaign({targetStep = 2} = {}) {
   if (busy || !state.campaign) return;
   try {
-    const forked = await forkCampaign(state.campaign.id, {name: `${state.campaign.name} (копия)`});
+    const forked = await forkCampaign(state.campaign.id, {name: `${state.campaign.name} (copy)`});
     editingSetup = false;
     setCampaign(forked);
     state.activeStep = targetStep;
     renderWorkspace();
     syncRightPaneToCampaign();
     refreshHistory();
-    status.textContent = 'Создана копия кампании «' + forked.name + '».';
+    status.textContent = 'Created campaign copy “' + forked.name + '”.';
   } catch (e) {
     status.textContent = e.message;
   }
@@ -1696,14 +1702,14 @@ function handleBuildPreview() {
   runCampaignTask({
     stepNum: 2,
     task: 'preview',
-    startMsg: 'Сборка статичного превью…',
+    startMsg: 'Building a static preview…',
     triggerBtn: $('#buildPreviewBtn'),
     fn: ({requestId, signal}) => buildPreview(state.campaign.id, {requestId, direction, signal}),
   }).then(() => {
     state.reviewUnlocked[2] = false;
     renderWorkspace();
     syncRightPaneToCampaign();
-    status.textContent = 'Превью готово. Проверьте кадры и утвердите.';
+    status.textContent = 'Preview ready. Review the frames and approve them.';
   }).catch(() => {});
 }
 
@@ -1718,7 +1724,7 @@ $('#approvePreviewBtn').onclick = async () => {
     state.activeStep = 3;
     renderWorkspace();
     syncRightPaneToCampaign();
-    status.textContent = 'Превью утверждено. Можно собирать финал.';
+    status.textContent = 'Preview approved. You can now build the final.';
   } catch (e) {
     setStepError(2, e.message);
   }
@@ -1755,13 +1761,13 @@ async function handleBuildFinal() {
   runCampaignTask({
     stepNum: 3,
     task: 'final',
-    startMsg: c.setup.kind === 'poster' ? 'Сборка финального постера…' : 'Сборка финального видео…',
+    startMsg: c.setup.kind === 'poster' ? 'Building final poster…' : 'Building final video…',
     triggerBtn: $('#buildFinalBtn'),
     fn: ({requestId, signal}) => buildFinal(state.campaign.id, {requestId, media, signal}),
   }).then(() => {
     renderWorkspace();
     syncRightPaneToCampaign();
-    status.textContent = 'Финал готов.';
+    status.textContent = 'Final build ready.';
   }).catch(() => {});
 }
 
@@ -1785,7 +1791,7 @@ function triggerCopyDrawer() {
       setCampaign(res.campaign);
       renderWorkspace();
       syncRightPaneToCampaign();
-      status.textContent = 'Тексты обновлены без вызова модели.';
+      status.textContent = 'Copy updated without a model call.';
     },
   });
 }
@@ -1809,19 +1815,19 @@ const assetSrc = (entry, name) =>
 function chatTarget() {
   const last = threadList.dataset.last;
   $('#chatTarget').textContent =
-    currentEntry && last && currentEntry.id !== last ? 'Правка ответвится от версии ' + when(currentEntry.createdAt) : '';
+    currentEntry && last && currentEntry.id !== last ? 'This revision will branch from version ' + when(currentEntry.createdAt) : '';
   for (const b of threadList.querySelectorAll('[data-version]')) {
     const on = b.dataset.version === currentEntry?.id;
     b.setAttribute('aria-pressed', String(on));
-    b.textContent = on ? '✓ В превью' : 'Открыть';
+    b.textContent = on ? '✓ In preview' : 'Open';
   }
 }
 
 function versionButton(e) {
-  const b = el('button', 'version', 'Открыть');
+  const b = el('button', 'version', 'Open');
   b.type = 'button';
   b.dataset.version = e.id;
-  b.title = 'Показать эту версию в предпросмотре';
+  b.title = 'Show this version in the preview';
   b.onclick = () => {
     if (busy) return;
     openVersion(e);
@@ -1846,7 +1852,7 @@ function openVersion(e) {
     scenes: scenesList,
   });
   $('#caption').textContent =
-    entryCaption(e) + ' · ' + when(e.createdAt) + (e.cost?.total ? ' · ≈ ' + moneyPrecise(e.cost.total) + ' по API' : '');
+    entryCaption(e) + ' · ' + when(e.createdAt) + (e.cost?.total ? ' · ≈ ' + moneyPrecise(e.cost.total) + ' at API rates' : '');
   currentEntry = e;
   chatTarget();
 }
@@ -1864,10 +1870,10 @@ function renderThread(thread) {
         el(
           'div',
           'meta',
-          'Исходная версия · ' +
+          'Original version · ' +
             when(e.createdAt) +
             (e.cost?.total ? ' · ≈ ' + moneyPrecise(e.cost.total) : '') +
-            (e.imported ? ' · импорт' : '')
+            (e.imported ? ' · imported' : '')
         )
       );
       if (e.input?.scenario) li.append(el('p', '', clip(e.input.scenario, 220)));
@@ -1897,7 +1903,7 @@ function renderThread(thread) {
       el(
         'p',
         '',
-        e.status === 'ok' ? e.output?.reply || 'Готово.' : e.status === 'cancelled' ? 'Остановлено.' : 'Ошибка: ' + (e.error || 'неизвестно')
+        e.status === 'ok' ? e.output?.reply || 'Done.' : e.status === 'cancelled' ? 'Stopped.' : 'Error: ' + (e.error || 'unknown')
       )
     );
     bot.append(
@@ -1907,7 +1913,7 @@ function renderThread(thread) {
         [
           entryCaption(e),
           when(e.createdAt),
-          e.durationMs && Math.round(e.durationMs / 1000) + ' с',
+          e.durationMs && Math.round(e.durationMs / 1000) + ' s',
           (e.cost?.total || e.cost?.unknown) && '≈ ' + moneyPrecise(e.cost.total) + (e.cost.unknown ? ' +?' : ''),
         ]
           .filter(Boolean)
@@ -1918,7 +1924,7 @@ function renderThread(thread) {
     threadList.append(bot);
   }
   threadList.dataset.last = thread.at(-1)?.id || '';
-  $('#chatCost').textContent = total || unknown ? 'всего по API ≈ ' + moneyPrecise(total) + (unknown ? ' +?' : '') : '';
+  $('#chatCost').textContent = total || unknown ? 'estimated API total ≈ ' + moneyPrecise(total) + (unknown ? ' +?' : '') : '';
   threadList.scrollTop = threadList.scrollHeight;
 }
 
@@ -1960,7 +1966,7 @@ function renderChatFiles() {
       chip.append(el('span', '', f.name));
       const x = el('button', '', '×');
       x.type = 'button';
-      x.setAttribute('aria-label', 'Убрать ' + f.name);
+      x.setAttribute('aria-label', 'Remove ' + f.name);
       x.onclick = () => {
         chatAttachments.splice(i, 1);
         renderChatFiles();
@@ -2021,7 +2027,7 @@ async function sendRevision() {
   const message = chatInput.value.trim();
   const files = [...chatAttachments];
   if (!message && !files.length) {
-    status.textContent = 'Напишите, что исправить, или приложите файл.';
+    status.textContent = 'Describe a change or attach a file.';
     return;
   }
 
@@ -2031,7 +2037,7 @@ async function sendRevision() {
     : currentProviderObject();
 
   if (!isCampaignEntry && prov.mode === 'demo') {
-    status.textContent = 'Для правок старой сборки выберите Claude или Codex в настройках модели.';
+    status.textContent = 'To revise a legacy build, select Claude or Codex in the model settings.';
     return;
   }
 
@@ -2044,13 +2050,13 @@ async function sendRevision() {
   resetLog();
   hideLive();
   draftBadge.hidden = true;
-  localLog('Правка · ' + (providerName[prov.mode] || prov.mode) + ' · к версии от ' + when(base.createdAt), 'step', message);
+  localLog('Revision · ' + (providerName[prov.mode] || prov.mode) + ' · based on version from ' + when(base.createdAt), 'step', message);
 
   const user = bubble('user');
   if (message) user.append(el('p', '', message));
-  if (files.length) user.append(el('div', 'meta', 'вложения: ' + files.map(f => f.name).join(', ')));
+  if (files.length) user.append(el('div', 'meta', 'attachments: ' + files.map(f => f.name).join(', ')));
   const bot = bubble('bot pending');
-  bot.append(el('p', '', 'Вношу правки…'));
+  bot.append(el('p', '', 'Applying changes…'));
   threadList.append(user, bot);
   threadList.scrollTop = threadList.scrollHeight;
 
@@ -2058,7 +2064,7 @@ async function sendRevision() {
     const names = [];
     for (const [i, f] of files.entries()) {
       const name = 'revisions/' + requestId.slice(0, 8) + '/' + (i + 1) + '-' + safeName(f.name);
-      localLog('↑ ' + name + ' · ' + (f.size / 1024).toFixed(0) + ' КБ');
+      localLog('↑ ' + name + ' · ' + (f.size / 1024).toFixed(0) + ' KB');
       await api('/api/projects/' + base.project + '/file?name=' + encodeURIComponent(name), {
         method: 'PUT',
         headers: {'Content-Type': 'application/octet-stream'},
@@ -2071,7 +2077,7 @@ async function sendRevision() {
     const stop = $('#chatStop');
     cancel.hidden = stop.hidden = false;
     cancel.onclick = stop.onclick = () => controller.abort();
-    tracker = startTracking(requestId, base.type === 'preview' ? 'preview' : 'creative', 'Вношу правки…', text => {
+    tracker = startTracking(requestId, base.type === 'preview' ? 'preview' : 'creative', 'Applying changes…', text => {
       bot.firstChild.textContent = text;
     });
     const media = {
@@ -2113,14 +2119,14 @@ async function sendRevision() {
       });
       await openThread(result.historyId);
     }
-    const costNote = result.cost?.total ? ' · ≈ ' + moneyPrecise(result.cost.total) + ' по API' : '';
-    status.textContent = 'Правка готова.' + costNote;
+    const costNote = result.cost?.total ? ' · ≈ ' + moneyPrecise(result.cost.total) + ' at API rates' : '';
+    status.textContent = 'Revision ready.' + costNote;
   } catch (err) {
     await tracker?.stop();
-    status.textContent = controller.signal.aborted ? 'Правка остановлена.' : err.message;
+    status.textContent = controller.signal.aborted ? 'Revision stopped.' : err.message;
     bot.classList.remove('pending');
     bot.classList.add('failed');
-    bot.firstChild.textContent = controller.signal.aborted ? 'Остановлено.' : 'Ошибка: ' + err.message;
+    bot.firstChild.textContent = controller.signal.aborted ? 'Stopped.' : 'Error: ' + err.message;
   } finally {
     controller.abort();
     $('#cancelRender').hidden = true;
@@ -2143,22 +2149,22 @@ let historyType = '';
 let historyAuthorMode = 'all'; // 'all' | 'mine' | 'colleagues'
 let historyNext = null;
 
-const typeName = {creative: 'Креатив', style: 'Стили', scenario: 'Сценарий', preview: 'Превью'};
-const when = iso => new Date(iso).toLocaleString('ru-RU', {day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'});
+const typeName = {creative: 'Creative', style: 'Styles', scenario: 'Script', preview: 'Preview'};
+const when = iso => new Date(iso).toLocaleString('en-US', {day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'});
 const authorWhen = (author, iso) => (author ? `${author} · ${when(iso)}` : when(iso));
 const clip = (t, n = 180) => {
   t = String(t || '').replace(/\s+/g, ' ').trim();
   return t.length > n ? t.slice(0, n - 1) + '…' : t;
 };
 const entryCaption = e =>
-  e?.caption || (e?.mode ? [providerName[e.mode] || e.mode, e.model, e.effort].filter(Boolean).join(' · ') : 'Сборка');
+  e?.caption || (e?.mode ? [providerName[e.mode] || e.mode, e.model, e.effort].filter(Boolean).join(' · ') : 'Build');
 
 function actionBtn(label, fn) {
   const b = el('button', '', label);
   b.type = 'button';
   b.onclick = async () => {
     if (busy) {
-      status.textContent = 'Дождитесь окончания сборки.';
+      status.textContent = 'Wait for the build to finish.';
       return;
     }
     try {
@@ -2173,11 +2179,11 @@ function actionBtn(label, fn) {
 async function showSavedLog(entry) {
   const full = (Array.isArray(entry.log) && (entry.log.length > 0 || !entry.logSize)) ? entry : await (await api('/api/history/' + entry.id)).json();
   resetLog();
-  localLog('Журнал из истории · ' + (typeName[full.type] || full.type) + ' · ' + when(full.createdAt), 'step');
+  localLog('Saved run log · ' + (typeName[full.type] || full.type) + ' · ' + when(full.createdAt), 'step');
   for (const e of full.log || []) {
     addLog({...e, media: e.media ? {...e.media, url: state.config.previewURL + '/p/' + full.project + '/assets/' + e.media.file} : undefined});
   }
-  if ($('#pipelinePage').hidden) showLibraryPage('pipelinePage', 'Журнал сборки');
+  if ($('#pipelinePage').hidden) showLibraryPage('pipelinePage', 'Build log');
   journal.hidden = false;
   journal.scrollIntoView({behavior: 'smooth', block: 'nearest'});
 }
@@ -2185,27 +2191,27 @@ async function showSavedLog(entry) {
 function stepDotSymbol(c, stepNum) {
   const s = c.steps || {};
   if (stepNum === 1) {
-    if (s.scenario?.stale || s.scenario?.needs?.length) return {sym: '⚠', cls: 'dot-warn', title: 'Сценарий: требует внимания'};
-    if (s.scenario?.approvedAt) return {sym: '✓', cls: 'dot-ok', title: 'Сценарий: утверждён'};
-    if (s.scenario?.entryId) return {sym: '●', cls: 'dot-active', title: 'Сценарий: в работе'};
-    return {sym: '○', cls: 'dot-empty', title: 'Сценарий: пусто'};
+    if (s.scenario?.stale || s.scenario?.needs?.length) return {sym: '⚠', cls: 'dot-warn', title: 'Script: needs attention'};
+    if (s.scenario?.approvedAt) return {sym: '✓', cls: 'dot-ok', title: 'Script: approved'};
+    if (s.scenario?.entryId) return {sym: '●', cls: 'dot-active', title: 'Script: in progress'};
+    return {sym: '○', cls: 'dot-empty', title: 'Script: not started'};
   }
   if (stepNum === 2) {
-    if (s.preview?.stale) return {sym: '⚠', cls: 'dot-warn', title: 'Превью: устарело'};
-    if (s.preview?.approvedAt) return {sym: '✓', cls: 'dot-ok', title: 'Превью: утверждено'};
-    if (s.preview?.entryId || s.styles?.entryId) return {sym: '●', cls: 'dot-active', title: 'Превью: в работе'};
-    return {sym: '○', cls: 'dot-empty', title: 'Превью: пусто'};
+    if (s.preview?.stale) return {sym: '⚠', cls: 'dot-warn', title: 'Preview: out of date'};
+    if (s.preview?.approvedAt) return {sym: '✓', cls: 'dot-ok', title: 'Preview: approved'};
+    if (s.preview?.entryId || s.styles?.entryId) return {sym: '●', cls: 'dot-active', title: 'Preview: in progress'};
+    return {sym: '○', cls: 'dot-empty', title: 'Preview: not started'};
   }
-  if (s.final?.stale) return {sym: '⚠', cls: 'dot-warn', title: 'Финал: устарел'};
-  if (s.final?.entryId) return {sym: '✓', cls: 'dot-ok', title: 'Финал: готов'};
-  return {sym: '○', cls: 'dot-empty', title: 'Финал: пусто'};
+  if (s.final?.stale) return {sym: '⚠', cls: 'dot-warn', title: 'Final: out of date'};
+  if (s.final?.entryId) return {sym: '✓', cls: 'dot-ok', title: 'Final: ready'};
+  return {sym: '○', cls: 'dot-empty', title: 'Final: not started'};
 }
 
 function campaignHistoryItem(c) {
   const isCurrent = state.campaign?.id === c.id;
   const li = el('li', 'h-item h-campaign' + (isCurrent ? ' is-active-camp' : ''));
   const head = el('div', 'h-head');
-  const badge = el('span', 'h-type', KIND_NAMES[c.setup?.kind] || c.setup?.kind || 'Кампания');
+  const badge = el('span', 'h-type', KIND_NAMES[c.setup?.kind] || c.setup?.kind || 'Campaign');
   const timeEl = el('time', '', authorWhen(c.author, c.updatedAt || c.createdAt));
   const dots = el('span', 'h-step-dots');
   for (const n of [1, 2, 3]) {
@@ -2217,14 +2223,14 @@ function campaignHistoryItem(c) {
   head.append(badge, timeEl, dots);
   li.append(head);
 
-  const title = el('strong', 'h-camp-title', (isCurrent ? '● ' : '') + (c.name || 'Новая кампания'));
+  const title = el('strong', 'h-camp-title', (isCurrent ? '● ' : '') + (c.name || 'New campaign'));
   li.append(title);
 
   const metaParts = [];
   const brand = brandLibrary.find(b => b.id === c.brandId);
   if (brand) metaParts.push(brand.name);
   if (c.setup?.languages?.length) metaParts.push(c.setup.languages.map(l => l.toUpperCase()).join(', '));
-  if (c.setup?.kind !== 'poster' && c.setup?.lengths?.length) metaParts.push(c.setup.lengths.join(' / ') + ' с');
+  if (c.setup?.kind !== 'poster' && c.setup?.lengths?.length) metaParts.push(c.setup.lengths.join(' / ') + ' s');
   if (c.setup?.formats?.length) metaParts.push(c.setup.formats.map(id => state.formatInfo[id]?.label || id).join(' '));
   if (c.cost?.total || c.cost?.unknown) metaParts.push('≈ ' + money(c.cost.total) + (c.cost.unknown ? ' +?' : ''));
   li.append(el('div', 'h-meta', metaParts.join(' · ')));
@@ -2246,7 +2252,7 @@ function campaignHistoryItem(c) {
         img.alt = '';
         chip.append(img);
       }
-      chip.append(el('span', '', v.label || 'Стиль'));
+      chip.append(el('span', '', v.label || 'Style'));
       if (v.stale || v.approved) {
         chip.append(el('small', v.stale ? 'mark-warn' : 'mark-ok', v.stale ? '⚠' : '✓'));
       }
@@ -2258,7 +2264,7 @@ function campaignHistoryItem(c) {
           setCampaign(full, {chooseStep: true});
           renderWorkspace();
           syncRightPaneToCampaign();
-          status.textContent = `Открыта кампания «${full.name}» · ${v.label}.`;
+          status.textContent = `Opened “${full.name}” · ${v.label}.`;
           if (innerWidth < 900) closeHistory();
         } catch (err) {
           status.textContent = err.message;
@@ -2286,24 +2292,24 @@ function campaignHistoryItem(c) {
     state.activeStep = stepNum;
     renderWorkspace();
     syncRightPaneToCampaign();
-    status.textContent = `Открыт пайплайн «${full.name}» · Шаг ${stepNum}.`;
+    status.textContent = `Opened “${full.name}” · Step ${stepNum}.`;
     if (innerWidth < 900) closeHistory();
   };
 
   // Step 1 row
   const s1Row = el('div', 'h-pipe-step');
-  const s1Btn = actionBtn('① Сценарий', () => openAtStep(1));
+  const s1Btn = actionBtn('① Script', () => openAtStep(1));
   s1Btn.className = 'h-pipe-btn';
-  const s1Text = el('span', 'h-pipe-desc', pipe.scenario ? clip(pipe.scenario.idea || pipe.scenario.theme || 'Готов', 90) : 'Не создан');
+  const s1Text = el('span', 'h-pipe-desc', pipe.scenario ? clip(pipe.scenario.idea || pipe.scenario.theme || 'Ready', 90) : 'Not created');
   s1Row.append(s1Btn, s1Text);
   pipeBox.append(s1Row);
 
   // Step 2 row + 3 style sketches
   const s2Row = el('div', 'h-pipe-step');
-  const s2Btn = actionBtn('② Превью', () => openAtStep(2));
+  const s2Btn = actionBtn('② Preview', () => openAtStep(2));
   s2Btn.className = 'h-pipe-btn';
   const chosenName = pipe.styles?.styles?.[pipe.styles.chosenIndex]?.name;
-  const s2Text = el('span', 'h-pipe-desc', chosenName ? `Стиль: ${chosenName}` : pipe.styles ? '3 направления' : 'Нет превью');
+  const s2Text = el('span', 'h-pipe-desc', chosenName ? `Style: ${chosenName}` : pipe.styles ? '3 directions' : 'No preview');
   s2Row.append(s2Btn, s2Text);
   pipeBox.append(s2Row);
 
@@ -2313,7 +2319,7 @@ function campaignHistoryItem(c) {
       const img = new Image();
       img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s.svg);
       img.alt = s.name;
-      img.title = `${s.name} — кликните, чтобы открыть это направление на Шаге 2`;
+      img.title = `${s.name} — open this direction in step 2`;
       if (idx === pipe.styles.chosenIndex) img.className = 'is-chosen';
       img.style.cursor = 'pointer';
       img.onclick = () => openAtStep(2, idx);
@@ -2324,10 +2330,10 @@ function campaignHistoryItem(c) {
 
   // Step 3 row
   const s3Row = el('div', 'h-pipe-step');
-  const s3Btn = actionBtn('③ Финал', () => openAtStep(3));
+  const s3Btn = actionBtn('③ Final', () => openAtStep(3));
   s3Btn.className = 'h-pipe-btn';
   s3Btn.disabled = !pipe.final && !c.steps?.preview?.approvedAt;
-  const s3Text = el('span', 'h-pipe-desc', pipe.final ? 'Собран во всех форматах' : 'Ещё не собран');
+  const s3Text = el('span', 'h-pipe-desc', pipe.final ? 'Built in all formats' : 'Not built yet');
   s3Row.append(s3Btn, s3Text);
   pipeBox.append(s3Row);
 
@@ -2335,18 +2341,18 @@ function campaignHistoryItem(c) {
 
   const actions = el('div', 'h-actions');
   actions.append(
-    actionBtn(isCurrent ? '✓ Открыта' : 'Открыть', async () => {
+    actionBtn(isCurrent ? '✓ Open' : 'Open', async () => {
       const full = await fetchCampaign(c.id);
       editingSetup = false;
       setCampaign(full, {chooseStep: true});
       renderWorkspace();
       syncRightPaneToCampaign();
-      status.textContent = 'Открыта кампания «' + full.name + '».';
+      status.textContent = 'Opened campaign “' + full.name + '”.';
       if (innerWidth < 900) closeHistory();
     })
   );
   actions.append(
-    actionBtn('＋ Новая ветка', async () => {
+    actionBtn('＋ New branch', async () => {
       const forked = await forkCampaign(c.id);
       editingSetup = false;
       setCampaign(forked);
@@ -2354,13 +2360,13 @@ function campaignHistoryItem(c) {
       renderWorkspace();
       syncRightPaneToCampaign();
       loadHistory(true).catch(() => {});
-      status.textContent = 'Создана новая ветка пайплайна «' + forked.name + '».';
+      status.textContent = 'Created campaign branch “' + forked.name + '”.';
       if (innerWidth < 900) closeHistory();
     })
   );
   const logEntryId = pipe.final?.id || pipe.preview?.id || pipe.styles?.id || pipe.scenario?.id;
   if (logEntryId) {
-    actions.append(actionBtn('Журнал', () => showSavedLog({id: logEntryId})));
+    actions.append(actionBtn('Run log', () => showSavedLog({id: logEntryId})));
   }
   li.append(actions);
   return li;
@@ -2369,20 +2375,20 @@ function campaignHistoryItem(c) {
 function legacyHistoryItem(e) {
   const li = el('li', 'h-item h-' + e.type + (e.status !== 'ok' ? ' h-failed' : ''));
   const head = el('div', 'h-head');
-  head.append(el('span', 'h-type', e.input?.revision ? 'Правка' : typeName[e.type] || e.type), el('time', '', authorWhen(e.author, e.createdAt)));
-  if (e.status !== 'ok') head.append(el('span', 'h-status', e.status === 'cancelled' ? 'остановлено' : 'ошибка'));
+  head.append(el('span', 'h-type', e.input?.revision ? 'Revision' : typeName[e.type] || e.type), el('time', '', authorWhen(e.author, e.createdAt)));
+  if (e.status !== 'ok') head.append(el('span', 'h-status', e.status === 'cancelled' ? 'stopped' : 'error'));
   li.append(head);
 
   const meta = [entryCaption(e)];
   if (e.type === 'creative' && e.output?.formats) meta.push(e.output.formats.map(id => state.formatInfo[id]?.label || id).join(' '));
-  if (e.durationMs) meta.push(Math.round(e.durationMs / 1000) + ' с');
-  if (e.media?.length) meta.push('медиа: ' + e.media.length);
+  if (e.durationMs) meta.push(Math.round(e.durationMs / 1000) + ' s');
+  if (e.media?.length) meta.push('media: ' + e.media.length);
   if (e.cost?.total || e.cost?.unknown) meta.push('≈ ' + moneyPrecise(e.cost.total) + (e.cost.unknown ? ' +?' : ''));
   li.append(el('div', 'h-meta', meta.join(' · ')));
 
   if (e.error) li.append(el('p', 'h-error', clip(e.error, 200)));
   const body = e.input?.revision
-    ? '«' + (e.input.revision.message || 'вложения') + '»' + (e.output?.reply ? ' → ' + e.output.reply : '')
+    ? '“' + (e.input.revision.message || 'attachments') + '”' + (e.output?.reply ? ' → ' + e.output.reply : '')
     : e.type === 'scenario'
       ? e.output?.text
       : e.type === 'style'
@@ -2415,8 +2421,8 @@ function legacyHistoryItem(e) {
   const actions = el('div', 'h-actions');
   if (e.type === 'creative' && e.output?.path) {
     actions.append(
-      actionBtn('Открыть', () => {
-        showLibraryPage('pipelinePage', 'Сборка из истории');
+      actionBtn('Open', () => {
+        showLibraryPage('pipelinePage', 'Saved build');
         closeKeyframe();
         showStage({
           url: state.config.previewURL + e.output.path,
@@ -2426,12 +2432,12 @@ function legacyHistoryItem(e) {
         });
         $('#caption').textContent = entryCaption(e) + ' · ' + when(e.createdAt);
         openThread(e.id);
-        status.textContent = 'Открыта старая сборка из истории.';
+        status.textContent = 'Opened a build from history.';
         if (innerWidth < 900) closeHistory();
       })
     );
   }
-  if (e.logSize) actions.append(actionBtn('Журнал', () => showSavedLog(e)));
+  if (e.logSize) actions.append(actionBtn('Run log', () => showSavedLog(e)));
   li.append(actions);
   return li;
 }
@@ -2451,7 +2457,7 @@ async function loadHistory(reset = true) {
     });
     if (reset) historyList.replaceChildren();
     for (const c of campItems) historyList.append(campaignHistoryItem(c));
-    if (reset && !campItems.length) historyList.append(el('li', 'h-empty', 'Кампаний пока нет.'));
+    if (reset && !campItems.length) historyList.append(el('li', 'h-empty', 'No campaigns yet.'));
     historyNext = next;
     historyMore.hidden = !next;
     $('#historyCount').textContent = total ? String(total) : '';
@@ -2467,7 +2473,7 @@ async function loadHistory(reset = true) {
   const {items: legItems, next} = await (await api('/api/history?' + q)).json();
   if (reset) historyList.replaceChildren();
   for (const e of legItems) historyList.append(legacyHistoryItem(e));
-  if (reset && !legItems.length) historyList.append(el('li', 'h-empty', 'Старых сборок нет.'));
+  if (reset && !legItems.length) historyList.append(el('li', 'h-empty', 'No legacy builds.'));
   historyNext = next;
   historyMore.hidden = !next;
 }
@@ -2537,13 +2543,13 @@ for (const b of document.querySelectorAll('#historyAuthorFilter button')) {
 
 // ---- Active runs popover & live multi-user polling (§5) ----
 const STEP_LABELS = {
-  scenario: 'Сценарий',
-  style: 'Стили',
-  styles: 'Стили',
-  preview: 'Превью',
-  final: 'Финал',
-  creative: 'Правка',
-  revise: 'Правка',
+  scenario: 'Script',
+  style: 'Styles',
+  styles: 'Styles',
+  preview: 'Preview',
+  final: 'Final',
+  creative: 'Revision',
+  revise: 'Revision',
 };
 
 let readonlyRunTracker = null;
@@ -2564,10 +2570,10 @@ async function attachReadonlyRun(run) {
     } catch {}
   }
   resetLog();
-  const stepLabel = STEP_LABELS[run.step] || run.step || 'Шаг';
-  const authorLabel = run.author || 'коллега';
-  localLog(`Наблюдение за сборкой (${authorLabel} · ${stepLabel})`, 'step');
-  if ($('#pipelinePage').hidden) showLibraryPage('pipelinePage', 'Журнал сборки');
+  const stepLabel = STEP_LABELS[run.step] || run.step || 'Step';
+  const authorLabel = run.author || 'teammate';
+  localLog(`Watching build (${authorLabel} · ${stepLabel})`, 'step');
+  if ($('#pipelinePage').hidden) showLibraryPage('pipelinePage', 'Build log');
   journal.hidden = false;
   journal.scrollIntoView({behavior: 'smooth', block: 'nearest'});
 
@@ -2622,7 +2628,7 @@ async function pollActiveRuns() {
       return;
     }
     wrap.hidden = false;
-    label.textContent = `Идёт: ${runs.length}`;
+    label.textContent = `Running: ${runs.length}`;
     list.replaceChildren(
       ...runs.map(r => {
         const li = el('li', 'active-run-item');
@@ -2631,10 +2637,10 @@ async function pollActiveRuns() {
         btn.className = 'active-run-btn';
         const elapsedSec = Math.max(0, Math.round((r.elapsed || (Date.now() - (r.startedAt || Date.now()))) / 1000));
         const parts = [
-          r.author || 'автор',
-          r.campaignName || (r.campaignId ? r.campaignId.slice(0, 8) : 'Кампания'),
-          STEP_LABELS[r.step] || r.step || 'шаг',
-          `${elapsedSec} с`,
+          r.author || 'author',
+          r.campaignName || (r.campaignId ? r.campaignId.slice(0, 8) : 'Campaign'),
+          STEP_LABELS[r.step] || r.step || 'step',
+          `${elapsedSec} s`,
         ];
         btn.textContent = parts.join(' · ');
         btn.onclick = () => {
@@ -2675,7 +2681,7 @@ setInterval(async () => {
       setCampaign(latest);
       renderWorkspace();
       syncRightPaneToCampaign({keepTime: true});
-      showToast(`Обновлено: ${latest.author || 'коллега'} изменил кампанию`);
+      showToast(`Updated: ${latest.author || 'teammate'} updated the campaign`);
     }
   } catch {}
 }, 10_000);

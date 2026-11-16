@@ -169,22 +169,22 @@ describe('creative.mjs: copy patch extraction, validation and merge', () => {
     // Invalid line key
     assert.throws(
       () => validateCopyPatch({unknownKey: {en: 'Hi'}}, sampleScenario, ['en', 'sr-Latn']),
-      /Неизвестный ключ строки/
+      /Unknown line key/
     );
     // Invalid language
     assert.throws(
       () => validateCopyPatch({o1: {fr: 'Gratuit'}}, sampleScenario, ['en', 'sr-Latn']),
-      /не входит в языки кампании/
+      /is not selected for this campaign/
     );
     // Empty string
     assert.throws(
       () => validateCopyPatch({o1: {en: '   '}}, sampleScenario, ['en', 'sr-Latn']),
-      /не может быть пустым/
+      /cannot be empty/
     );
     // String over 200 chars
     assert.throws(
       () => validateCopyPatch({o1: {en: 'x'.repeat(201)}}, sampleScenario, ['en', 'sr-Latn']),
-      /превышает 200 символов/
+      /exceeds 200 characters/
     );
   });
 });

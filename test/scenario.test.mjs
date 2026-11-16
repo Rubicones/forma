@@ -52,7 +52,7 @@ const defaultSetup = () => ({
 describe('shared/languages.mjs', () => {
   it('lists languages and detects RTL and CJK', () => {
     assert.ok(LANGUAGES.length >= 19);
-    assert.equal(language('ru').name, 'Русский');
+    assert.equal(language('ru').name, 'Russian');
     assert.equal(language('unknown-code').code, 'unknown-code');
     assert.equal(isRTL('ar'), true);
     assert.equal(isRTL('he'), true);
@@ -100,9 +100,9 @@ describe('scenario.mjs: parseScenario', () => {
     assert.equal(parsed.version, 2);
   });
 
-  it('throws Russian error on invalid JSON or schema mismatch', () => {
-    assert.throws(() => parseScenario('not json'), /Не удалось разобрать JSON сценария/);
-    assert.throws(() => parseScenario('{}'), /Некорректный формат сценария/);
+  it('throws an English error on invalid JSON or schema mismatch', () => {
+    assert.throws(() => parseScenario('not json'), /Could not parse the script JSON/);
+    assert.throws(() => parseScenario('{}'), /Invalid script format/);
   });
 });
 

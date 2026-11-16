@@ -25,9 +25,9 @@ const previewURL=process.env.PREVIEW_URL || 'http://127.0.0.1:'+previewPort;
 const app=express(), preview=express();
 const valid=id=>/^[0-9a-f-]{36}$/.test(id);
 const issue=(msg,status=400)=>Object.assign(Error(msg),{status});
-const folder=id=>{if(!valid(id))throw issue('Некорректный проект'); return path.join(data,id)};
+const folder=id=>{if(!valid(id))throw issue('Invalid project'); return path.join(data,id)};
 function assetName(name){
- if(typeof name!=='string'||name.split('/').some(s=>!s||s==='.'||s==='..'||/[\\\x00-\x1f]/.test(s))) throw issue('Некорректное имя файла');
+ if(typeof name!=='string'||name.split('/').some(s=>!s||s==='.'||s==='..'||/[\\\x00-\x1f]/.test(s))) throw issue('Invalid filename');
  return name;
 }
 const ready=()=>Boolean(process.env.ANTHROPIC_API_KEY);
@@ -59,27 +59,27 @@ app.put('/api/projects/:id/file',express.raw({type:'application/octet-stream',li
  res.sendStatus(201);
 });
 async function checkProvider(mode,billing){
- if(mode==='codex' && !['chatgpt','api'].includes(billing))throw issue('Неизвестный способ входа.');
- if(mode==='codex' && billing==='chatgpt' && !await localChatLogin())throw issue('Для локального стенда выполните codex login через ChatGPT.',503);
- if(mode==='codex'&&billing==='api'&&!codexKey())throw issue('Добавьте CODEX_API_KEY в .env и перезапустите сервер.',503);
- if(mode==='claude' && !['api','subscription'].includes(billing))throw issue('Неизвестный источник лимита Claude.');
- if(mode==='claude' && billing==='subscription' && !await localClaudeLogin())throw issue('Войдите через подписку Claude из папки стенда командой npm run claude:login.',503);
- if(mode==='claude'&&billing==='api'&&!ready())throw issue('Для генерации Claude добавьте ANTHROPIC_API_KEY в .env и перезапустите сервер.',503);
+ if(mode==='codex' && !['chatgpt','api'].includes(billing))throw issue('Unknown sign-in method.');
+ if(mode==='codex' && billing==='chatgpt' && !await localChatLogin())throw issue('Run codex login and sign in with ChatGPT for local use.',503);
+ if(mode==='codex'&&billing==='api'&&!codexKey())throw issue('Add CODEX_API_KEY to .env and restart the server.',503);
+ if(mode==='claude' && !['api','subscription'].includes(billing))throw issue('Unknown Claude billing method.');
+ if(mode==='claude' && billing==='subscription' && !await localClaudeLogin())throw issue('Run npm run claude:login in the project folder to sign in with your Claude subscription.',503);
+ if(mode==='claude'&&billing==='api'&&!ready())throw issue('To use Claude, add ANTHROPIC_API_KEY to .env and restart the server.',503);
 }
 const listAssets=async assets=>(await fs.readdir(assets,{recursive:true,withFileTypes:true})).filter(e=>e.isFile()).map(e=>path.relative(assets,path.join(e.parentPath,e.name)));
 const generatedMedia=(job,project)=>job.events.filter(e=>e.media&&!e.media.attached).map(e=>({kind:e.media.kind,file:e.media.file,cost:e.media.cost,path:'/p/'+project+'/assets/'+e.media.file}));
-const costLine=c=>c&&c.total?' · по API ≈ $'+c.total.toFixed(3)+(c.unknown?' + неизвестно':''):'';
+const costLine=c=>c&&c.total?' · estimated API cost ≈ $'+c.total.toFixed(3)+(c.unknown?' + unknown':''):'';
 const libs='<script type="importmap">'+JSON.stringify({imports:{three:'/lib/three/build/three.module.js','three/addons/':'/lib/three/examples/jsm/'}})+'</script><script src="/lib/gsap.js"></script><script src="/lib/lottie.js"></script>';
 const assetURL=(id,file)=>previewURL+'/p/'+id+'/assets/'+String(file).split('/').map(encodeURIComponent).join('/');
 const describeFormats=list=>list.map(f=>f.label).join(', ');
 app.post('/api/projects/:id/render',async(req,res)=>{
  const dir=folder(req.params.id), {scenario,style,mode,task='creative'}=req.body;
- if(!['demo','claude','codex'].includes(mode)||typeof scenario!=='string'||typeof style!=='string'||!['creative','scenario','style'].includes(task)||(mode==='demo'&&(task!=='creative'||!scenario.trim()||!style.trim())))throw issue('Добавьте сценарий и визуальный стиль.');
+ if(!['demo','claude','codex'].includes(mode)||typeof scenario!=='string'||typeof style!=='string'||!['creative','scenario','style'].includes(task)||(mode==='demo'&&(task!=='creative'||!scenario.trim()||!style.trim())))throw issue('Add a script and a visual style.');
  const selection=settings(mode,req.body.model,req.body.effort);
  const billing=req.body.billing ?? 'api';
  const formatList=pickFormats(req.body.formats), duration=pickDuration(req.body.duration);
  const media={images:req.body.media?.images===true, video:req.body.media?.video===true};
- if((media.images||media.video) && mode!=='demo' && !mediaKey())throw issue('Для генерации изображений добавьте OPENROUTER_API_KEY в .env и перезапустите сервер.',503);
+ if((media.images||media.video) && mode!=='demo' && !mediaKey())throw issue('To generate images, add OPENROUTER_API_KEY to .env and restart the server.',503);
  await checkProvider(mode,billing);
  await store.sync.down(req.params.id,{dataDir:data});
  const assets=path.join(dir,'assets'); await fs.mkdir(assets,{recursive:true}); const files=await listAssets(assets);
@@ -96,21 +96,21 @@ app.post('/api/projects/:id/render',async(req,res)=>{
    }catch(error){console.error('[history] save failed',error.message)}
  };
  const log=logger(job,{mediaURL:file=>assetURL(req.params.id,file)});
- res.on('close',()=>{if(!res.writableFinished){controller.abort();if(!job.done)log('Клиент отменил сборку',{level:'warn'})}});
- const taskName={creative:'креатив',scenario:'сценарий',style:'три стиля'}[task];
- log('Задача: '+taskName+' · '+({demo:'тестовый шаблон',claude:'Claude',codex:'Codex'})[mode]+(selection.model?' · '+selection.model:'')+(selection.effort?' · effort '+selection.effort:''),{level:'step'});
- log('Материалы: '+files.length+' файл(ов)'+(task==='creative'?' · форматы: '+describeFormats(formatList)+' · '+duration+' с'+(media.images||media.video?' · медиа: '+[media.images&&'изображения',media.video&&'видео'].filter(Boolean).join(' + '):''):''),{detail:files.join('\n')||undefined});
+ res.on('close',()=>{if(!res.writableFinished){controller.abort();if(!job.done)log('Client canceled the build',{level:'warn'})}});
+ const taskName={creative:'creative',scenario:'script',style:'three styles'}[task];
+ log('Task: '+taskName+' · '+({demo:'demo template',claude:'Claude',codex:'Codex'})[mode]+(selection.model?' · '+selection.model:'')+(selection.effort?' · effort '+selection.effort:''),{level:'step'});
+ log('Materials: '+files.length+' files'+(task==='creative'?' · formats: '+describeFormats(formatList)+' · '+duration+' s'+(media.images||media.video?' · media: '+[media.images&&'images',media.video&&'video'].filter(Boolean).join(' + '):''):''),{detail:files.join('\n')||undefined});
  // Live views of what the model is writing.
  let draftAt=0, draftLen=0, draftRev=0, writing=false;
  const onText=text=>{
    job.text=text; job.tail=text.slice(-600);
-   if(task==='style'){ const found=streamedSketches(text); if(found.length>job.sketches.length){ job.sketches=found; log('Эскиз '+found.length+' из 3 готов',{level:'done'}); } }
+   if(task==='style'){ const found=streamedSketches(text); if(found.length>job.sketches.length){ job.sketches=found; log('Sketch '+found.length+' of 3 ready',{level:'done'}); } }
    if(task!=='creative' || writing || Date.now()-draftAt<1800 || text.length-draftLen<400) return;
    const html=draftHTML(text); if(!html) return;
    writing=true; draftAt=Date.now(); draftLen=text.length;
    fs.writeFile(path.join(dir,'draft.html'),inject(html,{formats:formatList,duration})).then(()=>{
      draftRev++; job.draft={url:previewURL+'/p/'+req.params.id+'/draft.html',rev:draftRev};
-     if(draftRev===1) log('Черновик в предпросмотре · обновляется по мере написания',{quiet:true});
+     if(draftRev===1) log('Preview draft · updates as the model writes',{quiet:true});
    }).catch(()=>{}).finally(()=>{writing=false});
  };
  let html;
@@ -119,27 +119,27 @@ app.post('/api/projects/:id/render',async(req,res)=>{
      html=await fs.readFile(path.join(root,'demo.html'),'utf8');
      const image=files.find(n=>/\.(png|jpg|jpeg|webp|gif)$/i.test(n));
      html=html.replace('/*INPUT*/null',()=>JSON.stringify({scenario,style,image:image?'assets/'+image.split('/').map(encodeURIComponent).join('/'):null}).replaceAll('<','\\u003c'));
-     log('Тестовый шаблон заполнен'+(image?' · изображение '+image:''));
+     log('Demo template populated'+(image?' · image '+image:''));
    } else {
      const generator = mode==='codex' ? generateCodex : generate;
      html = await generator({dir:assets,files,scenario,style,billing,task,formats:formatList,duration,media,controller,log,onText,...selection});
      if(task==='creative'){
-       log('Проверка результата · '+(html.length/1024).toFixed(0)+' КБ HTML',{level:'step'});
-       if(!/window\.renderFrame\s*=/.test(html) || !/<\/body\s*>/i.test(html)) throw issue('Модель не вернула покадровую анимацию. Повторите сборку.',502);
+       log('Checking result · '+(html.length/1024).toFixed(0)+' KB of HTML',{level:'step'});
+       if(!/window\.renderFrame\s*=/.test(html) || !/<\/body\s*>/i.test(html)) throw issue('The model did not return frame-by-frame animation. Try building again.',502);
      }
    }
-   if(task==='style'){ const pitch=parseStyleChoices(html); log('Три стиля готовы: '+pitch.styles.map(s=>s.name).join(' · '),{level:'done'}); await keep({output:pitch}); return res.json({...pitch,historyId:requestId}); }
-   if(task!=='creative'){ log('Сценарий готов · '+html.length+' симв.',{level:'done'}); await keep({output:{text:html}}); return res.json({text:html,historyId:requestId}); }
+   if(task==='style'){ const pitch=parseStyleChoices(html); log('Three styles ready: '+pitch.styles.map(s=>s.name).join(' · '),{level:'done'}); await keep({output:pitch}); return res.json({...pitch,historyId:requestId}); }
+   if(task!=='creative'){ log('Script ready · '+html.length+' characters',{level:'done'}); await keep({output:{text:html}}); return res.json({text:html,historyId:requestId}); }
    const revision=randomUUID();
    await fs.writeFile(path.join(dir,revision+'.src.html'),html);
    html=inject(html,{formats:formatList,duration,libs});
    await fs.writeFile(path.join(dir,revision+'.html'),html);
-   log('Креатив сохранён · '+describeFormats(formatList)+' · '+((Date.now()-job.started)/1000).toFixed(0)+' с всего'+costLine(job.costs),{level:'done'});
+   log('Creative saved · '+describeFormats(formatList)+' · '+((Date.now()-job.started)/1000).toFixed(0)+' s total'+costLine(job.costs),{level:'done'});
    const rel='/p/'+req.params.id+'/'+revision+'.html';
    await keep({output:{revision,path:rel,formats:formatList.map(f=>f.id),duration}});
    res.json({url:previewURL+rel,formats:formatList.map(f=>f.id),duration,historyId:requestId});
  } catch(error) {
-   log(controller.signal.aborted?'Сборка остановлена':'Ошибка: '+error.message,{level:controller.signal.aborted?'warn':'error'});
+   log(controller.signal.aborted?'Build stopped':'Error: '+error.message,{level:controller.signal.aborted?'warn':'error'});
    await keep({status:controller.signal.aborted?'cancelled':'error',error:error.message,output:null});
    throw error;
  } finally {
@@ -177,12 +177,12 @@ const {reviseCampaignEntry} = registerCampaignRoutes(app, {
 
 app.get('/api/history',async(req,res)=>{
  const {type,project,before,limit,path:outputPath,campaign,author,excludeAuthor}=req.query;
- if(type && !['creative','style','scenario','preview','campaign'].includes(type)) throw issue('Неизвестный тип записи.');
+ if(type && !['creative','style','scenario','preview','campaign'].includes(type)) throw issue('Unknown entry type.');
  res.set('Cache-Control','no-store').json(await history.list({type,project,before,limit,path:outputPath,campaign,author,excludeAuthor}));
 });
 app.get('/api/history/:id/thread',async(req,res)=>{
  const chain=await history.thread(req.params.id);
- if(!chain.length) throw issue('Запись не найдена.',404);
+ if(!chain.length) throw issue('Entry not found.',404);
  res.set('Cache-Control','no-store').json({thread:chain});
 });
 // Chat edit of an existing creative or preview (fresh build or one opened from history). Produces a new entry chained to its parent.
@@ -191,32 +191,32 @@ app.post('/api/history/:id/revise',async(req,res)=>{
  if(parent && parent.campaign && ['preview','creative'].includes(parent.type) && parent.output?.path) {
    return reviseCampaignEntry(req, res, parent);
  }
- if(!parent || parent.type!=='creative' || !parent.output?.path) throw issue('Правки возможны только для сохранённого креатива.',404);
+ if(!parent || parent.type!=='creative' || !parent.output?.path) throw issue('Only saved creatives can be revised.',404);
  const {mode,message='',requestId:rid}=req.body;
- if(!['claude','codex'].includes(mode)) throw issue('Для правок выберите Claude или Codex.');
+ if(!['claude','codex'].includes(mode)) throw issue('Select Claude or Codex for revisions.');
  const attachments=Array.isArray(req.body.attachments)?req.body.attachments.map(assetName):[];
- if(typeof message!=='string' || (!message.trim() && !attachments.length)) throw issue('Напишите, что исправить, или приложите файл.');
- if(message.length>8000 || attachments.length>12) throw issue('Слишком длинное сообщение или много вложений.');
+ if(typeof message!=='string' || (!message.trim() && !attachments.length)) throw issue('Describe a change or attach a file.');
+ if(message.length>8000 || attachments.length>12) throw issue('The message is too long or has too many attachments.');
  const selection=settings(mode,req.body.model,req.body.effort), billing=req.body.billing ?? 'api';
  await checkProvider(mode,billing);
  const media={images:req.body.media?.images===true, video:req.body.media?.video===true};
- if((media.images||media.video) && !mediaKey()) throw issue('Для генерации изображений добавьте OPENROUTER_API_KEY в .env и перезапустите сервер.',503);
+ if((media.images||media.video) && !mediaKey()) throw issue('To generate images, add OPENROUTER_API_KEY to .env and restart the server.',503);
  const project=parent.project, dir=folder(project), assets=path.join(dir,'assets');
  await fs.mkdir(assets,{recursive:true});
  await store.sync.down(project,{dataDir:data});
  const formatList=pickFormats(parent.output.formats), duration=pickDuration(parent.output.duration||8);
  const files=await listAssets(assets);
- for(const a of attachments) if(!files.includes(a)) throw issue('Вложение не найдено: '+a);
+ for(const a of attachments) if(!files.includes(a)) throw issue('Attachment not found: '+a);
  const revisionFile=path.join(data,parent.output.path.replace(/^\/p\//,''));
  const source=await fs.readFile(revisionFile.replace(/\.html$/,'.src.html'),'utf8').catch(async()=>uninject(await fs.readFile(revisionFile,'utf8')));
  const requestId=typeof rid==='string' && valid(rid) ? rid : randomUUID();
  const job=createJob(requestId,{task:'creative',mode,project});
  const log=logger(job,{mediaURL:file=>assetURL(project,file)});
  const controller=new AbortController();
- res.on('close',()=>{if(!res.writableFinished){controller.abort();if(!job.done)log('Клиент отменил правку',{level:'warn'})}});
+ res.on('close',()=>{if(!res.writableFinished){controller.abort();if(!job.done)log('Client canceled the revision',{level:'warn'})}});
  const chain=(await history.thread(parent.id)).filter(e=>e.input?.revision).map(e=>({message:e.input.revision.message,attachments:e.input.revision.attachments,reply:e.output?.reply}));
- log('Правка · '+({claude:'Claude',codex:'Codex'})[mode]+(selection.model?' · '+selection.model:'')+(selection.effort?' · effort '+selection.effort:'')+' · версия от '+new Date(parent.createdAt).toLocaleString('ru-RU'),{level:'step',detail:message});
- if(attachments.length) log('Вложения: '+attachments.join(', '),{media:attachments.find(a=>/\.(png|jpe?g|webp|gif)$/i.test(a))?{kind:'image',attached:true,file:attachments.find(a=>/\.(png|jpe?g|webp|gif)$/i.test(a))}:undefined});
+ log('Revision · '+({claude:'Claude',codex:'Codex'})[mode]+(selection.model?' · '+selection.model:'')+(selection.effort?' · effort '+selection.effort:'')+' · version from '+new Date(parent.createdAt).toLocaleString('ru-RU'),{level:'step',detail:message});
+ if(attachments.length) log('Attachments: '+attachments.join(', '),{media:attachments.find(a=>/\.(png|jpe?g|webp|gif)$/i.test(a))?{kind:'image',attached:true,file:attachments.find(a=>/\.(png|jpe?g|webp|gif)$/i.test(a))}:undefined});
  const entry={id:requestId,type:'creative',project,mode,model:selection.model||null,effort:selection.effort||null,
    input:{...parent.input,media,files,revision:{parent:parent.id,message,attachments}}};
  const keep=async fields=>{try{await store.sync.up(project,{dataDir:data});await history.record({...entry,...fields,durationMs:Date.now()-job.started,media:generatedMedia(job,project),cost:job.costs,log:job.events})}catch(error){console.error('[history] save failed',error.message)}};
@@ -240,15 +240,15 @@ app.post('/api/history/:id/revise',async(req,res)=>{
      reply=revisionReply(html);
    }
    html=checkHTML(html,({claude:'Claude',codex:'Codex'})[mode],'creative');
-   if(!/window\.renderFrame\s*=/.test(html) || !/<\/body\s*>/i.test(html)) throw issue('После правки пропала покадровая анимация. Повторите запрос.',502);
+   if(!/window\.renderFrame\s*=/.test(html) || !/<\/body\s*>/i.test(html)) throw issue('Frame-by-frame animation is missing after the edit. Try again.',502);
    const revision=randomUUID(), rel='/p/'+project+'/'+revision+'.html';
    await fs.writeFile(path.join(dir,revision+'.src.html'),html);
    await fs.writeFile(path.join(dir,revision+'.html'),inject(html,{formats:formatList,duration,libs}));
-   log('Новая версия сохранена · '+((Date.now()-job.started)/1000).toFixed(0)+' с'+costLine(job.costs),{level:'done'});
-   await keep({output:{revision,path:rel,formats:formatList.map(f=>f.id),duration,reply:reply||'Готово.'}});
-   res.json({url:previewURL+rel,formats:formatList.map(f=>f.id),duration,historyId:requestId,reply:reply||'Готово.',cost:job.costs});
+   log('New version saved · '+((Date.now()-job.started)/1000).toFixed(0)+' s'+costLine(job.costs),{level:'done'});
+   await keep({output:{revision,path:rel,formats:formatList.map(f=>f.id),duration,reply:reply||'Done.'}});
+   res.json({url:previewURL+rel,formats:formatList.map(f=>f.id),duration,historyId:requestId,reply:reply||'Done.',cost:job.costs});
  } catch(error) {
-   log(controller.signal.aborted?'Правка остановлена':'Ошибка: '+error.message,{level:controller.signal.aborted?'warn':'error'});
+   log(controller.signal.aborted?'Revision stopped':'Error: '+error.message,{level:controller.signal.aborted?'warn':'error'});
    await keep({status:controller.signal.aborted?'cancelled':'error',error:error.message,output:null});
    throw error;
  } finally {
@@ -258,7 +258,7 @@ app.post('/api/history/:id/revise',async(req,res)=>{
 });
 app.get('/api/history/:id',async(req,res)=>{
  const entry=await history.get(req.params.id,{withLog:true});
- if(!entry) throw issue('Запись не найдена.',404);
+ if(!entry) throw issue('Entry not found.',404);
  res.json(entry);
 });
 // One-time import of the brief the browser kept in localStorage before history existed.
@@ -275,9 +275,9 @@ app.post('/api/history/import-local',async(req,res)=>{
    return res.json({imported:1,id:found.id});
  }
  if(!input.scenario && !input.style) return res.json({imported:0});
- const entry=await history.record({type:'creative',status:'error',error:'Файл креатива не найден в data/',imported:'browser',project:rel.split('/')[2]||null,
+ const entry=await history.record({type:'creative',status:'error',error:'Creative file not found in data/',imported:'browser',project:rel.split('/')[2]||null,
    caption:text(last.caption)||undefined,input:{...input,formats:last.formats||['1x1'],duration:last.duration||6},output:null,
-   log:[{at:0,level:'info',msg:'Бриф восстановлен из браузера (localStorage)'}]});
+   log:[{at:0,level:'info',msg:'Brief restored from browser storage'}]});
  res.json({imported:1,id:entry.id});
 });
 app.use('/shared',express.static(path.join(root,'shared')));
@@ -290,18 +290,18 @@ for(const [url,file] of [['gsap','gsap/dist/gsap.min.js'],['lottie','lottie-web/
 preview.get('/demo',(req,res)=>res.sendFile(path.join(root,'demo.html')));
 preview.use('/p/history',(req,res)=>res.sendStatus(404)); // logs and prompts stay off the preview origin
 preview.use('/p',createPreviewReadThrough({dataDir:data,blobs:store.blobs}));
-app.use((err,req,res,next)=>{res.status(err.status||500).json({error:err.code==='EEXIST'?'Файл с таким именем уже добавлен.':err.message});});
+app.use((err,req,res,next)=>{res.status(err.status||500).json({error:err.code==='EEXIST'?'A file with this name already exists.':err.message});});
 if (store.driver === 'supabase') await import('@aws-sdk/client-s3').catch(err => {
- throw Error('Для доступа к R2 выполните npm ci в ' + root + ' и перезапустите Forma.', {cause:err});
+ throw Error('To access R2, run npm ci in ' + root + ' and restart Forma.', {cause:err});
 });
 preview.use((err,req,res,next)=>{
  console.error('[preview]',err.message);
  if (res.headersSent) return next(err);
- res.status(502).type('text/plain').send('Не удалось загрузить файл предпросмотра из хранилища.');
+ res.status(502).type('text/plain').send('Could not load the preview file from storage.');
 });
 await fs.mkdir(data,{recursive:true});
 const known=await history.openHistory(data), imported=await history.importExisting(data);
-console.log('История: '+(known+imported)+' записей'+(imported?' (импортировано креативов из data/: '+imported+')':''));
+console.log('History: '+(known+imported)+' entries'+(imported?' (creatives imported from data/: '+imported+')':''));
 function listen(service, listenPort) {
   return new Promise((resolve,reject)=>service.listen(listenPort,host,error=>error?reject(error):resolve()));
 }

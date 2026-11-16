@@ -97,9 +97,9 @@ export function updatePlayer() {
   const dur = view.duration || view.length || 8;
   scrub.max = dur;
   if (!scrubbing) scrub.value = playback.t;
-  timeLabel.textContent = playback.t.toFixed(1) + ' / ' + dur.toFixed(1) + ' с';
+  timeLabel.textContent = playback.t.toFixed(1) + ' / ' + dur.toFixed(1) + ' s';
   playButton.textContent = playback.playing ? '❚❚' : '▶';
-  playButton.setAttribute('aria-label', playback.playing ? 'Пауза' : 'Воспроизвести');
+  playButton.setAttribute('aria-label', playback.playing ? 'Pause' : 'Play');
   playButton.disabled = scrub.disabled = !view.timeline;
 }
 
@@ -134,7 +134,7 @@ export function renderSwitchers() {
           b.type = 'button';
           b.className = 'style-chip';
           b.setAttribute('aria-pressed', String(v.id === activeVid));
-          const tipParts = [v.styleIdea || v.style?.idea || '', v.author ? `Автор: ${v.author}` : ''].filter(Boolean);
+          const tipParts = [v.styleIdea || v.style?.idea || '', v.author ? `Author: ${v.author}` : ''].filter(Boolean);
           b.title = tipParts.length ? tipParts.join(' · ') : (v.label || '');
 
           const svg = v.styleSvg || v.style?.svg;
@@ -147,7 +147,7 @@ export function renderSwitchers() {
           }
 
           const lbl = document.createElement('span');
-          lbl.textContent = v.label || 'Стиль';
+          lbl.textContent = v.label || 'Style';
           b.append(lbl);
 
           const isPreviewStage = view.stage === 'preview' || state.activeStep === 2;
@@ -184,7 +184,7 @@ export function renderSwitchers() {
     lenRow.hidden = true;
     switchers.hidden = !showStyles;
     const f = state.formatInfo[view.format] || {label: view.format};
-    badge.textContent = `Превью · ${f.label} · ${(view.lang || 'en').toUpperCase()}`;
+    badge.textContent = `Preview · ${f.label} · ${(view.lang || 'en').toUpperCase()}`;
     badge.hidden = false;
     return;
   }
@@ -238,7 +238,7 @@ export function renderSwitchers() {
       ...view.lengths.map(len => {
         const b = document.createElement('button');
         b.type = 'button';
-        b.textContent = `${len} с`;
+        b.textContent = `${len} s`;
         b.setAttribute('aria-pressed', String(Number(len) === Number(view.length)));
         b.onclick = () => setLength(Number(len));
         return b;
@@ -310,8 +310,8 @@ export async function renderSingleMotionNote() {
     if (!match) return;
     const data = JSON.parse(match[1]);
     const items = [];
-    if (data.loop) items.push('Петля: ' + data.loop);
-    if (Array.isArray(data.still) && data.still.length) items.push('Статично: ' + data.still.join(', '));
+    if (data.loop) items.push('Loop: ' + data.loop);
+    if (Array.isArray(data.still) && data.still.length) items.push('Static: ' + data.still.join(', '));
     for (const text of items) {
       const li = document.createElement('li');
       li.textContent = text;
@@ -369,7 +369,7 @@ export function setScene(sceneId) {
   }
 }
 
-export function showEmptyStage(message = 'Здесь появится превью после шага «Сценарий»') {
+export function showEmptyStage(message = 'Your preview will appear here after the script step.') {
   view.url = null;
   view.stage = 'empty';
   view.timeline = false;

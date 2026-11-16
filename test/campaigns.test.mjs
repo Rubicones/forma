@@ -81,7 +81,7 @@ describe('campaigns.mjs: setup validation, concurrency, invalidation and cost ro
     // Multi rejects length < 4
     assert.throws(
       () => validateSetup({kind:'multi', languages:['en'], lengths:[3], formats:['1x1']}),
-      err => err.status === 409 && /от 4 до 60/.test(err.message)
+      err => err.status === 409 && /between 4 and 60/.test(err.message)
     );
     // Rejects empty languages
     assert.throws(
@@ -101,7 +101,7 @@ describe('campaigns.mjs: setup validation, concurrency, invalidation and cost ro
     acquireJob(cid, r1);
     assert.throws(
       () => acquireJob(cid, randomUUID()),
-      err => err.status === 409 && /Дождитесь окончания текущего шага/.test(err.message)
+      err => err.status === 409 && /Wait for the current step to finish/.test(err.message)
     );
     releaseJob(cid, r1);
     assert.equal(runningJob.has(cid), false);
@@ -574,7 +574,7 @@ describe('campaigns.mjs: HTTP endpoints, gating and history integration', () => 
     assert.deepEqual(scRes.body.validation.errors, []);
     const scEntry = await history.get(scRes.body.historyId, {withLog: true});
     assert.equal(scEntry.status, 'ok');
-    assert.ok(scEntry.log.some(e => e.msg.includes('Сценарий не прошёл проверку — исправляю (1 попытка)')));
+    assert.ok(scEntry.log.some(e => e.msg.includes('Script validation failed. Trying one repair.')));
 
     // 1b. Scenario auto-repair when 2nd attempt STILL has validation errors -> saves with status:'ok' and returns validation errors
     attempt = 0;

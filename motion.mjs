@@ -16,13 +16,13 @@ export const durations = [6,8,10,12,15];
 export function pickFormats(ids) {
   const list = Array.isArray(ids) && ids.length ? ids : defaultFormats;
   if (list.length > Object.keys(formats).length || !list.every(id => Object.hasOwn(formats, id))) {
-    throw Object.assign(Error('Выберите форматы из списка.'), {status:400});
+    throw Object.assign(Error('Select formats from the list.'), {status:400});
   }
   return [...new Set(list)].map(id => formats[id]);
 }
 export function pickDuration(value) {
   const d = Number(value ?? 8);
-  if (!durations.includes(d)) throw Object.assign(Error('Неизвестная длительность ролика.'), {status:400});
+  if (!durations.includes(d)) throw Object.assign(Error('Unknown video duration.'), {status:400});
   return d;
 }
 

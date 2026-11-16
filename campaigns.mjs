@@ -32,7 +32,7 @@ export const runningJob = new Map();
 
 export function acquireJob(campaignId, requestId) {
   if (runningJob.has(campaignId)) {
-    throw conflict('Дождитесь окончания текущего шага.', 409);
+    throw conflict('Wait for the current step to finish.', 409);
   }
   runningJob.set(campaignId, requestId);
 }
@@ -59,17 +59,17 @@ export function addCost(base = emptyCost(), delta = {}) {
 
 export function validateSetup(raw = {}) {
   if (!raw || typeof raw !== 'object') {
-    throw conflict('Некорректные настройки кампании.');
+    throw conflict('Invalid campaign settings.');
   }
   const kind = raw.kind;
   if (!['poster', 'single', 'multi'].includes(kind)) {
-    throw conflict('Выберите тип креатива: постер, односценовое или многосценовое видео.');
+    throw conflict('Choose a poster, single-scene video or multi-scene video.');
   }
 
   const rawLangs = Array.isArray(raw.languages) ? raw.languages : [];
   const languages = [...new Set(rawLangs.map(l => (typeof l === 'string' ? l.trim() : l?.code)).filter(Boolean))];
   if (!languages.length || !languages.every(code => knownLangCodes.has(code) || /^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(code))) {
-    throw conflict('Выберите хотя бы один язык кампании.');
+    throw conflict('Select at least one campaign language.');
   }
 
   let lengths = [];
@@ -80,8 +80,8 @@ export function validateSetup(raw = {}) {
     if (!lengths.length || !lengths.every(n => Number.isFinite(n) && n >= minLen && n <= 60)) {
       throw conflict(
         kind === 'multi'
-          ? 'Для многосценового видео выберите длины от 4 до 60 секунд.'
-          : 'Для односценового видео выберите длины от 2 до 60 секунд.'
+          ? 'Choose lengths between 4 and 60 seconds for a multi-scene video.'
+          : 'Choose lengths between 2 and 60 seconds for a single-scene video.'
       );
     }
   }
@@ -89,13 +89,13 @@ export function validateSetup(raw = {}) {
   const rawFormats = Array.isArray(raw.formats) ? raw.formats : [];
   const fmtIds = [...new Set(rawFormats.map(f => (typeof f === 'string' ? f : f?.id)).filter(Boolean))];
   if (!fmtIds.length || !fmtIds.every(id => Object.hasOwn(formats, id))) {
-    throw conflict('Выберите хотя бы один формат из списка.');
+    throw conflict('Select at least one format from the list.');
   }
 
   const prov = raw.provider || {};
   const mode = prov.mode || 'demo';
   if (!['demo', 'claude', 'codex'].includes(mode)) {
-    throw conflict('Выберите режим генерации: demo, claude или codex.');
+    throw conflict('Choose a generation mode: demo, claude or codex.');
   }
   const billing = prov.billing || (mode === 'claude' ? 'subscription' : 'api');
   let sel = {model: prov.model || null, effort: prov.effort || null};
@@ -148,7 +148,7 @@ export function stepSelection(setup, step) {
 
 export function createVariantRecord({
   id = randomUUID(),
-  label = 'Стиль 1',
+  label = 'Style 1',
   createdAt = new Date().toISOString(),
   author = currentAuthor(),
   styles = {entryId: null, chosenIndex: null, direction: ''},
@@ -194,7 +194,7 @@ export function upgradeCampaign(doc) {
   if (Array.isArray(clone.variants) && clone.variants.length > 0) {
     clone.variants = clone.variants.map((v, i) => createVariantRecord({
       id: v.id || randomUUID(),
-      label: v.label || `Стиль ${i + 1}`,
+      label: v.label || `Style ${i + 1}`,
       createdAt: v.createdAt || clone.createdAt || new Date().toISOString(),
       author: v.author ?? clone.author ?? null,
       styles: v.styles,
@@ -223,7 +223,7 @@ export function upgradeCampaign(doc) {
   const preview = oldSteps.preview || {entryId: null, approvedAt: null, stale: false};
   const final = oldSteps.final || {entryId: null, stale: false};
 
-  let inferredLabel = 'Стиль 1';
+  let inferredLabel = 'Style 1';
   if (typeof styles.label === 'string' && styles.label.trim()) {
     inferredLabel = styles.label.trim();
   } else if (typeof styles.direction === 'string' && styles.direction.includes('\n\n')) {
@@ -267,7 +267,7 @@ export function createCampaignRecord({project, setup, name = '', author = curren
   const validSetup = validateSetup(setup);
   const now = new Date().toISOString();
   const initialVariant = createVariantRecord({
-    label: 'Стиль 1',
+    label: 'Style 1',
     createdAt: now,
     author,
   });
@@ -278,7 +278,7 @@ export function createCampaignRecord({project, setup, name = '', author = curren
     createdAt: now,
     updatedAt: now,
     author,
-    name: String(name || '').trim() || 'Новая кампания',
+    name: String(name || '').trim() || 'New campaign',
     project,
     setup: validSetup,
     steps: syncActiveVariantSteps(scenarioStep, [initialVariant], initialVariant.id),
@@ -309,7 +309,7 @@ export function applyCampaignPatch(campaign, patch = {}, currentScenario = null)
 
   if (patch.activeVariant !== undefined) {
     const found = variants.find(v => v.id === patch.activeVariant);
-    if (!found) throw conflict('Выбранный вариант стиля не найден.', 404);
+    if (!found) throw conflict('Selected style variant not found.', 404);
     activeVariant = found.id;
   }
 
@@ -451,8 +451,8 @@ export async function hydrateCampaign(rawCampaign) {
     const chosenStyle = (chosenIdx !== null && chosenIdx !== undefined)
       ? stEntry?.output?.styles?.[chosenIdx] || null
       : null;
-    const defaultLabel = `Стиль ${idx + 1}`;
-    const label = (v.label && v.label !== defaultLabel && v.label !== 'Стиль 1')
+    const defaultLabel = `Style ${idx + 1}`;
+    const label = (v.label && v.label !== defaultLabel && v.label !== 'Style 1')
       ? v.label
       : (chosenStyle?.name || v.label || defaultLabel);
 
@@ -738,7 +738,7 @@ export function registerCampaignRoutes(app, {
 
   async function requireCampaign(id) {
     const c = await history.get(id);
-    if (!c || c.type !== 'campaign') throw conflict('Кампания не найдена.', 404);
+    if (!c || c.type !== 'campaign') throw conflict('Campaign not found.', 404);
     return upgradeCampaign(c);
   }
 
@@ -746,11 +746,11 @@ export function registerCampaignRoutes(app, {
     const activeList = await store.runs.active();
     const activeOnCamp = activeList.find(r => r.campaignId === campaignId);
     if (activeOnCamp) {
-      const who = activeOnCamp.author ? ` (запущен ${activeOnCamp.author})` : '';
-      throw conflict(`Дождитесь окончания текущего шага${who}.`, 409);
+      const who = activeOnCamp.author ? ` (started by ${activeOnCamp.author})` : '';
+      throw conflict(`Wait for the current step to finish${who}.`, 409);
     }
     if (runningJob.has(campaignId)) {
-      throw conflict('Дождитесь окончания текущего шага.', 409);
+      throw conflict('Wait for the current step to finish.', 409);
     }
   }
 
@@ -764,7 +764,7 @@ export function registerCampaignRoutes(app, {
     });
     if (runningJob.has(campaign.id) && runningJob.get(campaign.id) !== requestId) {
       await store.runs.finish(requestId, {status: 'error'}).catch(() => {});
-      throw conflict('Дождитесь окончания текущего шага.', 409);
+      throw conflict('Wait for the current step to finish.', 409);
     }
     runningJob.set(campaign.id, requestId);
   }
@@ -785,7 +785,7 @@ export function registerCampaignRoutes(app, {
     const targetId = requestedVariantId || activeVariantId;
     const found = variants.find(v => v.id === targetId);
     if (requestedVariantId && !found) {
-      throw conflict('Выбранный вариант стиля не найден.', 404);
+      throw conflict('Selected style variant not found.', 404);
     }
     return found || variants[0];
   }
@@ -806,7 +806,7 @@ export function registerCampaignRoutes(app, {
   app.post('/api/campaigns', async (req, res) => {
     const {brandId, brandVersion, setup, name} = req.body || {};
     const project = brandId ? randomUUID() : req.body?.project;
-    if (!project || !validId(project)) throw conflict('Укажите корректную папку материалов (project).', 409);
+    if (!project || !validId(project)) throw conflict('Specify a valid project folder.', 409);
     const dir = folder(project);
     await fs.mkdir(path.join(dir, 'assets'), {recursive: true});
     await store.registerProject(project);
@@ -873,7 +873,7 @@ export function registerCampaignRoutes(app, {
     const rec = createCampaignRecord({
       project: src.project,
       setup: src.setup,
-      name: (typeof req.body?.name === 'string' && req.body.name.trim()) ? req.body.name.trim() : `${src.name} (копия)`,
+      name: (typeof req.body?.name === 'string' && req.body.name.trim()) ? req.body.name.trim() : `${src.name} (copy)`,
     });
     if (src.brandId) Object.assign(rec, {brandId:src.brandId, brandVersion:src.brandVersion});
     if (src.steps?.scenario?.entryId) {
@@ -904,7 +904,7 @@ export function registerCampaignRoutes(app, {
     const campaign = await requireCampaign(req.params.id);
     await ensureIdle(campaign.id);
     if (!campaign.steps.scenario.approvedAt || campaign.steps.scenario.stale || campaign.steps.scenario.needs?.length) {
-      throw conflict('Сначала утвердите сценарий.', 409);
+      throw conflict('Approve the script first.', 409);
     }
 
     const variants = structuredClone(campaign.variants);
@@ -917,13 +917,13 @@ export function registerCampaignRoutes(app, {
 
     if (req.body?.index !== undefined && req.body?.index !== null) {
       if (!stylesEntryId) {
-        throw conflict('Сначала запросите 3 визуальных направления.', 409);
+        throw conflict('Generate three visual directions first.', 409);
       }
       const stEntry = await history.get(stylesEntryId);
       const styles = stEntry?.output?.styles;
       const idx = Number(req.body.index);
       if (!Array.isArray(styles) || ![0, 1, 2].includes(idx) || !styles[idx]) {
-        throw conflict('Выберите одно из трёх направлений (0, 1 или 2).', 409);
+        throw conflict('Select one of the three directions (0, 1 or 2).', 409);
       }
       chosenIndex = idx;
       const chosen = styles[idx];
@@ -935,7 +935,7 @@ export function registerCampaignRoutes(app, {
 
     const rawLabel = typeof req.body?.label === 'string' ? req.body.label.trim() : '';
     const newVar = createVariantRecord({
-      label: rawLabel || styleName || `Стиль ${variants.length + 1}`,
+      label: rawLabel || styleName || `Style ${variants.length + 1}`,
       createdAt: new Date().toISOString(),
       author: currentAuthor(),
       styles: {
@@ -956,9 +956,9 @@ export function registerCampaignRoutes(app, {
     const campaign = await requireCampaign(req.params.id);
     const variants = structuredClone(campaign.variants);
     const target = variants.find(v => v.id === req.params.vid);
-    if (!target) throw conflict('Вариант стиля не найден.', 404);
+    if (!target) throw conflict('Style variant not found.', 404);
     const label = typeof req.body?.label === 'string' ? req.body.label.trim() : '';
-    if (!label) throw conflict('Укажите название стиля.', 400);
+    if (!label) throw conflict('Enter a style name.', 400);
     target.label = label;
     const updated = await history.update(campaign.id, {variants});
     res.json(await hydrateCampaign(updated));
@@ -986,7 +986,7 @@ export function registerCampaignRoutes(app, {
     const campaign = await requireCampaign(req.params.id);
     await ensureIdle(campaign.id);
     const rawScenario = req.body?.scenario;
-    if (!rawScenario) throw conflict('Передайте объект сценария.', 400);
+    if (!rawScenario) throw conflict('Provide a script object.', 400);
     let parsed;
     try {
       parsed = typeof rawScenario === 'string' ? parseScenario(rawScenario) : parseScenario(JSON.stringify(rawScenario));
@@ -1010,7 +1010,7 @@ export function registerCampaignRoutes(app, {
       input: {editedFrom: prevScenarioId || null, setup: campaign.setup},
       output: {scenario: parsed, validation},
       cost: emptyCost(),
-      log: [{i: 0, at: 0, level: 'done', msg: 'Сценарий сохранён вручную'}],
+      log: [{i: 0, at: 0, level: 'done', msg: 'Script saved manually'}],
     });
 
     const variants = structuredClone(campaign.variants);
@@ -1029,7 +1029,7 @@ export function registerCampaignRoutes(app, {
     };
     const steps = syncActiveVariantSteps(scenarioStep, variants, campaign.activeVariant);
 
-    const name = campaign.name === 'Новая кампания' && parsed.theme ? parsed.theme : campaign.name;
+    const name = campaign.name === 'New campaign' && parsed.theme ? parsed.theme : campaign.name;
     const updated = await history.update(campaign.id, {name, steps, variants});
     res.json({
       scenario: parsed,
@@ -1053,7 +1053,7 @@ export function registerCampaignRoutes(app, {
     res.on('close', () => {
       if (!res.writableFinished) {
         controller.abort();
-        if (!job.done) log('Клиент отменил генерацию сценария', {level: 'warn'});
+        if (!job.done) log('Client canceled script generation', {level: 'warn'});
       }
     });
 
@@ -1067,7 +1067,7 @@ export function registerCampaignRoutes(app, {
       const currentScenario = prevEntry?.output?.scenario || null;
       const notes = typeof req.body?.notes === 'string' ? req.body.notes.trim() : '';
 
-      log(`Шаг 1 · Сценарий · ${sel.mode}${sel.model ? ' · ' + sel.model : ''}`, {level: 'step'});
+      log(`Step 1 · Script · ${sel.mode}${sel.model ? ' · ' + sel.model : ''}`, {level: 'step'});
       let scenarioObj, validation;
 
       if (sel.mode === 'demo') {
@@ -1076,7 +1076,7 @@ export function registerCampaignRoutes(app, {
         if (notes) scenarioObj.notes = notes;
         job.text = JSON.stringify(scenarioObj, null, 2);
         validation = validateScenario(scenarioObj, campaign.setup);
-        log('Тестовый сценарий сформирован', {level: 'done'});
+        log('Demo script generated', {level: 'done'});
       } else {
         const system = scenarioPrompt(campaign.setup);
         const user = scenarioMessage({files, notes: notes || undefined, current: currentScenario, setup: campaign.setup});
@@ -1096,7 +1096,7 @@ export function registerCampaignRoutes(app, {
         }
 
         if (repairErrors.length > 0) {
-          log('Сценарий не прошёл проверку — исправляю (1 попытка)', {level: 'warn', detail: repairErrors.join('\n')});
+          log('Script validation failed. Trying one repair.', {level: 'warn', detail: repairErrors.join('\n')});
           const repairUser = user + '\n\n' + scenarioRepairMessage(repairErrors);
           rawText = await runModelText({
             mode: sel.mode, billing: sel.billing, model: sel.model, effort: sel.effort,
@@ -1150,7 +1150,7 @@ export function registerCampaignRoutes(app, {
       }
       const scenarioStep = {entryId: entry.id, approvedAt: null, stale: false, needs};
       const steps = syncActiveVariantSteps(scenarioStep, variants, campaign.activeVariant);
-      const name = campaign.name === 'Новая кампания' && scenarioObj.theme ? scenarioObj.theme : campaign.name;
+      const name = campaign.name === 'New campaign' && scenarioObj.theme ? scenarioObj.theme : campaign.name;
       const updated = await history.update(campaign.id, {
         name,
         steps,
@@ -1166,7 +1166,7 @@ export function registerCampaignRoutes(app, {
       });
     } catch (error) {
       runStatus = controller.signal.aborted ? 'cancelled' : 'error';
-      log(controller.signal.aborted ? 'Сборка остановлена' : 'Ошибка: ' + error.message, {
+      log(controller.signal.aborted ? 'Build stopped' : 'Error: ' + error.message, {
         level: controller.signal.aborted ? 'warn' : 'error',
       });
       await history.record({
@@ -1199,11 +1199,11 @@ export function registerCampaignRoutes(app, {
     const campaign = await requireCampaign(req.params.id);
     await ensureIdle(campaign.id);
     if (!campaign.steps.scenario.entryId) {
-      throw conflict('Сначала создайте сценарий.', 409);
+      throw conflict('Create a script first.', 409);
     }
     const scEntry = await history.get(campaign.steps.scenario.entryId);
     const currentScenario = scEntry?.output?.scenario;
-    if (!currentScenario) throw conflict('Сценарий не найден.', 409);
+    if (!currentScenario) throw conflict('Script not found.', 409);
 
     const requestId = validId(req.body?.requestId) ? req.body.requestId : randomUUID();
     await startCampaignRun(campaign, requestId, 'scenario');
@@ -1226,7 +1226,7 @@ export function registerCampaignRoutes(app, {
       const targetLangs = reqLangs.length ? reqLangs : campaign.setup.languages.slice(1);
       const primary = campaign.setup.languages[0];
 
-      log(`Перевод сценария · языки: ${targetLangs.join(', ')}`, {level: 'step'});
+      log(`Translating script · languages: ${targetLangs.join(', ')}`, {level: 'step'});
       const merged = structuredClone(currentScenario);
       merged.languages = [...campaign.setup.languages];
 
@@ -1234,7 +1234,7 @@ export function registerCampaignRoutes(app, {
         await wait(300, controller.signal);
         const adapted = await loadDemoScenario(root, campaign.setup, merged);
         Object.assign(merged, adapted);
-        log('Перевод (демо) готов', {level: 'done'});
+        log('Demo translation ready', {level: 'done'});
       } else {
         const system = translatePrompt({languages: targetLangs, primary});
         const user = translateMessage({scenario: currentScenario, languages: targetLangs});
@@ -1245,7 +1245,7 @@ export function registerCampaignRoutes(app, {
         });
         const clean = rawText.trim().replace(/^`{3}(?:json)?\s*/i, '').replace(/`{3}\s*$/, '').trim();
         let parsed;
-        try { parsed = JSON.parse(clean); } catch (e) { throw Error('Не удалось разобрать JSON перевода: ' + e.message); }
+        try { parsed = JSON.parse(clean); } catch (e) { throw Error('Could not parse translation JSON: ' + e.message); }
         for (const [k, linePatch] of Object.entries(parsed?.lines || {})) {
           if (merged.lines[k] && linePatch?.text && typeof linePatch.text === 'object') {
             merged.lines[k].text = {...merged.lines[k].text, ...linePatch.text};
@@ -1298,7 +1298,7 @@ export function registerCampaignRoutes(app, {
       });
     } catch (error) {
       runStatus = controller.signal.aborted ? 'cancelled' : 'error';
-      log('Ошибка перевода: ' + error.message, {level: 'error'});
+      log('Translation error: ' + error.message, {level: 'error'});
       await history.update(campaign.id, {cost: addCost(campaign.cost, job.costs)}).catch(() => {});
       throw error;
     } finally {
@@ -1311,14 +1311,14 @@ export function registerCampaignRoutes(app, {
     const campaign = await requireCampaign(req.params.id);
     await ensureIdle(campaign.id);
     if (campaign.setup.kind !== 'multi') {
-      throw conflict('Нарезка по длинам доступна только для многосценового видео.', 409);
+      throw conflict('Cuts by duration are available only for multi-scene videos.', 409);
     }
     if (!campaign.steps.scenario.entryId) {
-      throw conflict('Сначала создайте сценарий.', 409);
+      throw conflict('Create a script first.', 409);
     }
     const scEntry = await history.get(campaign.steps.scenario.entryId);
     const currentScenario = scEntry?.output?.scenario;
-    if (!currentScenario) throw conflict('Сценарий не найден.', 409);
+    if (!currentScenario) throw conflict('Script not found.', 409);
 
     const requestId = validId(req.body?.requestId) ? req.body.requestId : randomUUID();
     await startCampaignRun(campaign, requestId, 'scenario');
@@ -1339,7 +1339,7 @@ export function registerCampaignRoutes(app, {
       const missing = missingCuts(currentScenario, campaign.setup.lengths);
       const targetLengths = missing.length ? missing : campaign.setup.lengths;
 
-      log(`Расчёт нарезки · длины: ${targetLengths.join(', ')} с`, {level: 'step'});
+      log(`Calculating cuts · lengths: ${targetLengths.join(', ')} s`, {level: 'step'});
       let nextScenario;
 
       if (sel.mode === 'demo') {
@@ -1347,7 +1347,7 @@ export function registerCampaignRoutes(app, {
         nextScenario = structuredClone(currentScenario);
         const built = buildProportionalCuts(nextScenario, campaign.setup.lengths, campaign.setup.languages);
         nextScenario.cuts = {...(nextScenario.cuts || {}), ...built};
-        log('Нарезка (демо) рассчитана', {level: 'done'});
+        log('Demo cuts calculated', {level: 'done'});
       } else {
         const system = scenarioPrompt(campaign.setup);
         const user = scenarioMessage({
@@ -1371,7 +1371,7 @@ export function registerCampaignRoutes(app, {
           repairErrors = [parseErr.message];
         }
         if (repairErrors.length > 0) {
-          log('Сценарий не прошёл проверку — исправляю (1 попытка)', {level: 'warn', detail: repairErrors.join('\n')});
+          log('Script validation failed. Trying one repair.', {level: 'warn', detail: repairErrors.join('\n')});
           rawText = await runModelText({
             mode: sel.mode, billing: sel.billing, model: sel.model, effort: sel.effort,
             dir: assets, system, user: user + '\n\n' + scenarioRepairMessage(repairErrors),
@@ -1430,7 +1430,7 @@ export function registerCampaignRoutes(app, {
       });
     } catch (error) {
       runStatus = controller.signal.aborted ? 'cancelled' : 'error';
-      log('Ошибка расчёта нарезки: ' + error.message, {level: 'error'});
+      log('Could not calculate cuts: ' + error.message, {level: 'error'});
       await history.update(campaign.id, {cost: addCost(campaign.cost, job.costs)}).catch(() => {});
       throw error;
     } finally {
@@ -1444,7 +1444,7 @@ export function registerCampaignRoutes(app, {
     await ensureIdle(campaign.id);
     const step = req.body?.step;
     if (step !== 'scenario' && step !== 'preview') {
-      throw conflict('Укажите шаг для утверждения: scenario или preview.', 409);
+      throw conflict('Specify a step to approve: scenario or preview.', 409);
     }
 
     const variants = structuredClone(campaign.variants);
@@ -1454,29 +1454,29 @@ export function registerCampaignRoutes(app, {
 
     if (step === 'scenario') {
       if (!scenarioStep.entryId || scenarioStep.stale) {
-        throw conflict('Сначала сгенерируйте актуальный сценарий.', 409);
+        throw conflict('Generate an up-to-date script first.', 409);
       }
       const scEntry = await history.get(scenarioStep.entryId);
       const scenarioObj = scEntry?.output?.scenario;
-      if (!scenarioObj) throw conflict('Сценарий не найден.', 409);
+      if (!scenarioObj) throw conflict('Script not found.', 409);
       const validation = validateScenario(scenarioObj, campaign.setup);
       const needs = computeNeeds(scenarioObj, campaign.setup);
       if (validation.errors.length > 0) {
-        throw conflict('Нельзя утвердить сценарий с ошибками проверки.', 409);
+        throw conflict('Resolve validation errors before approving the script.', 409);
       }
       if (needs.length > 0) {
-        throw conflict('Сначала обновите переводы или нарезку сценария.', 409);
+        throw conflict('Update the script translations or cuts first.', 409);
       }
       scenarioStep.approvedAt = now;
       scenarioStep.stale = false;
       scenarioStep.needs = [];
     } else if (step === 'preview') {
       if (!scenarioStep.approvedAt || scenarioStep.stale || scenarioStep.needs?.length) {
-        throw conflict('Сначала утвердите сценарий.', 409);
+        throw conflict('Approve the script first.', 409);
       }
       const targetVar = findTargetVariant(variants, req.body?.variant, activeVariant);
       if (!targetVar.preview?.entryId || targetVar.preview?.stale) {
-        throw conflict('Сначала соберите актуальное превью.', 409);
+        throw conflict('Build an up-to-date preview first.', 409);
       }
       targetVar.preview.approvedAt = now;
       targetVar.preview.stale = false;
@@ -1493,7 +1493,7 @@ export function registerCampaignRoutes(app, {
     const campaign = await requireCampaign(req.params.id);
     await ensureIdle(campaign.id);
     if (!campaign.steps.scenario.approvedAt || campaign.steps.scenario.stale || campaign.steps.scenario.needs?.length) {
-      throw conflict('Сначала утвердите сценарий.', 409);
+      throw conflict('Approve the script first.', 409);
     }
 
     const targetVarCheck = findTargetVariant(campaign.variants, req.body?.variant, campaign.activeVariant);
@@ -1515,16 +1515,16 @@ export function registerCampaignRoutes(app, {
       const files = await listAssets(assets).catch(() => []);
       const scEntry = await history.get(campaign.steps.scenario.entryId);
       const scenarioObj = scEntry?.output?.scenario;
-      if (!scenarioObj) throw conflict('Сценарий не найден.', 409);
+      if (!scenarioObj) throw conflict('Script not found.', 409);
 
-      log(`Шаг 2 · Три визуальных направления · ${sel.mode}`, {level: 'step'});
+      log(`Step 2 · Three visual directions · ${sel.mode}`, {level: 'step'});
       let pitch;
       if (sel.mode === 'demo') {
         await wait(350, controller.signal);
         const raw = await fs.readFile(path.join(root, 'fixtures', 'styles.json'), 'utf8');
         pitch = parseStyleChoices(raw);
         job.sketches = pitch.styles.map(s => s.svg);
-        log('Три демо-направления готовы: ' + pitch.styles.map(s => s.name).join(' · '), {level: 'done'});
+        log('Three demo directions ready: ' + pitch.styles.map(s => s.name).join(' · '), {level: 'done'});
       } else {
         const system = stylesPrompt({kind: campaign.setup.kind, scenario: scenarioObj, setup: campaign.setup});
         const user = stylesMessage({setup: campaign.setup, scenario: scenarioObj, files});
@@ -1533,7 +1533,7 @@ export function registerCampaignRoutes(app, {
           const found = streamedSketches(text);
           if (found.length > job.sketches.length) {
             job.sketches = found;
-            log('Эскиз ' + found.length + ' из 3 готов', {level: 'done'});
+            log('Sketch ' + found.length + ' of 3 ready', {level: 'done'});
           }
         };
         const rawText = await runModelText({
@@ -1541,7 +1541,7 @@ export function registerCampaignRoutes(app, {
           dir: assets, system, user, task: 'style', controller, log, onText,
         });
         pitch = parseStyleChoices(rawText);
-        log('Три направления готовы: ' + pitch.styles.map(s => s.name).join(' · '), {level: 'done'});
+        log('Three directions ready: ' + pitch.styles.map(s => s.name).join(' · '), {level: 'done'});
       }
 
       await store.sync.up(campaign.project, {dataDir});
@@ -1570,7 +1570,7 @@ export function registerCampaignRoutes(app, {
       // §4.2: /styles always creates a new variant when the target/active variant already has a preview.
       if (targetVar.preview?.entryId) {
         const newVar = createVariantRecord({
-          label: `Стиль ${variants.length + 1}`,
+          label: `Style ${variants.length + 1}`,
           createdAt: new Date().toISOString(),
           author: currentAuthor(),
           styles: {entryId: entry.id, chosenIndex: null, direction: ''},
@@ -1598,7 +1598,7 @@ export function registerCampaignRoutes(app, {
       });
     } catch (error) {
       runStatus = controller.signal.aborted ? 'cancelled' : 'error';
-      log('Ошибка подбора стилей: ' + error.message, {level: 'error'});
+      log('Could not generate styles: ' + error.message, {level: 'error'});
       await history.update(campaign.id, {cost: addCost(campaign.cost, job.costs)}).catch(() => {});
       throw error;
     } finally {
@@ -1614,13 +1614,13 @@ export function registerCampaignRoutes(app, {
     const targetVar = findTargetVariant(variants, req.body?.variant, campaign.activeVariant);
 
     if (!targetVar.styles?.entryId) {
-      throw conflict('Сначала запросите 3 визуальных направления.', 409);
+      throw conflict('Generate three visual directions first.', 409);
     }
     const stEntry = await history.get(targetVar.styles.entryId);
     const styles = stEntry?.output?.styles;
     const index = Number(req.body?.index);
     if (!Array.isArray(styles) || ![0, 1, 2].includes(index) || !styles[index]) {
-      throw conflict('Выберите одно из трёх направлений (0, 1 или 2).', 409);
+      throw conflict('Select one of the three directions (0, 1 or 2).', 409);
     }
     const chosen = styles[index];
     const defaultDirection = [chosen.name, chosen.idea, chosen.direction].filter(Boolean).join('\n\n');
@@ -1636,7 +1636,7 @@ export function registerCampaignRoutes(app, {
     // §4.2: A variant that has a preview is never mutated by a style choice; only new variants are created.
     if (targetVar.preview?.entryId) {
       const newVar = createVariantRecord({
-        label: customLabel || chosen.name || `Стиль ${variants.length + 1}`,
+        label: customLabel || chosen.name || `Style ${variants.length + 1}`,
         createdAt: new Date().toISOString(),
         author: currentAuthor(),
         styles: {
@@ -1649,7 +1649,7 @@ export function registerCampaignRoutes(app, {
       activeVariant = newVar.id;
     } else {
       const prevStyleNames = new Set(styles.map(s => s?.name).filter(Boolean));
-      const hadAutoLabel = !targetVar.label || /^Стиль \d+$/.test(targetVar.label) || prevStyleNames.has(targetVar.label);
+      const hadAutoLabel = !targetVar.label || /^(?:Style|Стиль) \d+$/.test(targetVar.label) || prevStyleNames.has(targetVar.label);
       targetVar.styles.chosenIndex = index;
       targetVar.styles.direction = direction;
       if (customLabel) {
@@ -1669,11 +1669,11 @@ export function registerCampaignRoutes(app, {
     const campaign = await requireCampaign(req.params.id);
     await ensureIdle(campaign.id);
     if (!campaign.steps.scenario.approvedAt || campaign.steps.scenario.stale || campaign.steps.scenario.needs?.length) {
-      throw conflict('Сначала утвердите сценарий.', 409);
+      throw conflict('Approve the script first.', 409);
     }
     const targetVarInit = findTargetVariant(campaign.variants, req.body?.variant, campaign.activeVariant);
     if (!targetVarInit.styles?.entryId || ![0, 1, 2].includes(targetVarInit.styles?.chosenIndex)) {
-      throw conflict('Сначала выберите визуальное направление.', 409);
+      throw conflict('Select a visual direction first.', 409);
     }
 
     const requestId = validId(req.body?.requestId) ? req.body.requestId : randomUUID();
@@ -1708,7 +1708,7 @@ export function registerCampaignRoutes(app, {
 
       const primaryFormatId = campaign.setup.formats[0];
       const primaryLang = campaign.setup.languages[0];
-      log(`Шаг 2 · Сборка превью (${primaryFormatId}, ${primaryLang}) · ${sel.mode}`, {level: 'step'});
+      log(`Step 2 · Building preview (${primaryFormatId}, ${primaryLang}) · ${sel.mode}`, {level: 'step'});
 
       let draftAt = 0, draftLen = 0, draftRev = 0, writing = false;
       const onText = text => {
@@ -1727,7 +1727,7 @@ export function registerCampaignRoutes(app, {
       if (sel.mode === 'demo') {
         await wait(400, controller.signal);
         srcHtml = await fs.readFile(path.join(root, 'fixtures', 'preview.html'), 'utf8');
-        log('Тестовое превью собрано', {level: 'done'});
+        log('Demo preview built', {level: 'done'});
       } else {
         const system = previewPrompt({kind: campaign.setup.kind, scenario: scenarioObj, style: stylePayload, setup: campaign.setup});
         const user = previewMessage({setup: campaign.setup, scenario: scenarioObj, style: stylePayload, files});
@@ -1738,7 +1738,7 @@ export function registerCampaignRoutes(app, {
       }
 
       if (!/<\/body\s*>/i.test(srcHtml)) {
-        throw conflict('Модель вернула неполный HTML превью. Повторите сборку.', 502);
+        throw conflict('The model returned incomplete preview HTML. Try building again.', 502);
       }
 
       const revision = randomUUID();
@@ -1786,7 +1786,7 @@ export function registerCampaignRoutes(app, {
       const variants = structuredClone(campaign.variants);
       const targetVar = findTargetVariant(variants, targetVarInit.id, campaign.activeVariant);
       targetVar.styles.direction = directionText;
-      if (chosenStyle?.name && (!targetVar.label || /^Стиль \d+$/.test(targetVar.label))) {
+      if (chosenStyle?.name && (!targetVar.label || /^(?:Style|Стиль) \d+$/.test(targetVar.label))) {
         targetVar.label = chosenStyle.name;
       }
       targetVar.preview = {entryId: entry.id, approvedAt: null, stale: false};
@@ -1813,7 +1813,7 @@ export function registerCampaignRoutes(app, {
       });
     } catch (error) {
       runStatus = controller.signal.aborted ? 'cancelled' : 'error';
-      log('Ошибка сборки превью: ' + error.message, {level: 'error'});
+      log('Preview build failed: ' + error.message, {level: 'error'});
       await history.update(campaign.id, {cost: addCost(campaign.cost, job.costs)}).catch(() => {});
       throw error;
     } finally {
@@ -1826,11 +1826,11 @@ export function registerCampaignRoutes(app, {
     const campaign = await requireCampaign(req.params.id);
     await ensureIdle(campaign.id);
     if (!campaign.steps.scenario.approvedAt || campaign.steps.scenario.stale || campaign.steps.scenario.needs?.length) {
-      throw conflict('Сначала утвердите сценарий.', 409);
+      throw conflict('Approve the script first.', 409);
     }
     const targetVarInit = findTargetVariant(campaign.variants, req.body?.variant, campaign.activeVariant);
     if (!targetVarInit.preview?.approvedAt || !targetVarInit.preview?.entryId || targetVarInit.preview?.stale) {
-      throw conflict('Сначала утвердите актуальное превью.', 409);
+      throw conflict('Approve an up-to-date preview first.', 409);
     }
 
     const requestId = validId(req.body?.requestId) ? req.body.requestId : randomUUID();
@@ -1852,14 +1852,14 @@ export function registerCampaignRoutes(app, {
     let entryId = null;
     try {
       if ((media.images || media.video) && sel.mode !== 'demo' && !mediaKey()) {
-        throw conflict('Для генерации изображений добавьте OPENROUTER_API_KEY в .env и перезапустите сервер.', 503);
+        throw conflict('To generate images, add OPENROUTER_API_KEY to .env and restart the server.', 503);
       }
       await checkProvider(sel.mode, sel.billing);
       await store.sync.down(campaign.project, {dataDir});
 
       const files = await listAssets(assets).catch(() => []);
       const previewEntry = await history.get(targetVarInit.preview.entryId);
-      if (!previewEntry?.output?.path) throw conflict('Превью не найдено.', 409);
+      if (!previewEntry?.output?.path) throw conflict('Preview not found.', 409);
 
       const scenarioObj = await resolveEntryScenario(previewEntry, campaign);
       const copyPatch = previewEntry.input?.copyPatch || undefined;
@@ -1868,7 +1868,7 @@ export function registerCampaignRoutes(app, {
       const previewSrc = await fs.readFile(previewFile.replace(/\.html$/, '.src.html'), 'utf8')
         .catch(async () => uninject(await fs.readFile(previewFile, 'utf8')));
 
-      log(`Шаг 3 · Сборка финала · ${sel.mode}`, {level: 'step'});
+      log(`Step 3 · Building final · ${sel.mode}`, {level: 'step'});
 
       let draftAt = 0, draftLen = 0, draftRev = 0, writing = false;
       const onText = text => {
@@ -1887,7 +1887,7 @@ export function registerCampaignRoutes(app, {
       if (sel.mode === 'demo') {
         await wait(450, controller.signal);
         srcHtml = await fs.readFile(path.join(root, 'fixtures', 'final.html'), 'utf8');
-        log('Тестовый финал собран', {level: 'done'});
+        log('Demo final built', {level: 'done'});
       } else {
         tempPreviewDir = await fs.mkdtemp(path.join(tmpdir(), 'forma-preview-'));
         const tempPreviewPath = path.join(tempPreviewDir, 'approved-preview.src.html');
@@ -1925,10 +1925,10 @@ export function registerCampaignRoutes(app, {
       }
 
       if (!/<\/body\s*>/i.test(srcHtml)) {
-        throw conflict('Модель вернула неполный HTML финала.', 502);
+        throw conflict('The model returned incomplete final HTML.', 502);
       }
       if (campaign.setup.kind !== 'poster' && !/window\.renderFrame\s*=/.test(srcHtml)) {
-        throw conflict('Модель не определила window.renderFrame для видео. Повторите сборку.', 502);
+        throw conflict('The model did not define window.renderFrame for the video. Try building again.', 502);
       }
 
       const revision = randomUUID();
@@ -2002,7 +2002,7 @@ export function registerCampaignRoutes(app, {
       });
     } catch (error) {
       runStatus = controller.signal.aborted ? 'cancelled' : 'error';
-      log('Ошибка сборки финала: ' + error.message, {level: 'error'});
+      log('Final build failed: ' + error.message, {level: 'error'});
       await history.update(campaign.id, {cost: addCost(campaign.cost, job.costs)}).catch(() => {});
       throw error;
     } finally {
@@ -2015,18 +2015,18 @@ export function registerCampaignRoutes(app, {
   app.post('/api/history/:id/copy', async (req, res) => {
     const parent = await history.get(req.params.id);
     if (!parent || !['preview', 'creative'].includes(parent.type) || !parent.output?.path) {
-      throw conflict('Правка текстов доступна только для превью или финального креатива.', 409);
+      throw conflict('Copy editing is available only for previews and final creatives.', 409);
     }
     const campaign = parent.campaign ? await requireCampaign(parent.campaign) : null;
     if (!campaign) {
-      throw conflict('Запись не привязана к кампании.', 409);
+      throw conflict('This entry is not linked to a campaign.', 409);
     }
     await ensureIdle(campaign.id);
 
     const scEntryId = parent.input?.scenarioId || campaign.steps.scenario.entryId;
     const scEntry = scEntryId ? await history.get(scEntryId) : null;
     const baseScenario = scEntry?.output?.scenario;
-    if (!baseScenario) throw conflict('Сценарий для этой сборки не найден.', 409);
+    if (!baseScenario) throw conflict('Script for this build not found.', 409);
 
     const validatedPatch = validateCopyPatch(req.body?.patch, baseScenario, campaign.setup.languages);
     const combinedPatch = mergeCopyPatches(parent.input?.copyPatch || {}, validatedPatch);
@@ -2066,17 +2066,17 @@ export function registerCampaignRoutes(app, {
         variantId: targetVar.id,
         scenarioId: scEntry.id,
         copyPatch: combinedPatch,
-        revision: {parent: parent.id, message: 'Правка текстов', attachments: []},
+        revision: {parent: parent.id, message: 'Copy edit', attachments: []},
       },
       output: {
         ...parent.output,
         revision,
         path: rel,
         copyVersion: nextCopyVersion,
-        reply: 'Тексты обновлены без вызова модели.',
+        reply: 'Copy updated without a model call.',
       },
       cost: emptyCost(),
-      log: [{i: 0, at: 0, level: 'done', msg: 'Тексты обновлены без вызова модели'}],
+      log: [{i: 0, at: 0, level: 'done', msg: 'Copy updated without a model call'}],
     });
 
     if (stage === 'preview') {
@@ -2106,10 +2106,10 @@ export function registerCampaignRoutes(app, {
     const message = typeof req.body?.message === 'string' ? req.body.message : '';
     const attachments = Array.isArray(req.body?.attachments) ? req.body.attachments.map(assetName) : [];
     if (!message.trim() && !attachments.length) {
-      throw conflict('Напишите, что исправить, или приложите файл.', 400);
+      throw conflict('Describe a change or attach a file.', 400);
     }
     if (message.length > 8000 || attachments.length > 12) {
-      throw conflict('Слишком длинное сообщение или много вложений.', 400);
+      throw conflict('The message is too long or has too many attachments.', 400);
     }
 
     const reqMode = req.body?.mode || campaign.setup.provider?.mode || 'demo';
@@ -2131,7 +2131,7 @@ export function registerCampaignRoutes(app, {
       : {images: false, video: false};
 
     if ((media.images || media.video) && sel.mode !== 'demo' && !mediaKey()) {
-      throw conflict('Для генерации изображений добавьте OPENROUTER_API_KEY в .env и перезапустите сервер.', 503);
+      throw conflict('To generate images, add OPENROUTER_API_KEY to .env and restart the server.', 503);
     }
     await checkProvider(sel.mode, sel.billing);
 
@@ -2144,7 +2144,7 @@ export function registerCampaignRoutes(app, {
     for (const a of attachments) {
       if (!files.includes(a)) {
         await finishCampaignRun(campaign.id, requestId, null, {status: 'error'});
-        throw conflict('Вложение не найдено: ' + a, 400);
+        throw conflict('Attachment not found: ' + a, 400);
       }
     }
 
@@ -2190,7 +2190,7 @@ export function registerCampaignRoutes(app, {
         await wait(350, controller.signal);
         html = source;
         const blockMatch = message.match(/`{3}forma-copy\s*([\s\S]*?)`{3}/i);
-        rawReply = 'Правка применена (демо).' + (blockMatch ? '\n' + blockMatch[0] : '');
+        rawReply = 'Demo revision applied.' + (blockMatch ? '\n' + blockMatch[0] : '');
       } else if (sel.mode === 'claude') {
         const systemPrompt = stageRevisionPrompt({
           stage,
@@ -2264,7 +2264,7 @@ export function registerCampaignRoutes(app, {
 
       html = checkHTML(html, sel.mode === 'codex' ? 'Codex' : 'Claude', stage);
       if (stage === 'final' && campaign.setup.kind !== 'poster' && !/window\.renderFrame\s*=/.test(html)) {
-        throw conflict('После правки пропала покадровая анимация. Повторите запрос.', 502);
+        throw conflict('Frame-by-frame animation is missing after the edit. Try again.', 502);
       }
 
       const revision = randomUUID();
@@ -2297,7 +2297,7 @@ export function registerCampaignRoutes(app, {
           ...parent.output,
           revision,
           path: rel,
-          reply: cleanReply || 'Готово.',
+          reply: cleanReply || 'Done.',
         },
         media: generatedMedia(job, parent.project),
         cost: job.costs,
@@ -2327,13 +2327,13 @@ export function registerCampaignRoutes(app, {
         formats: parent.output.formats || [parent.output.format],
         duration: parent.output.duration || 0,
         historyId: newEntry.id,
-        reply: cleanReply || 'Готово.',
+        reply: cleanReply || 'Done.',
         cost: job.costs,
         campaign: await hydrateCampaign(updated),
       });
     } catch (error) {
       runStatus = controller.signal.aborted ? 'cancelled' : 'error';
-      log('Ошибка правки: ' + error.message, {level: 'error'});
+      log('Revision failed: ' + error.message, {level: 'error'});
       await history.update(campaign.id, {cost: addCost(campaign.cost, job.costs)}).catch(() => {});
       throw error;
     } finally {

@@ -32,7 +32,7 @@ export function validateScenarioClient(scenario, setup) {
   const warnings = [];
   const cells = {};
   if (!scenario || typeof scenario !== 'object') {
-    return {errors: [{msg: 'Сценарий не задан.', target: '#scenarioRawText'}], warnings, cells};
+    return {errors: [{msg: 'No script provided.', target: '#scenarioRawText'}], warnings, cells};
   }
 
   const reqKind = setup?.kind || scenario.kind;
@@ -41,7 +41,7 @@ export function validateScenarioClient(scenario, setup) {
   const primaryLang = reqLangs[0] || 'en';
 
   if (scenario.kind !== reqKind) {
-    errors.push({msg: `Тип сценария "${scenario.kind}" не совпадает с "${reqKind}".`, target: '#scenarioTheme'});
+    errors.push({msg: `Script type "${scenario.kind}" does not match "${reqKind}".`, target: '#scenarioTheme'});
   }
 
   const scenes = Array.isArray(scenario.scenes) ? scenario.scenes : [];
@@ -50,26 +50,26 @@ export function validateScenarioClient(scenario, setup) {
   const lineEntries = Object.entries(lines);
 
   if (reqKind === 'poster' && (scenes.length !== 1 || scenes[0]?.id !== 'poster')) {
-    errors.push({msg: 'Для постера нужна ровно одна сцена с id "poster".', target: '#scenarioScenes'});
+    errors.push({msg: 'A poster needs exactly one scene with the ID "poster".', target: '#scenarioScenes'});
   } else if (reqKind === 'single' && (scenes.length !== 1 || scenes[0]?.id !== 'loop')) {
-    errors.push({msg: 'Для односценового видео нужна ровно одна сцена с id "loop".', target: '#scenarioScenes'});
+    errors.push({msg: 'A single-scene video needs exactly one scene with the ID "loop".', target: '#scenarioScenes'});
   }
 
   for (const [key, line] of lineEntries) {
     const inputSel = `#line-${key}-${activeLang}`;
     if (!sceneMap.has(line.scene)) {
-      errors.push({msg: `Строка "${key}" ссылается на неизвестную сцену "${line.scene}".`, target: inputSel});
+      errors.push({msg: `Line "${key}" refers to an unknown scene "${line.scene}".`, target: inputSel});
     }
     if (ROLES_NO_HIDE.has(line.role) && Array.isArray(line.hideIn) && line.hideIn.length > 0) {
-      errors.push({msg: `Строку "${key}" (${line.role}) нельзя скрывать в форматах.`, target: inputSel});
+      errors.push({msg: `Line "${key}" (${line.role}) must be visible in every format.`, target: inputSel});
     }
     for (const lang of reqLangs) {
       const val = line.text?.[lang];
       if (typeof val !== 'string' || !val.trim()) {
-        errors.push({msg: `Пустой или отсутствующий перевод "${lang}" в строке "${key}".`, target: `#line-${key}-${lang}`});
+        errors.push({msg: `Missing or empty ${lang} translation for line "${key}".`, target: `#line-${key}-${lang}`});
       } else if ([...val.trim()].length > line.maxChars) {
         warnings.push({
-          msg: `Строка "${key}" (${lang}): ${[...val.trim()].length}/${line.maxChars} симв.`,
+          msg: `Line "${key}" (${lang}): ${[...val.trim()].length}/${line.maxChars} characters.`,
           target: `#line-${key}-${lang}`,
         });
       }
@@ -78,7 +78,7 @@ export function validateScenarioClient(scenario, setup) {
       const pText = (line.text?.[primaryLang] || '').trim();
       if (pText && !language(primaryLang).cjk && pText.split(/\s+/).length > 7) {
         warnings.push({
-          msg: `Хук постера "${key}" содержит ${pText.split(/\s+/).length} слов (рекомендуется ≤ 7).`,
+          msg: `Poster hook "${key}" has ${pText.split(/\s+/).length} words (7 or fewer recommended).`,
           target: `#line-${key}-${primaryLang}`,
         });
       }
@@ -88,7 +88,7 @@ export function validateScenarioClient(scenario, setup) {
   for (const scene of scenes) {
     for (const lk of scene.lines || []) {
       if (!lines[lk]) {
-        errors.push({msg: `Сцена "${scene.id}" ссылается на неизвестную строку "${lk}".`, target: '#scenarioScenes'});
+        errors.push({msg: `Scene "${scene.id}" refers to an unknown line "${lk}".`, target: '#scenarioScenes'});
       }
     }
   }
@@ -101,7 +101,7 @@ export function validateScenarioClient(scenario, setup) {
       const need = windowNeed(texts, lang, {closing: false});
       if (need > minLen - 0.5) {
         warnings.push({
-          msg: `Чтение всех строк (${lang}: ${need.toFixed(1)} с) превышает ${minLen} − 0.5 с.`,
+          msg: `Reading all lines (${lang}: ${need.toFixed(1)} s) takes longer than ${minLen} − 0.5 s.`,
           target: '#scenarioLoopInfo',
         });
       }
@@ -116,7 +116,7 @@ export function validateScenarioClient(scenario, setup) {
       const cut = cuts[lenKey];
       cells[lenKey] = {};
       if (!cut || !Array.isArray(cut.scenes) || !cut.scenes.length) {
-        errors.push({msg: `Отсутствует нарезка для длины ${len} с.`, target: '#scenarioCutsTable'});
+        errors.push({msg: `No cut for the ${len} s version.`, target: '#scenarioCutsTable'});
         continue;
       }
       const winList = cut.scenes;
@@ -126,31 +126,31 @@ export function validateScenarioClient(scenario, setup) {
         const cellTarget = `#cut-${lenKey}-${w.id}-end`;
         const sc = sceneMap.get(w.id);
         if (!sc) {
-          errors.push({msg: `Нарезка ${len} с: неизвестная сцена "${w.id}".`, target: cellTarget});
+          errors.push({msg: `${len} s cut: unknown scene "${w.id}".`, target: cellTarget});
           continue;
         }
         if (sc.index <= prevIdx) {
-          errors.push({msg: `Нарезка ${len} с: нарушен порядок сцен на "${w.id}".`, target: cellTarget});
+          errors.push({msg: `${len} s cut: scene "${w.id}" is out of order.`, target: cellTarget});
         }
         prevIdx = sc.index;
         if (i === 0 && Math.abs(w.start - 0) > 0.05) {
-          errors.push({msg: `Нарезка ${len} с: первое окно должно начинаться с 0 с.`, target: `#cut-${lenKey}-${w.id}-start`});
+          errors.push({msg: `${len} s cut: the first window must start at 0 s.`, target: `#cut-${lenKey}-${w.id}-start`});
         }
         if (i > 0 && Math.abs(w.start - winList[i - 1].end) > 0.05) {
-          errors.push({msg: `Нарезка ${len} с: разрыв/нахлёст перед сценой "${w.id}".`, target: `#cut-${lenKey}-${w.id}-start`});
+          errors.push({msg: `${len} s cut: gap or overlap before scene "${w.id}".`, target: `#cut-${lenKey}-${w.id}-start`});
         }
         if (i === winList.length - 1 && Math.abs(w.end - len) > 0.05) {
-          errors.push({msg: `Нарезка ${len} с: последнее окно должно заканчиваться на ${len} с (сейчас ${w.end} с).`, target: cellTarget});
+          errors.push({msg: `${len} s cut: the last window must end at ${len} s (currently ${w.end} s).`, target: cellTarget});
         }
         const allowed = new Set(sc.lines || []);
         for (const lk of w.lines || []) {
           if (!allowed.has(lk)) {
-            errors.push({msg: `Нарезка ${len} с, сцена "${w.id}": чужая строка "${lk}".`, target: cellTarget});
+            errors.push({msg: `${len} s cut, scene "${w.id}": line "${lk}" belongs to a different scene.`, target: cellTarget});
           }
         }
         const isClosing = i === winList.length - 1;
         if (isClosing && !(w.lines || []).some(lk => lines[lk]?.role === 'cta')) {
-          errors.push({msg: `Нарезка ${len} с: в финальной сцене "${w.id}" нет строки CTA.`, target: cellTarget});
+          errors.push({msg: `${len} s cut: the last scene "${w.id}" has no CTA.`, target: cellTarget});
         }
 
         const have = Number((w.end - w.start).toFixed(3));
@@ -168,12 +168,12 @@ export function validateScenarioClient(scenario, setup) {
         cells[lenKey][w.id] = {need: maxNeed, have, verdict: worstVerdict, byLang};
         if (worstVerdict === 'fail') {
           errors.push({
-            msg: `Нарезка ${len} с, сцена "${w.id}": окно ${have.toFixed(1)} с меньше времени чтения (${maxNeed.toFixed(1)} с).`,
+            msg: `${len} s cut, scene "${w.id}": the ${have.toFixed(1)} s window is shorter than the ${maxNeed.toFixed(1)} s reading time.`,
             target: cellTarget,
           });
         } else if (worstVerdict === 'tight') {
           warnings.push({
-            msg: `Нарезка ${len} с, сцена "${w.id}": плотный тайминг (${have.toFixed(1)} с при норме ${maxNeed.toFixed(1)} с).`,
+            msg: `${len} s cut, scene "${w.id}": tight timing (${have.toFixed(1)} s available, ${maxNeed.toFixed(1)} s needed).`,
             target: cellTarget,
           });
         }
@@ -322,7 +322,7 @@ function renderScenesList(setup, reviewOnly) {
         const storyInput = document.createElement('input');
         storyInput.type = 'text';
         storyInput.className = 'scene-story-input';
-        storyInput.placeholder = 'Что происходит в сцене…';
+        storyInput.placeholder = 'What happens in this scene?';
         storyInput.value = scene.story || '';
         storyInput.disabled = reviewOnly;
         storyInput.oninput = () => {
@@ -345,7 +345,7 @@ function renderScenesList(setup, reviewOnly) {
         const roleTag = document.createElement('span');
         roleTag.className = `role-tag role-${line.role}`;
         roleTag.textContent = line.role;
-        roleTag.title = `Ключ: ${lineKey}`;
+        roleTag.title = `Key: ${lineKey}`;
 
         const input = document.createElement('input');
         input.type = 'text';
@@ -353,7 +353,7 @@ function renderScenesList(setup, reviewOnly) {
         input.id = `line-${lineKey}-${activeLang}`;
         input.dir = language(activeLang).dir || 'ltr';
         input.value = line.text?.[activeLang] || '';
-        input.placeholder = `Текст (${activeLang})…`;
+        input.placeholder = `Copy (${activeLang})…`;
         input.disabled = reviewOnly;
 
         const counter = document.createElement('span');
@@ -388,15 +388,15 @@ function renderScenesList(setup, reviewOnly) {
               const tag = document.createElement('span');
               tag.className = 'hidein-tag';
               const f = state.formatInfo[fid] || {label: fid};
-              tag.textContent = `скрыто в ${f.label}`;
+              tag.textContent = `hidden in ${f.label}`;
               hideWrap.append(tag);
             }
             if (!reviewOnly) {
               const menu = document.createElement('details');
               menu.className = 'hidein-menu';
               const sum = document.createElement('summary');
-              sum.textContent = 'Форматы ▾';
-              sum.title = 'Скрыть строку в узких/широких форматах';
+              sum.textContent = 'Formats ▾';
+              sum.title = 'Hide this line in narrow or wide formats';
               const pop = document.createElement('div');
               pop.className = 'hidein-pop';
               for (const fid of formats) {
@@ -414,7 +414,7 @@ function renderScenesList(setup, reviewOnly) {
                   renderHideBadges();
                   markDirty();
                 };
-                lbl.append(cb, document.createTextNode(`Скрыть в ${f.label}`));
+                lbl.append(cb, document.createTextNode(`Hide in ${f.label}`));
                 pop.append(lbl);
               }
               menu.append(sum, pop);
@@ -439,9 +439,9 @@ function renderSingleLoopRow(lengths) {
   const parts = lengths.map(L => {
     const repeats = Math.max(1, Math.round(L / 4));
     const period = (L / repeats).toFixed(L % repeats === 0 ? 1 : 2).replace('.', ',');
-    return `${L} с = ${repeats} × ${period} с`;
+    return `${L} s = ${repeats} × ${period} s`;
   });
-  el.textContent = parts.join(' · ') || 'Бесшовная петля';
+  el.textContent = parts.join(' · ') || 'Seamless loop';
 }
 
 function renderCutsTable(setup, reviewOnly) {
@@ -454,9 +454,9 @@ function renderCutsTable(setup, reviewOnly) {
   const thead = document.createElement('thead');
   const hRow = document.createElement('tr');
   hRow.append(
-    Object.assign(document.createElement('th'), {textContent: 'Длина'}),
+    Object.assign(document.createElement('th'), {textContent: 'Length'}),
     ...scenes.map(s => Object.assign(document.createElement('th'), {textContent: `${s.id} · ${s.beat}`})),
-    Object.assign(document.createElement('th'), {textContent: 'Примечание'})
+    Object.assign(document.createElement('th'), {textContent: 'Note'})
   );
   thead.append(hRow);
 
@@ -468,7 +468,7 @@ function renderCutsTable(setup, reviewOnly) {
 
     const tdLen = document.createElement('th');
     tdLen.className = 'cut-len-cell';
-    tdLen.textContent = `${len} с`;
+    tdLen.textContent = `${len} s`;
     tr.append(tdLen);
 
     for (let sIdx = 0; sIdx < scenes.length; sIdx++) {
@@ -488,7 +488,7 @@ function renderCutsTable(setup, reviewOnly) {
           const addBtn = document.createElement('button');
           addBtn.type = 'button';
           addBtn.className = 'cut-toggle-scene';
-          addBtn.textContent = '+ Включить';
+          addBtn.textContent = '+ Include';
           addBtn.onclick = () => includeSceneInCut(len, scene, scenes);
           td.append(addBtn);
         }
@@ -497,7 +497,7 @@ function renderCutsTable(setup, reviewOnly) {
         td.className = `cut-cell ${vClass}`;
         if (cellInfo?.byLang) {
           td.title = Object.entries(cellInfo.byLang)
-            .map(([l, d]) => `${l.toUpperCase()}: нужно ${d.need.toFixed(1)} с / окно ${d.have.toFixed(1)} с (${d.verdict})`)
+            .map(([l, d]) => `${l.toUpperCase()}: ${d.need.toFixed(1)} s needed / ${d.have.toFixed(1)} s available (${d.verdict})`)
             .join('\n');
         }
 
@@ -512,7 +512,7 @@ function renderCutsTable(setup, reviewOnly) {
         startIn.id = `cut-${lenKey}-${scene.id}-start`;
         startIn.value = Number(win.start).toFixed(1);
         startIn.disabled = reviewOnly || winIdx === 0;
-        startIn.setAttribute('aria-label', `Начало ${scene.id} (${len} с)`);
+        startIn.setAttribute('aria-label', `Start of ${scene.id} (${len} s)`);
 
         const sep = document.createElement('span');
         sep.textContent = '–';
@@ -525,7 +525,7 @@ function renderCutsTable(setup, reviewOnly) {
         endIn.id = `cut-${lenKey}-${scene.id}-end`;
         endIn.value = Number(win.end).toFixed(1);
         endIn.disabled = reviewOnly;
-        endIn.setAttribute('aria-label', `Конец ${scene.id} (${len} с)`);
+        endIn.setAttribute('aria-label', `End of ${scene.id} (${len} s)`);
 
         startIn.onchange = () => {
           const val = Math.max(0, Math.min(len, Number(startIn.value) || 0));
@@ -552,7 +552,7 @@ function renderCutsTable(setup, reviewOnly) {
           dropBtn.type = 'button';
           dropBtn.className = 'cut-drop-btn';
           dropBtn.textContent = '×';
-          dropBtn.title = 'Убрать сцену из этой длины';
+          dropBtn.title = 'Remove this scene from the cut';
           dropBtn.onclick = () => dropSceneFromCut(len, winIdx);
           timeRow.append(dropBtn);
         }
@@ -585,7 +585,7 @@ function renderCutsTable(setup, reviewOnly) {
         const budget = document.createElement('div');
         budget.className = 'cut-budget';
         if (cellInfo) {
-          budget.textContent = `чтение ${cellInfo.need.toFixed(1)} / ${cellInfo.have.toFixed(1)} с`;
+          budget.textContent = `reading time ${cellInfo.need.toFixed(1)} / ${cellInfo.have.toFixed(1)} s`;
         }
 
         td.append(timeRow, chipsRow, budget);
@@ -600,7 +600,7 @@ function renderCutsTable(setup, reviewOnly) {
     noteIn.type = 'text';
     noteIn.className = 'cut-note-input';
     noteIn.value = cut.note || '';
-    noteIn.placeholder = 'Комментарий к нарезке…';
+    noteIn.placeholder = 'Cut notes…';
     noteIn.disabled = reviewOnly;
     noteIn.oninput = () => {
       if (!draftScenario.cuts) draftScenario.cuts = {};
@@ -670,7 +670,7 @@ export function refreshValidationAndActions() {
       validation = validateScenarioClient(parsed, setup);
     } catch (e) {
       validation = {
-        errors: [{msg: 'Ошибка синтаксиса JSON: ' + e.message, target: '#scenarioRawText'}],
+        errors: [{msg: 'JSON syntax error: ' + e.message, target: '#scenarioRawText'}],
         warnings: [],
         cells: {},
       };
@@ -727,14 +727,14 @@ export function refreshValidationAndActions() {
   const approveBtn = $('#approveScenarioBtn');
 
   saveBtn.hidden = !dirty;
-  saveBtn.disabled = !dirty || (jsonMode && validation.errors.some(e => e.msg.startsWith('Ошибка синтаксиса JSON')));
+  saveBtn.disabled = !dirty || (jsonMode && validation.errors.some(e => e.msg.startsWith('JSON syntax error')));
 
   trBtn.hidden = !needs.includes('translation');
   cutsBtn.hidden = !(setup.kind === 'multi' && needs.includes('cuts'));
 
   const isApproved = Boolean(c.steps?.scenario?.approvedAt && !c.steps?.scenario?.stale && !needs.length && !dirty);
   approveBtn.disabled = validation.errors.length > 0 || needs.length > 0 || dirty;
-  approveBtn.textContent = isApproved ? '✓ Сценарий утверждён — к превью →' : 'Утвердить сценарий →';
+  approveBtn.textContent = isApproved ? '✓ Script approved · Continue to preview →' : 'Approve script →';
   approveBtn.dataset.warnings = String(validation.warnings.length);
 }
 
@@ -745,7 +745,7 @@ export function bindScenarioControls({onSave, onRegenerate, onTranslate, onRecal
         draftScenario = JSON.parse($('#scenarioRawText').value);
         jsonMode = false;
       } catch (e) {
-        alert('Исправьте синтаксис JSON перед переключением: ' + e.message);
+        alert('Fix the JSON syntax before switching: ' + e.message);
         return;
       }
     } else {
@@ -771,7 +771,7 @@ export function bindScenarioControls({onSave, onRegenerate, onTranslate, onRecal
       const sc = getDraftScenario();
       onSave?.(sc);
     } catch (e) {
-      alert('Ошибка в JSON сценария: ' + e.message);
+      alert('Invalid script JSON: ' + e.message);
     }
   };
 
@@ -786,7 +786,7 @@ export function bindScenarioControls({onSave, onRegenerate, onTranslate, onRecal
   $('#approveScenarioBtn').onclick = () => {
     const warnCount = Number($('#approveScenarioBtn').dataset.warnings || 0);
     if (warnCount > 0) {
-      if (!confirm(`В сценарии есть предупреждения (${warnCount}). Всё равно утвердить сценарий?`)) return;
+      if (!confirm(`The script has ${warnCount} warnings. Approve it anyway?`)) return;
     }
     onApprove?.();
   };
@@ -807,13 +807,13 @@ export function openCopyEditor({scenario, setup, currentLength, onSave}) {
   const working = structuredClone(lines);
 
   const activeLen = setup.kind === 'multi' ? (currentLength || setup.lengths?.[0] || 0) : 0;
-  $('#copyReadingLen').textContent = activeLen ? `Тайминг для ${activeLen} с` : setup.kind === 'single' ? 'Односценовое' : 'Постер';
+  $('#copyReadingLen').textContent = activeLen ? `Timing for ${activeLen} s` : setup.kind === 'single' ? 'Single scene' : 'Poster';
 
   const renderVerdictBadge = (sceneId, isClosing) => {
     if (setup.kind !== 'multi' || !activeLen) return '';
     const cut = scenario.cuts?.[String(activeLen)];
     const win = cut?.scenes?.find(w => w.id === sceneId);
-    if (!win) return 'не в этой длине';
+    if (!win) return 'not in this cut';
     const have = Number((win.end - win.start).toFixed(2));
     let worst = 'ok';
     let maxNeed = 0;
@@ -825,7 +825,7 @@ export function openCopyEditor({scenario, setup, currentLength, onSave}) {
       const v = verdict(have, need);
       if (rank[v] > rank[worst]) worst = v;
     }
-    return `чтение ${maxNeed.toFixed(1)} / ${have.toFixed(1)} с (${worst})`;
+    return `reading time ${maxNeed.toFixed(1)} / ${have.toFixed(1)} s (${worst})`;
   };
 
   body.replaceChildren();
@@ -852,7 +852,7 @@ export function openCopyEditor({scenario, setup, currentLength, onSave}) {
 
       const lineHead = document.createElement('div');
       lineHead.className = 'copy-line-head';
-      lineHead.innerHTML = `<span class="role-tag role-${line.role}">${line.role}</span> <code>${lk}</code> <small>макс. ${line.maxChars} симв.</small>`;
+      lineHead.innerHTML = `<span class="role-tag role-${line.role}">${line.role}</span> <code>${lk}</code> <small>max. ${line.maxChars} characters</small>`;
       block.append(lineHead);
 
       const grid = document.createElement('div');
@@ -913,7 +913,7 @@ export function openCopyEditor({scenario, setup, currentLength, onSave}) {
       for (const l of langs) {
         const val = (line.text?.[l] || '').trim();
         if (!val) {
-          errBox.textContent = `Пустой текст в строке "${lk}" (${l}).`;
+          errBox.textContent = `Line "${lk}" (${l}) is empty.`;
           return;
         }
         patch[lk][l] = val;

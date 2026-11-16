@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="ru">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Forma — студия креативов</title>
+  <title>Forma — Creative Studio</title>
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -13,109 +13,109 @@
     <div id="activeRunsWrap" class="active-runs-wrap" hidden>
       <button type="button" id="activeRunsBtn" class="active-runs-pill" aria-expanded="false">
         <span class="run-dot"></span>
-        <span id="activeRunsLabel">Идёт: 0</span>
+        <span id="activeRunsLabel">Running: 0</span>
       </button>
       <div id="activeRunsPopover" class="active-runs-popover card" hidden>
         <ul id="activeRunsList" class="active-runs-list"></ul>
       </div>
     </div>
-    <button type="button" id="historyOpen" aria-expanded="false" aria-controls="history">История <span id="historyCount"></span></button>
-    <div id="storeStatusPill" class="local"><b id="storeStatusDot"></b> <span id="storeStatusText">Локальный стенд</span></div>
+    <button type="button" id="historyOpen" aria-expanded="false" aria-controls="history">History <span id="historyCount"></span></button>
+    <div id="storeStatusPill" class="local"><b id="storeStatusDot"></b> <span id="storeStatusText">Local storage</span></div>
   </div>
 </header>
 
 <div id="toastAlert" class="toast-alert" role="status" aria-live="polite" hidden></div>
 
-<aside id="history" hidden aria-label="История сборок">
+<aside id="history" hidden aria-label="Build history">
   <div class="history-head">
-    <h2>История</h2>
-    <button type="button" id="historyClose" class="icon-btn" aria-label="Закрыть">×</button>
+    <h2>History</h2>
+    <button type="button" id="historyClose" class="icon-btn" aria-label="Close">×</button>
   </div>
-  <div id="historyTabs" class="chips small" role="tablist" aria-label="Раздел истории">
-    <button type="button" role="tab" data-tab="campaigns" aria-selected="true" aria-pressed="true">Кампании</button>
-    <button type="button" role="tab" data-tab="legacy" aria-selected="false" aria-pressed="false">Старые сборки</button>
+  <div id="historyTabs" class="chips small" role="tablist" aria-label="History section">
+    <button type="button" role="tab" data-tab="campaigns" aria-selected="true" aria-pressed="true">Campaigns</button>
+    <button type="button" role="tab" data-tab="legacy" aria-selected="false" aria-pressed="false">Legacy builds</button>
   </div>
-  <div id="historyAuthorFilter" class="chips small" role="group" aria-label="Фильтр по автору">
-    <button type="button" data-author-filter="all" aria-pressed="true">Все</button>
-    <button type="button" data-author-filter="mine" aria-pressed="false">Мои</button>
-    <button type="button" data-author-filter="colleagues" aria-pressed="false">Коллег</button>
+  <div id="historyAuthorFilter" class="chips small" role="group" aria-label="Filter by author">
+    <button type="button" data-author-filter="all" aria-pressed="true">All</button>
+    <button type="button" data-author-filter="mine" aria-pressed="false">Mine</button>
+    <button type="button" data-author-filter="colleagues" aria-pressed="false">Teammates</button>
   </div>
-  <div id="historyFilter" class="chips small" role="group" aria-label="Тип записей" hidden>
-    <button type="button" data-type="" aria-pressed="true">Все</button>
-    <button type="button" data-type="creative" aria-pressed="false">Креативы</button>
-    <button type="button" data-type="style" aria-pressed="false">Стили</button>
-    <button type="button" data-type="scenario" aria-pressed="false">Сценарии</button>
+  <div id="historyFilter" class="chips small" role="group" aria-label="Entry type" hidden>
+    <button type="button" data-type="" aria-pressed="true">All</button>
+    <button type="button" data-type="creative" aria-pressed="false">Creatives</button>
+    <button type="button" data-type="style" aria-pressed="false">Styles</button>
+    <button type="button" data-type="scenario" aria-pressed="false">Scripts</button>
   </div>
   <ol id="historyList"></ol>
-  <button type="button" id="historyMore" class="btn secondary" hidden>Показать ещё</button>
+  <button type="button" id="historyMore" class="btn secondary" hidden>Show more</button>
 </aside>
 
 <main>
-  <nav id="libraryNav" class="library-nav" aria-label="Навигация" hidden>
-    <button type="button" id="brandsHome" class="crumb">Бренды</button>
+  <nav id="libraryNav" class="library-nav" aria-label="Navigation" hidden>
+    <button type="button" id="brandsHome" class="crumb">Brands</button>
     <button type="button" id="brandBack" class="crumb" hidden></button>
     <span id="currentCrumb" aria-current="page"></span>
   </nav>
   <section id="brandsPage" class="library-page" aria-labelledby="brandsHeading">
-    <header class="library-head"><h1 id="brandsHeading">Бренды</h1>
-      <button type="button" id="addBrand" class="btn primary">＋ Новый бренд</button></header>
-    <div id="brandCards" class="brand-grid" aria-live="polite"><p class="library-empty">Загрузка брендов…</p></div>
-    <button type="button" id="legacyCampaigns" class="btn secondary" hidden>Кампании без бренда →</button>
+    <header class="library-head"><h1 id="brandsHeading">Brands</h1>
+      <button type="button" id="addBrand" class="btn primary">＋ New brand</button></header>
+    <div id="brandCards" class="brand-grid" aria-live="polite"><p class="library-empty">Loading brands…</p></div>
+    <button type="button" id="legacyCampaigns" class="btn secondary" hidden>Unassigned campaigns →</button>
   </section>
   <section id="campaignsPage" class="library-page" aria-labelledby="brandHeading" hidden>
     <header class="library-head"><h1 id="brandHeading"></h1>
       <div class="library-actions">
-        <button type="button" id="editBrand" class="btn secondary">Изменить бренд</button>
-        <button type="button" id="addCampaign" class="btn primary">＋ Новая кампания</button>
+        <button type="button" id="editBrand" class="btn secondary">Edit brand</button>
+        <button type="button" id="addCampaign" class="btn primary">＋ New campaign</button>
       </div></header>
-    <h2 class="collection-heading">Кампании</h2>
+    <h2 class="collection-heading">Campaigns</h2>
     <div id="campaignCards" class="campaign-list" aria-live="polite"></div>
   </section>
     <form id="brandEditor" class="card library-editor" hidden>
-      <h1 id="editorHeading">Новый бренд</h1>
-      <label>Название бренда<input type="text" id="brandName" maxlength="160" required></label>
+      <h1 id="editorHeading">New brand</h1>
+      <label>Brand name<input type="text" id="brandName" maxlength="160" required></label>
           <p id="importBrandNote" class="note" hidden></p>
           <div id="drop">
             <div class="upload" aria-hidden="true">↥</div>
-            <strong>Перетащите файлы или папку</strong>
+            <strong>Drop files or a folder here</strong>
             <div class="links">
-              <button type="button" id="choose">Выбрать файлы</button>
-              <span>или</span>
-              <button type="button" id="folder">папку</button>
+              <button type="button" id="choose">Choose files</button>
+              <span>or</span>
+              <button type="button" id="folder">choose a folder</button>
             </div>
           </div>
           <input hidden multiple type="file" id="files">
           <input hidden multiple type="file" webkitdirectory id="folders">
           <ul id="list"></ul>
-      <div class="library-actions"><button type="button" id="cancelBrand" class="btn secondary">Отмена</button>
-      <button type="submit" class="btn primary">Сохранить бренд</button></div>
+      <div class="library-actions"><button type="button" id="cancelBrand" class="btn secondary">Cancel</button>
+      <button type="submit" class="btn primary">Save brand</button></div>
     </form>
     <p id="brandMessage" role="status" aria-live="polite"></p>
   <div id="pipelinePage" hidden>
-  <button type="button" id="importBrand" class="btn secondary small" hidden>Создать бренд из кампании</button>
+  <button type="button" id="importBrand" class="btn secondary small" hidden>Create brand from campaign</button>
 
   <!-- Campaign bar (§8.1) -->
-  <section id="campaignBar" class="campaign-bar card" hidden aria-label="Параметры кампании">
-    <input type="text" id="campaignName" class="campaign-name-input" aria-label="Название кампании" value="Новая кампания">
-    <button type="button" id="campaignSummary" class="campaign-summary" title="Изменить настройки кампании">
+  <section id="campaignBar" class="campaign-bar card" hidden aria-label="Campaign settings">
+    <input type="text" id="campaignName" class="campaign-name-input" aria-label="Campaign name" value="New campaign">
+    <button type="button" id="campaignSummary" class="campaign-summary" title="Edit campaign settings">
       <span id="barKind" class="kind-badge"></span>
       <span id="barLanguages" class="bar-chips"></span>
       <span id="barLengths" class="bar-chips"></span>
       <span id="barFormats" class="bar-chips"></span>
-      <span class="bar-edit-hint">Настройки ▾</span>
+      <span class="bar-edit-hint">Settings ▾</span>
     </button>
     <span id="campaignCost" class="pill"></span>
-    <button type="button" id="forkCampaignBtn" class="btn secondary small" title="Создать копию кампании">⎘ Копия кампании</button>
-    <button type="button" id="newCampaignBtn" class="btn primary small" title="Создать новый пайплайн (текущий сохранится в истории)">＋ Новая кампания</button>
+    <button type="button" id="forkCampaignBtn" class="btn secondary small" title="Duplicate this campaign">⎘ Duplicate campaign</button>
+    <button type="button" id="newCampaignBtn" class="btn primary small" title="Start a new campaign and keep this one in history">＋ New campaign</button>
   </section>
 
   <!-- 3-step Stepper (§8.2, §4.3) -->
-  <nav id="stepper" class="stepper muted" aria-label="Шаги">
+  <nav id="stepper" class="stepper muted" aria-label="Steps">
     <button type="button" id="stepBtn1" class="step-btn" aria-disabled="true">
       <span class="step-num">1</span>
       <span class="step-body">
-        <strong class="step-title">Сценарий</strong>
-        <small class="step-status">Настройте кампанию</small>
+        <strong class="step-title">Script</strong>
+        <small class="step-status">Set up your campaign</small>
       </span>
       <span class="step-cost pill"></span>
     </button>
@@ -123,8 +123,8 @@
     <button type="button" id="stepBtn2" class="step-btn" aria-disabled="true">
       <span class="step-num">2</span>
       <span class="step-body">
-        <strong class="step-title">Превью</strong>
-        <small class="step-status">Сначала утвердите сценарий</small>
+        <strong class="step-title">Preview</strong>
+        <small class="step-status">Approve the script first</small>
       </span>
       <span class="step-cost pill"></span>
     </button>
@@ -132,14 +132,14 @@
     <button type="button" id="stepBtn3" class="step-btn" aria-disabled="true">
       <span class="step-num">3</span>
       <span class="step-body">
-        <strong class="step-title">Видео</strong>
-        <small class="step-status">Сначала утвердите превью</small>
+        <strong class="step-title">Video</strong>
+        <small class="step-status">Approve the preview first</small>
       </span>
       <span class="step-cost pill"></span>
     </button>
     <div id="stepperStyleMenu" class="stepper-style-menu" hidden>
       <button type="button" id="stepperStyleBtn" class="stepper-style-btn" aria-expanded="false" aria-haspopup="true">
-        <span id="stepperStyleLabel">Стиль: Стиль 1</span>
+        <span id="stepperStyleLabel">Style: Style 1</span>
         <span aria-hidden="true">▾</span>
       </button>
       <div id="stepperStyleList" class="stepper-style-list" role="menu" hidden></div>
@@ -151,94 +151,94 @@
       <!-- Setup Card / Popover (§8.3) -->
       <form id="brief" class="card">
         <div id="setupPopoverHead" class="card-head" hidden>
-          <h2 id="setupCardTitle">Настройки кампании</h2>
-          <button type="button" id="setupPopoverClose" class="icon-btn" aria-label="Закрыть">×</button>
+          <h2 id="setupCardTitle">Campaign settings</h2>
+          <button type="button" id="setupPopoverClose" class="icon-btn" aria-label="Close">×</button>
         </div>
 
         <section class="group" id="newCampaignNameGroup">
-          <label for="newCampaignName">Название кампании</label>
-          <input id="newCampaignName" type="text" placeholder="Например, осенний запуск" maxlength="160">
+          <label for="newCampaignName">Campaign name</label>
+          <input id="newCampaignName" type="text" placeholder="e.g. Fall launch" maxlength="160">
         </section>
 
         <section class="group">
-          <h2>Что делаем</h2>
-          <div id="kindGroup" class="kind-grid" role="radiogroup" aria-label="Тип креатива">
+          <h2>What are you making?</h2>
+          <div id="kindGroup" class="kind-grid" role="radiogroup" aria-label="Creative type">
             <button type="button" class="kind-card" role="radio" data-kind="poster" aria-checked="false">
               <span class="kind-glyph glyph-poster" aria-hidden="true"></span>
-              <strong>Постер</strong>
-              <small>Статика: продуманная вёрстка, хук и CTA</small>
+              <strong>Poster</strong>
+              <small>A static layout with a hook and a call to action</small>
             </button>
             <button type="button" class="kind-card" role="radio" data-kind="single" aria-checked="false">
               <span class="kind-glyph glyph-single" aria-hidden="true"></span>
-              <strong>Односценовое видео</strong>
-              <small>Всё в кадре сразу, бесшовный зацикленный моушен</small>
+              <strong>Single-scene video</strong>
+              <small>One composition with seamless looping motion</small>
             </button>
             <button type="button" class="kind-card" role="radio" data-kind="multi" aria-checked="true">
               <span class="kind-glyph glyph-multi" aria-hidden="true"></span>
-              <strong>Многосценовое видео</strong>
-              <small>История в сценах: хук → доказательство → оффер</small>
+              <strong>Multi-scene video</strong>
+              <small>A sequence of scenes that introduces the hook, shows proof and presents the offer</small>
             </button>
           </div>
         </section>
 
         <section class="group">
-          <h2>Языки</h2>
-          <div id="langChips" class="lang-chips" aria-label="Выбранные языки"></div>
+          <h2>Languages</h2>
+          <div id="langChips" class="lang-chips" aria-label="Selected languages"></div>
           <div class="lang-combo">
-            <input type="text" id="langSearch" placeholder="Добавить язык (например, English, Русский, Srpski)…" autocomplete="off" aria-label="Поиск языка">
+            <input type="text" id="langSearch" placeholder="Add a language (e.g. English, Russian, Serbian)…" autocomplete="off" aria-label="Search languages">
             <div id="langDropdown" class="lang-dropdown" hidden></div>
           </div>
-          <p class="note">Каждая строка будет переведена на все языки. Превью — на основном</p>
+          <p class="note">Each line is translated into every selected language. The preview uses the primary language.</p>
         </section>
 
         <section id="lengthsSection" class="group">
-          <h2>Длина роликов</h2>
+          <h2>Video lengths</h2>
           <div class="length-picker-row">
-            <div id="lengthPresets" class="chips" role="group" aria-label="Длины роликов"></div>
-            <button type="button" id="customLengthBtn" class="btn secondary small">Своя…</button>
+            <div id="lengthPresets" class="chips" role="group" aria-label="Video lengths"></div>
+            <button type="button" id="customLengthBtn" class="btn secondary small">Custom…</button>
           </div>
           <div id="customLengthWrap" class="custom-len-row" hidden>
-            <input type="number" id="customLengthInput" min="2" max="60" step="1" placeholder="2–60 с" aria-label="Своя длина в секундах">
-            <button type="button" id="customLengthAdd" class="btn secondary small">Добавить</button>
+            <input type="number" id="customLengthInput" min="2" max="60" step="1" placeholder="2–60 s" aria-label="Custom length in seconds">
+            <button type="button" id="customLengthAdd" class="btn secondary small">Add</button>
           </div>
-          <p class="note">Сценарий распланирует, какие хуки попадут в каждую длину</p>
+          <p class="note">The script determines which hooks fit each length.</p>
         </section>
 
         <section class="group">
-          <h2>Форматы</h2>
-          <div id="formats" class="chips" role="group" aria-label="Форматы креатива"></div>
+          <h2>Formats</h2>
+          <div id="formats" class="chips" role="group" aria-label="Creative formats"></div>
         </section>
 
         <section class="group">
-          <h2>Модель</h2>
+          <h2>Model</h2>
           <button type="button" id="modelSummaryBtn" class="model-summary-btn" aria-expanded="false">
-            <span id="modelSummaryText">Тестовый шаблон · без токенов</span>
+            <span id="modelSummaryText">Demo template · no tokens</span>
             <span aria-hidden="true">▾</span>
           </button>
           <div id="modelDetails" hidden>
-            <label for="mode">Режим сборки</label>
+            <label for="mode">Generation mode</label>
             <select id="mode">
-              <option value="demo">Тестовый шаблон · без токенов</option>
-              <option value="claude">Генерация с Claude</option>
-              <option value="codex">Генерация с Codex</option>
+              <option value="demo">Demo template · no tokens</option>
+              <option value="claude">Generate with Claude</option>
+              <option value="codex">Generate with Codex</option>
             </select>
             <div id="options" hidden>
               <div id="claudeBillingRow" hidden>
-                <label for="claudeBilling">Источник лимита Claude</label>
+                <label for="claudeBilling">Claude billing</label>
                 <select id="claudeBilling">
-                  <option value="subscription">Подписка Claude</option>
-                  <option value="api">API-ключ Anthropic</option>
+                  <option value="subscription">Claude subscription</option>
+                  <option value="api">Anthropic API key</option>
                 </select>
               </div>
               <div id="billingRow" hidden>
-                <label for="billing">Источник лимита Codex</label>
+                <label for="billing">Codex billing</label>
                 <select id="billing">
-                  <option value="chatgpt">Подписка ChatGPT</option>
-                  <option value="api">API-ключ OpenAI</option>
+                  <option value="chatgpt">ChatGPT subscription</option>
+                  <option value="api">OpenAI API key</option>
                 </select>
               </div>
               <div class="row2">
-                <div><label for="model">Модель</label><select id="model"></select></div>
+                <div><label for="model">Model</label><select id="model"></select></div>
                 <div><label for="effort">Effort</label><select id="effort"></select></div>
               </div>
             </div>
@@ -249,41 +249,41 @@
         <div class="actions">
           <div class="setup-btn-row">
             <button type="submit" id="startCampaignBtn" class="btn primary">
-              <span class="label">Начать — к сценарию →</span>
+              <span class="label">Continue to script →</span>
             </button>
-            <button type="button" id="setupCancelEditBtn" class="btn secondary" hidden>Отмена</button>
+            <button type="button" id="setupCancelEditBtn" class="btn secondary" hidden>Cancel</button>
           </div>
           <p id="setupReason" class="note"></p>
         </div>
       </form>
 
       <!-- Step 1 Panel — Сценарий (§8.4) -->
-      <section id="step1Panel" class="card step-panel" hidden aria-label="Шаг 1: Сценарий">
+      <section id="step1Panel" class="card step-panel" hidden aria-label="Step 1: Script">
         <div class="card-head">
-          <h2>Шаг 1 · Сценарий</h2>
+          <h2>Step 1 · Script</h2>
           <button type="button" id="scenarioJsonToggle" class="btn secondary small" aria-pressed="false">JSON</button>
         </div>
 
         <div id="step1Banner" class="step-banner" hidden>
           <span id="step1BannerText"></span>
-          <button type="button" id="step1ReviewUnlockBtn" class="btn secondary small">Изменить</button>
+          <button type="button" id="step1ReviewUnlockBtn" class="btn secondary small">Edit</button>
         </div>
 
         <div id="step1Error" class="step-alert" role="alert" hidden>
           <span id="step1ErrorText"></span>
-          <button type="button" id="step1RetryBtn" class="btn secondary small">Повторить</button>
+          <button type="button" id="step1RetryBtn" class="btn secondary small">Retry</button>
         </div>
 
         <div id="scenarioPromptBox" class="scenario-prompt-box">
-          <label for="scenarioNotes">Пожелания к сценарию (необязательно)</label>
-          <textarea id="scenarioNotes" rows="3" placeholder="Оффер, тональность, акцент на конкретной функции или боли аудитории…"></textarea>
+          <label for="scenarioNotes">Script notes (optional)</label>
+          <textarea id="scenarioNotes" rows="3" placeholder="Describe the offer, tone, feature to highlight or audience need…"></textarea>
           <div class="step-actions">
-            <button type="button" id="generateScenarioBtn" class="btn primary">Сгенерировать сценарий</button>
+            <button type="button" id="generateScenarioBtn" class="btn primary">Generate script</button>
           </div>
         </div>
 
         <div id="scenarioStreamBox" hidden>
-          <p class="note">Генерация сценария…</p>
+          <p class="note">Generating script…</p>
           <pre id="scenarioStreamPre" class="stream-pre"></pre>
         </div>
 
@@ -291,153 +291,153 @@
           <div id="scenarioStructured">
             <div class="row2 scenario-meta-row">
               <div>
-                <label for="scenarioTheme">Тема</label>
-                <input type="text" id="scenarioTheme" class="line-input" placeholder="Человеческое напряжение и обещание…">
+                <label for="scenarioTheme">Theme</label>
+                <input type="text" id="scenarioTheme" class="line-input" placeholder="What tension does the audience feel, and what do you promise?">
               </div>
               <div>
-                <label for="scenarioIdea">Идея</label>
-                <input type="text" id="scenarioIdea" class="line-input" placeholder="Конкретный момент, который драматизирует тему…">
+                <label for="scenarioIdea">Idea</label>
+                <input type="text" id="scenarioIdea" class="line-input" placeholder="Describe a specific moment that brings the theme to life…">
               </div>
             </div>
 
             <div class="scenario-lang-bar">
-              <span class="sub-label">Язык строк:</span>
-              <div id="scenarioLangTabs" class="chips small" role="tablist" aria-label="Язык редактирования строк"></div>
+              <span class="sub-label">Copy language:</span>
+              <div id="scenarioLangTabs" class="chips small" role="tablist" aria-label="Copy editing language"></div>
             </div>
 
             <div id="scenarioScenes" class="scenario-scenes"></div>
 
             <div id="scenarioCutsSection" class="cuts-section" hidden>
-              <h3>Нарезка по длинам</h3>
-              <p class="note">Цвет ячейки показывает проверку времени чтения на самом длинном языке. Клик по ключу строки включает или убирает её в этой длине.</p>
+              <h3>Cuts by duration</h3>
+              <p class="note">Cell colors show whether the longest translation fits the available reading time. Click a line key to include or remove it from that cut.</p>
               <div class="cuts-table-wrap">
                 <table id="scenarioCutsTable" class="cuts-table"></table>
               </div>
             </div>
 
             <div id="scenarioLoopSection" class="loop-section" hidden>
-              <h3>Бесшовный цикл (Loop)</h3>
+              <h3>Seamless loop</h3>
               <div id="scenarioLoopInfo" class="loop-info-pill"></div>
             </div>
           </div>
 
           <div id="scenarioRawBox" hidden>
-            <label for="scenarioRawText">Сценарий (JSON v2)</label>
+            <label for="scenarioRawText">Script (JSON v2)</label>
             <textarea id="scenarioRawText" class="raw-json-area" rows="16" spellcheck="false"></textarea>
           </div>
 
           <div id="scenarioValidation" class="validation-summary"></div>
 
           <div class="step-actions">
-            <button type="button" id="saveScenarioBtn" class="btn secondary" hidden>Сохранить правки</button>
-            <button type="button" id="regenScenarioToggleBtn" class="btn secondary">Перегенерировать…</button>
-            <button type="button" id="translateScenarioBtn" class="btn secondary" hidden>Перевести на новые языки</button>
-            <button type="button" id="recalcCutsBtn" class="btn secondary" hidden>Пересчитать нарезку</button>
-            <button type="button" id="approveScenarioBtn" class="btn primary">Утвердить сценарий →</button>
+            <button type="button" id="saveScenarioBtn" class="btn secondary" hidden>Save changes</button>
+            <button type="button" id="regenScenarioToggleBtn" class="btn secondary">Regenerate…</button>
+            <button type="button" id="translateScenarioBtn" class="btn secondary" hidden>Translate into new languages</button>
+            <button type="button" id="recalcCutsBtn" class="btn secondary" hidden>Recalculate cuts</button>
+            <button type="button" id="approveScenarioBtn" class="btn primary">Approve script →</button>
           </div>
         </div>
       </section>
 
       <!-- Step 2 Panel — Превью (§8.5) -->
-      <section id="step2Panel" class="card step-panel" hidden aria-label="Шаг 2: Превью">
+      <section id="step2Panel" class="card step-panel" hidden aria-label="Step 2: Preview">
         <div class="card-head">
-          <h2>Шаг 2 · Визуальное направление и превью</h2>
+          <h2>Step 2 · Visual direction and preview</h2>
         </div>
 
         <div id="step2Banner" class="step-banner" hidden>
           <span id="step2BannerText"></span>
           <div class="banner-actions">
-            <button type="button" id="step2ReviewUnlockBtn" class="btn secondary small">Изменить</button>
-            <button type="button" id="step2RebuildBtn" class="btn primary small" hidden>Пересобрать</button>
+            <button type="button" id="step2ReviewUnlockBtn" class="btn secondary small">Edit</button>
+            <button type="button" id="step2RebuildBtn" class="btn primary small" hidden>Rebuild</button>
           </div>
         </div>
 
         <div id="step2Error" class="step-alert" role="alert" hidden>
           <span id="step2ErrorText"></span>
-          <button type="button" id="step2RetryBtn" class="btn secondary small">Повторить</button>
+          <button type="button" id="step2RetryBtn" class="btn secondary small">Retry</button>
         </div>
 
         <div id="campaignStylesStrip" class="step-subblock variants-strip">
           <div class="field-heading">
-            <span>Стили кампании</span>
+            <span>Campaign styles</span>
           </div>
-          <div id="variantsList" class="variants-list" role="list" aria-label="Стили кампании"></div>
+          <div id="variantsList" class="variants-list" role="list" aria-label="Campaign styles"></div>
           <div class="variants-strip-actions">
-            <button type="button" id="newStylesPitchBtn" class="btn secondary small">Новые 3 направления</button>
-            <button type="button" id="pickOtherDirectionBtn" class="btn secondary small" hidden>Выбрать другое направление</button>
+            <button type="button" id="newStylesPitchBtn" class="btn secondary small">Generate 3 new directions</button>
+            <button type="button" id="pickOtherDirectionBtn" class="btn secondary small" hidden>Choose another direction</button>
           </div>
         </div>
 
         <div class="step-subblock">
           <div class="field-heading">
-            <span>Визуальные направления (3 эскиза)</span>
-            <button type="button" id="proposeStylesBtn" class="btn secondary small">Предложить 3 направления</button>
+            <span>Visual directions (3 sketches)</span>
+            <button type="button" id="proposeStylesBtn" class="btn secondary small">Suggest 3 directions</button>
           </div>
-          <div id="choices" aria-label="Варианты визуального стиля" hidden></div>
+          <div id="choices" aria-label="Visual style options" hidden></div>
         </div>
 
         <div id="styleDirectionBox" class="step-subblock" hidden>
-          <label for="styleDirection">Описание направления</label>
-          <textarea id="styleDirection" rows="5" placeholder="Герой, композиция, типографика, акцент и характер движения…"></textarea>
+          <label for="styleDirection">Art direction</label>
+          <textarea id="styleDirection" rows="5" placeholder="Subject, composition, typography, emphasis and motion…"></textarea>
           <div class="step-actions">
-            <button type="button" id="buildPreviewBtn" class="btn primary">Собрать превью</button>
+            <button type="button" id="buildPreviewBtn" class="btn primary">Build preview</button>
           </div>
         </div>
 
         <div id="step2ApproveBox" class="step-actions step-approve-bar" hidden>
-          <button type="button" id="openCopyFromPreviewBtn" class="btn secondary">Тексты</button>
-          <button type="button" id="approvePreviewBtn" class="btn primary">Утвердить превью →</button>
+          <button type="button" id="openCopyFromPreviewBtn" class="btn secondary">Copy</button>
+          <button type="button" id="approvePreviewBtn" class="btn primary">Approve preview →</button>
         </div>
       </section>
 
       <!-- Step 3 Panel — Видео / Финал (§8.6) -->
-      <section id="step3Panel" class="card step-panel" hidden aria-label="Шаг 3: Финал">
+      <section id="step3Panel" class="card step-panel" hidden aria-label="Step 3: Final">
         <div class="card-head">
-          <h2 id="step3Heading">Шаг 3 · Видео</h2>
+          <h2 id="step3Heading">Step 3 · Video</h2>
         </div>
 
         <div id="step3Banner" class="step-banner warn" hidden>
-          <span id="step3BannerText">Превью или настройки изменились. Финал устарел — пересоберите его.</span>
-          <button type="button" id="step3RebuildBtn" class="btn primary small">Пересобрать</button>
+          <span id="step3BannerText">The preview or settings have changed. Rebuild the final to include those changes.</span>
+          <button type="button" id="step3RebuildBtn" class="btn primary small">Rebuild</button>
         </div>
 
         <div id="step3Error" class="step-alert" role="alert" hidden>
           <span id="step3ErrorText"></span>
-          <button type="button" id="step3RetryBtn" class="btn secondary small">Повторить</button>
+          <button type="button" id="step3RetryBtn" class="btn secondary small">Retry</button>
         </div>
 
         <div id="finalSummary" class="final-summary"></div>
 
         <fieldset id="mediaRow">
-          <legend>Генерация медиа · OpenRouter</legend>
+          <legend>Media generation · OpenRouter</legend>
           <label class="check">
             <input type="checkbox" id="mediaImages">
-            <span>Изображения <small>фото, текстуры, вырезанные объекты вместо плейсхолдеров превью</small></span>
+            <span>Images <small>Replace preview placeholders with photos, textures and cutouts</small></span>
           </label>
           <label id="finalVideoLabel" class="check">
             <input type="checkbox" id="mediaVideo">
-            <span>Видео <small>медленнее и дороже, до одного клипа</small></span>
+            <span>Video <small>Slower and more expensive. Up to one clip.</small></span>
           </label>
           <p id="mediaHint" class="note"></p>
         </fieldset>
 
         <div id="finalModelBox" class="step-subblock">
           <div class="row2">
-            <div><label for="finalModel">Модель шага</label><select id="finalModel"></select></div>
+            <div><label for="finalModel">Model for this step</label><select id="finalModel"></select></div>
             <div><label for="finalEffort">Effort</label><select id="finalEffort"></select></div>
           </div>
-          <p class="note">Финал — самый тяжёлый шаг, обычно стоит Opus</p>
+          <p class="note">The final build is the most demanding step. Consider using Opus.</p>
         </div>
 
         <div class="step-actions">
-          <button type="button" id="openCopyBtn" class="btn secondary" hidden>Тексты</button>
-          <button type="button" id="buildFinalBtn" class="btn primary">Собрать видео</button>
+          <button type="button" id="openCopyBtn" class="btn secondary" hidden>Copy</button>
+          <button type="button" id="buildFinalBtn" class="btn primary">Build video</button>
         </div>
       </section>
 
       <!-- Shared progress & cancel bar -->
       <div id="stepFooter" class="step-footer">
-        <button type="button" id="cancelRender" class="btn secondary" hidden>Остановить</button>
+        <button type="button" id="cancelRender" class="btn secondary" hidden>Stop</button>
         <div role="status" id="status"></div>
       </div>
     </div>
@@ -445,102 +445,102 @@
     <div class="side">
       <section class="preview card" tabindex="0">
         <div class="bar">
-          <h2>Предпросмотр</h2>
+          <h2>Preview</h2>
           <span id="previewStageBadge" class="pill" hidden></span>
-          <button type="button" id="openCopyTopBtn" class="btn secondary small" hidden>Тексты</button>
+          <button type="button" id="openCopyTopBtn" class="btn secondary small" hidden>Copy</button>
         </div>
 
         <div id="playerSwitchers" class="player-switchers" hidden>
           <div id="viewStylesRow" class="switcher-row" hidden>
-            <span class="switcher-label">Стиль</span>
-            <div id="viewStyles" class="chips small" role="group" aria-label="Стиль предпросмотра"></div>
+            <span class="switcher-label">Style</span>
+            <div id="viewStyles" class="chips small" role="group" aria-label="Preview style"></div>
           </div>
           <div id="viewFormatsRow" class="switcher-row">
-            <span class="switcher-label">Формат</span>
-            <div id="viewFormats" class="chips small" role="group" aria-label="Формат предпросмотра"></div>
+            <span class="switcher-label">Format</span>
+            <div id="viewFormats" class="chips small" role="group" aria-label="Preview format"></div>
           </div>
           <div id="viewLangsRow" class="switcher-row">
-            <span class="switcher-label">Язык</span>
-            <div id="viewLangs" class="chips small" role="group" aria-label="Язык предпросмотра"></div>
+            <span class="switcher-label">Language</span>
+            <div id="viewLangs" class="chips small" role="group" aria-label="Preview language"></div>
           </div>
           <div id="viewLengthsRow" class="switcher-row">
-            <span class="switcher-label">Длина</span>
-            <div id="viewLengths" class="chips small" role="group" aria-label="Длина ролика"></div>
+            <span class="switcher-label">Length</span>
+            <div id="viewLengths" class="chips small" role="group" aria-label="Video length"></div>
           </div>
         </div>
 
         <div class="stage">
-          <div id="stageEmpty" class="stage-empty" hidden>Здесь появится превью после шага «Сценарий»</div>
+          <div id="stageEmpty" class="stage-empty" hidden>Your preview will appear here after the script step.</div>
           <div class="artboard">
-            <iframe id="stageFrame" title="Рекламный креатив" sandbox="allow-scripts"></iframe>
-            <img id="keyframe" hidden alt="Эскиз выбранного направления">
+            <iframe id="stageFrame" title="Ad creative" sandbox="allow-scripts"></iframe>
+            <img id="keyframe" hidden alt="Sketch of the selected direction">
             <div id="live" hidden></div>
-            <span id="draftBadge" hidden>Черновик · пишется</span>
+            <span id="draftBadge" hidden>Draft in progress</span>
           </div>
         </div>
 
         <!-- Multi-scene storyboard strip (§8.5) -->
-        <div id="storyboard" class="storyboard-strip" hidden aria-label="Кадры сцен"></div>
+        <div id="storyboard" class="storyboard-strip" hidden aria-label="Scene frames"></div>
 
         <!-- Single-scene preview loop note (§8.5) -->
         <div id="singleLoopNote" class="single-loop-note" hidden>
-          <strong>Моушен-петля появится на шаге «Видео»</strong>
+          <strong>The motion loop will appear in the video step.</strong>
           <ul id="singleMotionList"></ul>
         </div>
 
         <div id="playerBar" class="player">
-          <button type="button" id="play" aria-label="Пауза">❚❚</button>
-          <input type="range" id="scrub" min="0" max="8" step="0.01" value="0" aria-label="Позиция в ролике">
-          <span id="time">0.0 / 8.0 с</span>
+          <button type="button" id="play" aria-label="Pause">❚❚</button>
+          <input type="range" id="scrub" min="0" max="8" step="0.01" value="0" aria-label="Playback position">
+          <span id="time">0.0 / 8.0 s</span>
         </div>
 
         <div class="caption">
-          <span id="caption">Демонстрационный макет</span>
-          <button type="button" id="replay" class="link" title="Воспроизвести с начала">↻ Повторить</button>
+          <span id="caption">Demo creative</span>
+          <button type="button" id="replay" class="link" title="Play from the beginning">↻ Replay</button>
         </div>
       </section>
 
       <!-- Copy Editor Drawer (§6.6, §8.6) -->
-      <section id="copyDrawer" class="card copy-drawer" hidden aria-label="Редактор текстов">
+      <section id="copyDrawer" class="card copy-drawer" hidden aria-label="Copy editor">
         <div class="card-head">
-          <h2>Тексты</h2>
+          <h2>Copy</h2>
           <span id="copyReadingLen" class="pill"></span>
-          <button type="button" id="copyCloseBtn" class="icon-btn" aria-label="Закрыть">×</button>
+          <button type="button" id="copyCloseBtn" class="icon-btn" aria-label="Close">×</button>
         </div>
-        <p class="note">Правки текстов применяются мгновенно во всех форматах без пересборки у модели.</p>
+        <p class="note">Copy edits apply immediately to every format without another model run.</p>
         <div id="copyEditorBody" class="copy-editor-body"></div>
         <p id="copyError" class="copy-error"></p>
         <div class="step-actions">
-          <button type="button" id="copyCancelBtn" class="btn secondary small">Отмена</button>
-          <button type="button" id="copySaveBtn" class="btn primary small">Сохранить тексты</button>
+          <button type="button" id="copyCancelBtn" class="btn secondary small">Cancel</button>
+          <button type="button" id="copySaveBtn" class="btn primary small">Save copy</button>
         </div>
       </section>
 
       <section id="chat" class="card" hidden>
         <div class="card-head">
-          <h2>Правки</h2>
+          <h2>Revisions</h2>
           <span id="chatCost" class="pill"></span>
         </div>
         <ol id="thread"></ol>
         <form id="chatForm">
           <div id="chatTarget"></div>
           <div id="chatFiles"></div>
-          <textarea id="chatInput" rows="2" placeholder="Что исправить? Вставьте скриншот (⌘V), перетащите или приложите новые картинки"></textarea>
+          <textarea id="chatInput" rows="2" placeholder="What should change? Paste a screenshot (⌘V), drop images here or attach files."></textarea>
           <div class="chat-actions">
-            <button type="button" id="chatAttach" class="btn secondary small">＋ Файлы</button>
+            <button type="button" id="chatAttach" class="btn secondary small">＋ Files</button>
             <input type="file" id="chatFileInput" multiple hidden accept="image/*,video/*,.svg,.pdf">
-            <span class="chat-hint">⌘↵ — отправить</span>
-            <button type="button" id="chatStop" class="btn secondary small" hidden>Остановить</button>
-            <button id="chatSend" class="btn primary small">Отправить</button>
+            <span class="chat-hint">⌘↵ to send</span>
+            <button type="button" id="chatStop" class="btn secondary small" hidden>Stop</button>
+            <button id="chatSend" class="btn primary small">Send</button>
           </div>
         </form>
       </section>
 
       <section id="journal" class="card" hidden>
         <div class="card-head">
-          <h2>Журнал</h2>
+          <h2>Run log</h2>
           <span id="costNow" class="pill"></span>
-          <button type="button" id="clearLog" class="link">Очистить</button>
+          <button type="button" id="clearLog" class="link">Clear</button>
         </div>
         <pre id="tail" hidden></pre>
         <ol id="log" aria-live="polite"></ol>

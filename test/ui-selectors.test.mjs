@@ -39,25 +39,28 @@ describe('public/ UI verification (§8, §13.4)', () => {
     assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)/);
   });
 
-  it('includes required Russian microcopy and accessibility attributes in public/', async () => {
+  it('includes required English microcopy and accessibility attributes in public/', async () => {
     const html = await fs.readFile(path.join(pubDir, 'index.html'), 'utf8');
     const appJs = await fs.readFile(path.join(pubDir, 'app.js'), 'utf8');
     const stepperJs = await fs.readFile(path.join(pubDir, 'stepper.js'), 'utf8');
 
+    assert.match(html, /<html lang="en">/);
+    assert.doesNotMatch(html.replace(/<!--[^]*?-->/g, ''), /[А-Яа-яЁё]/);
+
     // Stepper & radiogroup accessibility
-    assert.match(html, /<nav[^>]*id="stepper"[^>]*aria-label="Шаги"/);
+    assert.match(html, /<nav[^>]*id="stepper"[^>]*aria-label="Steps"/);
     assert.match(html, /role="radiogroup"/);
 
     // Key microcopy from §8.2–§8.8
-    assert.ok(html.includes('Статика: продуманная вёрстка, хук и CTA'));
-    assert.ok(html.includes('Всё в кадре сразу, бесшовный зацикленный моушен'));
-    assert.ok(html.includes('История в сценах: хук → доказательство → оффер'));
-    assert.ok(html.includes('Каждая строка будет переведена на все языки. Превью — на основном'));
-    assert.ok(html.includes('Сценарий распланирует, какие хуки попадут в каждую длину'));
-    assert.ok(html.includes('Финал — самый тяжёлый шаг, обычно стоит Opus'));
-    assert.ok(html.includes('Здесь появится превью после шага «Сценарий»'));
-    assert.ok(appJs.includes('Сценарий изменился после сборки превью. Превью устарело — пересоберите его, чтобы двигаться дальше.'));
-    assert.ok(stepperJs.includes('Сначала утвердите сценарий'));
-    assert.ok(stepperJs.includes('Сначала утвердите превью'));
+    assert.ok(html.includes('A static layout with a hook and a call to action'));
+    assert.ok(html.includes('One composition with seamless looping motion'));
+    assert.ok(html.includes('A sequence of scenes that introduces the hook, shows proof and presents the offer'));
+    assert.ok(html.includes('Each line is translated into every selected language. The preview uses the primary language.'));
+    assert.ok(html.includes('The script determines which hooks fit each length.'));
+    assert.ok(html.includes('The final build is the most demanding step. Consider using Opus.'));
+    assert.ok(html.includes('Your preview will appear here after the script step.'));
+    assert.ok(appJs.includes('The script has changed since this preview was built. Rebuild the preview to continue.'));
+    assert.ok(stepperJs.includes('Approve the script first'));
+    assert.ok(stepperJs.includes('Approve the preview first'));
   });
 });

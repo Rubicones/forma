@@ -13,7 +13,7 @@ export const authorStorage = new AsyncLocalStorage();
 export const currentAuthor = () => authorStorage.getStore() || process.env.FORMA_AUTHOR || null;
 
 export const SCHEMA_NOT_READY_MSG =
-  'База Supabase не подготовлена — выполните npx supabase db push --remote (см. docs/cloud-runbook.md)';
+  'Supabase is not ready. Run npx supabase db push --remote (see docs/cloud-runbook.md).';
 
 export const PREVIEW_SECURITY_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -149,7 +149,7 @@ export function rowToEntry(row) {
     const firstLine = dir.includes('\n\n') ? dir.split('\n\n')[0].trim() : '';
     const v0 = {
       id: vid,
-      label: s.styles?.label || (firstLine && firstLine.length <= 80 ? firstLine : 'Стиль 1'),
+      label: s.styles?.label || (firstLine && firstLine.length <= 80 ? firstLine : 'Style 1'),
       createdAt: doc.createdAt || row.created_at || new Date().toISOString(),
       author: doc.author ?? row.author ?? null,
       styles: {
@@ -240,7 +240,7 @@ export async function createDefaultSupabaseClient() {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) {
-    throw Error('Задайте SUPABASE_URL и SUPABASE_SERVICE_ROLE_KEY в .env для облачного режима.');
+    throw Error('Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env for cloud storage.');
   }
   const {createClient} = await import('@supabase/supabase-js');
   return createClient(url, key, {auth: {persistSession: false}});
@@ -256,7 +256,7 @@ export function createR2Blobs({s3Client = null, bucket = null} = {}) {
     const accessKeyId = process.env.R2_ACCESS_KEY_ID;
     const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
     if (!accountId || !accessKeyId || !secretAccessKey) {
-      throw Error('Задайте R2_ACCOUNT_ID, R2_ACCESS_KEY_ID и R2_SECRET_ACCESS_KEY в .env для облачного режима.');
+      throw Error('Set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY in .env for cloud storage.');
     }
     const {S3Client} = await import('@aws-sdk/client-s3');
     client = new S3Client({
@@ -514,9 +514,9 @@ export function createSupabaseStore({
       .select('author, doc')
       .eq('id', id)
       .maybeSingle();
-    const who = latest?.author || latest?.doc?.author || 'коллега';
+    const who = latest?.author || latest?.doc?.author || 'teammate';
     throw Object.assign(
-      Error(`Кампанию только что изменил ${who} — обновите страницу`),
+      Error(`${who} just updated this campaign. Refresh the page.`),
       {status: 409}
     );
   }
@@ -681,15 +681,15 @@ export function createSupabaseStore({
               .from('runs')
               .update({
                 status: 'error',
-                status_text: 'Процесс прервался',
+                status_text: 'Run interrupted',
                 finished_at: nowIso,
               })
               .eq('id', existingActive.id)
               .eq('status', 'running');
           } else {
-            const who = existingActive.author ? ` (запущен ${existingActive.author})` : '';
+            const who = existingActive.author ? ` (started by ${existingActive.author})` : '';
             throw Object.assign(
-              Error(`Дождитесь окончания текущего шага${who}.`),
+              Error(`Wait for the current step to finish${who}.`),
               {status: 409}
             );
           }
@@ -727,9 +727,9 @@ export function createSupabaseStore({
                 .eq('status', 'running')
                 .maybeSingle()
             : {data: null};
-          const who = activeRow?.author ? ` (запущен ${activeRow.author})` : '';
+          const who = activeRow?.author ? ` (started by ${activeRow.author})` : '';
           throw Object.assign(
-            Error(`Дождитесь окончания текущего шага${who}.`),
+            Error(`Wait for the current step to finish${who}.`),
             {status: 409}
           );
         }
@@ -843,7 +843,7 @@ export function createSupabaseStore({
             .from('runs')
             .update({
               status: 'error',
-              status_text: 'Процесс прервался',
+              status_text: 'Run interrupted',
               finished_at: new Date(nowMs).toISOString(),
             })
             .eq('id', r.id)
@@ -1050,7 +1050,7 @@ export function createSupabaseStore({
         driver,
         author: null,
         ready: false,
-        error: 'Задайте FORMA_AUTHOR в .env для облачного режима.',
+        error: 'Set FORMA_AUTHOR in .env for cloud storage.',
       };
     }
     try {

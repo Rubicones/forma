@@ -10,7 +10,7 @@ export const imageModel = () => process.env.OPENROUTER_IMAGE_MODEL || 'google/ge
 export const videoModel = () => process.env.OPENROUTER_VIDEO_MODEL || 'x-ai/grok-imagine-video-1.5-lite';
 // Gemini image models ("Nano Banana") cannot output alpha.
 const supportsTransparency = model => !/gemini|nano-banana/i.test(model);
-const kb = bytes => (bytes / 1024).toFixed(0) + ' КБ';
+const kb = bytes => (bytes / 1024).toFixed(0) + ' KB';
 const usd = cost => typeof cost === 'number' ? ' · $' + cost.toFixed(4) : '';
 export const mediaLimits = () => ({
   images: Number(process.env.MEDIA_MAX_IMAGES || 8),
@@ -101,43 +101,43 @@ const wait = (ms, signal) => new Promise((ok, no) => {
 // log(message, {level, detail, media:{kind,file,name}, quiet})
 export function mediaSession({dir, signal, log = () => {}, allow = {images:true, video:false}}) {
   const limits = mediaLimits(), used = {images:0, videos:0};
-  const refs = list => list.length ? ' · референсы: ' + list.join(', ') : '';
+  const refs = list => list.length ? ' · references: ' + list.join(', ') : '';
 
   async function image(input) {
     let args;
     try { args = z.object(imageShape).parse(input); }
-    catch (error) { log('generate_image: неверные аргументы', {level:'warn', detail:error.message}); throw error; }
+    catch (error) { log('generate_image: invalid arguments', {level:'warn', detail:error.message}); throw error; }
     if (!allow.images) throw Error('Image generation is disabled for this build.');
-    if (used.images >= limits.images) { log('Лимит изображений исчерпан (' + limits.images + ')', {level:'warn'}); throw Error('Image budget for this build is used up (' + limits.images + '). Work with the files you have.'); }
+    if (used.images >= limits.images) { log('Image limit reached (' + limits.images + ')', {level:'warn'}); throw Error('Image budget for this build is used up (' + limits.images + '). Work with the files you have.'); }
     used.images++;
     const model = imageModel(), started = Date.now();
     const transparent = args.transparent && supportsTransparency(model);
     const body = {model, prompt:args.prompt, n:1, aspect_ratio:args.aspect_ratio, quality:'high', resolution:process.env.OPENROUTER_IMAGE_RESOLUTION || '1K'};
     if (args.transparent && !transparent) body.prompt += '\nIsolated subject on a perfectly flat, uniform solid background with no shadow, gradient or texture.';
     if (transparent) Object.assign(body, {background:'transparent', output_format:'png'});
-    log('OpenRouter → изображение «' + args.name + '» · ' + model + ' · ' + args.aspect_ratio + (transparent ? ' · прозрачный фон' : '') + refs(args.references) + ' (' + used.images + '/' + limits.images + ')',
+    log('OpenRouter → image “' + args.name + '” · ' + model + ' · ' + args.aspect_ratio + (transparent ? ' · transparent background' : '') + refs(args.references) + ' (' + used.images + '/' + limits.images + ')',
       {level:'step', detail:args.prompt});
     if (args.references.length) body.input_references = await Promise.all(args.references.map(async r => ({type:'image_url', image_url:{url:await dataURL(dir, r)}})));
     let res;
     try {
       res = await call(API + '/images', {method:'POST', body:JSON.stringify(body)}, signal);
     } catch (error) {
-      if (error.status !== 400) { log('OpenRouter ✗ изображение «' + args.name + '»', {level:'error', detail:error.message}); throw error; }
+      if (error.status !== 400) { log('OpenRouter ✗ image “' + args.name + '”', {level:'error', detail:error.message}); throw error; }
       // Some providers reject quality/resolution tiers; retry with the bare minimum.
-      log('OpenRouter отклонил параметры, повтор без quality/resolution', {level:'warn', detail:error.message});
+      log('OpenRouter rejected the parameters. Retrying without quality/resolution.', {level:'warn', detail:error.message});
       delete body.quality; delete body.resolution;
       try { res = await call(API + '/images', {method:'POST', body:JSON.stringify(body)}, signal); }
-      catch (retry) { log('OpenRouter ✗ изображение «' + args.name + '»', {level:'error', detail:retry.message}); throw retry; }
+      catch (retry) { log('OpenRouter ✗ image “' + args.name + '”', {level:'error', detail:retry.message}); throw retry; }
     }
     const result = await res.json();
     const item = result.data?.[0];
-    if (!item?.b64_json) { log('OpenRouter вернул ответ без изображения', {level:'error', detail:JSON.stringify(result).slice(0, 500)}); throw Error('OpenRouter returned no image. Try a different prompt.'); }
+    if (!item?.b64_json) { log('OpenRouter returned no image', {level:'error', detail:JSON.stringify(result).slice(0, 500)}); throw Error('OpenRouter returned no image. Try a different prompt.'); }
     const ext = {'image/jpeg':'jpg', 'image/webp':'webp', 'image/svg+xml':'svg'}[item.media_type] || 'png';
     const buf = Buffer.from(item.b64_json, 'base64');
     const file = await target(dir, args.name, ext);
     await fs.writeFile(path.join(dir, file), buf);
     const size = imageSize(buf);
-    log('OpenRouter ✓ ' + file + ' · ' + (size.width ? size.width + '×' + size.height + ' · ' : '') + kb(buf.length) + ' · ' + ((Date.now() - started) / 1000).toFixed(1) + ' с' + usd(result.usage?.cost),
+    log('OpenRouter ✓ ' + file + ' · ' + (size.width ? size.width + '×' + size.height + ' · ' : '') + kb(buf.length) + ' · ' + ((Date.now() - started) / 1000).toFixed(1) + ' s' + usd(result.usage?.cost),
       {level:'done', media:{kind:'image', file, name:args.name, cost:result.usage?.cost}, cost:{kind:'image', usd:result.usage?.cost ?? null}});
     const note = args.transparent && !transparent ? 'This model cannot output transparency; the subject is on a flat solid background. Match the panel color or mask it.' : undefined;
     return {file, url:'assets/' + file, ...size, model, transparent, note, cost:result.usage?.cost, remaining:limits.images - used.images};
@@ -146,9 +146,9 @@ export function mediaSession({dir, signal, log = () => {}, allow = {images:true,
   async function video(input) {
     let args;
     try { args = z.object(videoShape).parse(input); }
-    catch (error) { log('generate_video: неверные аргументы', {level:'warn', detail:error.message}); throw error; }
+    catch (error) { log('generate_video: invalid arguments', {level:'warn', detail:error.message}); throw error; }
     if (!allow.video) throw Error('Video generation is disabled for this build.');
-    if (used.videos >= limits.videos) { log('Лимит видео исчерпан (' + limits.videos + ')', {level:'warn'}); throw Error('Video budget for this build is used up (' + limits.videos + ').'); }
+    if (used.videos >= limits.videos) { log('Video limit reached (' + limits.videos + ')', {level:'warn'}); throw Error('Video budget for this build is used up (' + limits.videos + ').'); }
     used.videos++;
     const model = videoModel(), started = Date.now();
     const body = {model, prompt:args.prompt, aspect_ratio:args.aspect_ratio, duration:args.duration, generate_audio:false};
@@ -158,33 +158,33 @@ export function mediaSession({dir, signal, log = () => {}, allow = {images:true,
     if (args.last_frame) frames.push({type:'image_url', image_url:{url:await dataURL(dir, args.last_frame)}, frame_type:'last_frame'});
     if (frames.length) body.frame_images = frames;
     else if (args.references.length) body.input_references = await Promise.all(args.references.map(async r => ({type:'image_url', image_url:{url:await dataURL(dir, r)}})));
-    log('OpenRouter → видео «' + args.name + '» · ' + model + ' · ' + args.aspect_ratio + ' · ' + args.duration + ' с' + (body.resolution ? ' · ' + body.resolution : '') +
-      (args.first_frame ? ' · первый кадр: ' + args.first_frame : '') + (args.last_frame ? ' · последний: ' + args.last_frame : '') + (!frames.length ? refs(args.references) : ''),
+    log('OpenRouter → video “' + args.name + '” · ' + model + ' · ' + args.aspect_ratio + ' · ' + args.duration + ' s' + (body.resolution ? ' · ' + body.resolution : '') +
+      (args.first_frame ? ' · first frame: ' + args.first_frame : '') + (args.last_frame ? ' · last frame: ' + args.last_frame : '') + (!frames.length ? refs(args.references) : ''),
       {level:'step', detail:args.prompt});
     let job;
     try { job = await (await call(API + '/videos', {method:'POST', body:JSON.stringify(body)}, signal)).json(); }
-    catch (error) { log('OpenRouter ✗ видео «' + args.name + '»', {level:'error', detail:error.message}); throw error; }
-    log('Видео в очереди · задача ' + job.id);
+    catch (error) { log('OpenRouter ✗ video “' + args.name + '”', {level:'error', detail:error.message}); throw error; }
+    log('Video queued · job ' + job.id);
     const deadline = Date.now() + Number(process.env.MEDIA_VIDEO_TIMEOUT_MS || 12 * 60 * 1000);
     let state = job, lastStatus = job.status;
     while (state.status !== 'completed') {
       if (['failed', 'cancelled', 'expired'].includes(state.status)) {
         const reason = state.error?.message || state.error || 'unknown error';
-        log('OpenRouter ✗ видео «' + args.name + '» · ' + state.status, {level:'error', detail:reason});
+        log('OpenRouter ✗ video “' + args.name + '” · ' + state.status, {level:'error', detail:reason});
         throw Error('Video generation ' + state.status + ': ' + reason);
       }
-      if (Date.now() > deadline) { log('Видео не готово за отведённое время', {level:'error'}); throw Error('Video generation timed out. Continue without the clip.'); }
+      if (Date.now() > deadline) { log('Video generation timed out', {level:'error'}); throw Error('Video generation timed out. Continue without the clip.'); }
       await wait(8000, signal);
       state = await (await call(API + '/videos/' + encodeURIComponent(job.id), {method:'GET'}, signal)).json();
-      const elapsed = Math.round((Date.now() - started) / 1000) + ' с';
-      log('Видео «' + args.name + '» · ' + state.status + ' · ' + elapsed, {level:state.status !== lastStatus ? 'step' : 'info'});
+      const elapsed = Math.round((Date.now() - started) / 1000) + ' s';
+      log('Video “' + args.name + '” · ' + state.status + ' · ' + elapsed, {level:state.status !== lastStatus ? 'step' : 'info'});
       lastStatus = state.status;
     }
     const content = await call(API + '/videos/' + encodeURIComponent(job.id) + '/content?index=0', {method:'GET'}, signal);
     const buf = Buffer.from(await content.arrayBuffer());
     const file = await target(dir, args.name, 'mp4');
     await fs.writeFile(path.join(dir, file), buf);
-    log('OpenRouter ✓ ' + file + ' · ' + kb(buf.length) + ' · ' + Math.round((Date.now() - started) / 1000) + ' с' + usd(state.usage?.cost),
+    log('OpenRouter ✓ ' + file + ' · ' + kb(buf.length) + ' · ' + Math.round((Date.now() - started) / 1000) + ' s' + usd(state.usage?.cost),
       {level:'done', media:{kind:'video', file, name:args.name, cost:state.usage?.cost}, cost:{kind:'video', usd:state.usage?.cost ?? null}});
     return {file, url:'assets/' + file, duration:args.duration, aspect_ratio:args.aspect_ratio, model, cost:state.usage?.cost, remaining:limits.videos - used.videos};
   }

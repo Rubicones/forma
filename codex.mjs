@@ -20,9 +20,9 @@ export async function chatLogin() {
   } catch {return false}
 }
 function failure(error, model, billing) {
-  if (error.code==='ENOENT' && error.syscall?.startsWith('spawn')) return 'Не найден Codex CLI. Проверьте CODEX_BIN.';
-  if (error.killed) return 'Генерация остановлена по тайм-ауту.';
-  if (error.code==='ERR_CHILD_PROCESS_STDIO_MAXBUFFER') return 'Вывод Codex превысил локальный лимит.';
+  if (error.code==='ENOENT' && error.syscall?.startsWith('spawn')) return 'Codex CLI not found. Check CODEX_BIN.';
+  if (error.killed) return 'Generation timed out.';
+  if (error.code==='ERR_CHILD_PROCESS_STDIO_MAXBUFFER') return 'Codex output exceeded the local limit.';
   const events=[];
   for(const line of (error.stdout || '').split('\n')) {
     try {
@@ -32,15 +32,15 @@ function failure(error, model, billing) {
     } catch {}
   }
   const lines=(error.stderr || '').split('\n').filter(line=>/^(?:error|fatal)(?:\b|:)/i.test(line.trim()));
-  const detail=events.filter(Boolean).at(-1) || lines.at(-1) || 'Код завершения '+(error.code || error.signal || 'неизвестен');
+  const detail=events.filter(Boolean).at(-1) || lines.at(-1) || 'Exit code '+(error.code || error.signal || 'unknown');
   if (/quota exceeded|insufficient_quota|exceeded your current quota/i.test(detail)) {
-    if(billing==='chatgpt') return 'Достигнут лимит Codex в ChatGPT. Проверьте время его обновления.';
-    return 'OpenAI: исчерпана квота API (Quota exceeded). Проверьте баланс и лимит расходов организации, к которой относится ключ.';
+    if(billing==='chatgpt') return 'Your ChatGPT Codex limit has been reached. Check when it resets.';
+    return 'OpenAI API quota exceeded. Check the balance and spending limit for the organization that owns the key.';
   }
   let safe=String(detail);
   const key=codexKey();
-  if(key) safe=safe.replaceAll(key,'[скрыто]');
-  safe=safe.replace(/sk-[\w-]+/g,'[скрыто]').replace(/Bearer\s+[^\s",]+/gi,'Bearer [скрыто]');
+  if(key) safe=safe.replaceAll(key,'[redacted]');
+  safe=safe.replace(/sk-[\w-]+/g,'[redacted]').replace(/Bearer\s+[^\s",]+/gi,'Bearer [redacted]');
   return 'Codex ('+model+'): '+safe.slice(0,900);
 }
 const short=(text,n=200)=>{const s=String(text??'').replace(/\s+/g,' ').trim();return s.length>n?s.slice(0,n-1)+'…':s};
@@ -48,25 +48,25 @@ const short=(text,n=200)=>{const s=String(text??'').replace(/\s+/g,' ').trim();r
 function describe(event, log, onText, model) {
   const item=event.item || {};
   switch(event.type){
-    case 'thread.started': return log('Codex: сессия начата',{level:'step'});
-    case 'turn.started': return log('Codex: модель работает');
-    case 'turn.completed': { const u=event.usage||{}, cost=codexCost(model,u); return log('Codex закончил · токены: вход '+(u.input_tokens??'?')+(u.cached_input_tokens?' (кэш '+u.cached_input_tokens+')':'')+', выход '+(u.output_tokens??'?')+' · по API ≈ '+(cost===null?'недостаточно данных для расчёта':usd(cost)),{level:'done',cost:{kind:'llm',usd:cost,usage:u}}); }
-    case 'turn.failed': return log('Codex: ход завершился ошибкой',{level:'error',detail:event.error?.message});
-    case 'error': return log('Codex: ошибка',{level:'error',detail:event.message});
+    case 'thread.started': return log('Codex session started',{level:'step'});
+    case 'turn.started': return log('Codex is working');
+    case 'turn.completed': { const u=event.usage||{}, cost=codexCost(model,u); return log('Codex finished · tokens: input '+(u.input_tokens??'?')+(u.cached_input_tokens?' (cached '+u.cached_input_tokens+')':'')+', output '+(u.output_tokens??'?')+' · estimated API cost ≈ '+(cost===null?'insufficient usage data':usd(cost)),{level:'done',cost:{kind:'llm',usd:cost,usage:u}}); }
+    case 'turn.failed': return log('Codex turn failed',{level:'error',detail:event.error?.message});
+    case 'error': return log('Codex error',{level:'error',detail:event.message});
   }
   if(event.type==='item.started'){
-    if(item.type==='command_execution') return log('Codex выполняет: '+short(item.command,160),{level:'step'});
-    if(item.type==='mcp_tool_call') return log('Codex вызывает '+(item.tool||'инструмент')+(item.server?' ('+item.server+')':''),{level:'step',detail:item.arguments?JSON.stringify(item.arguments):undefined});
-    if(item.type==='web_search') return log('Codex ищет: '+short(item.query,120));
+    if(item.type==='command_execution') return log('Codex is running: '+short(item.command,160),{level:'step'});
+    if(item.type==='mcp_tool_call') return log('Codex is calling '+(item.tool||'tool')+(item.server?' ('+item.server+')':''),{level:'step',detail:item.arguments?JSON.stringify(item.arguments):undefined});
+    if(item.type==='web_search') return log('Codex is searching: '+short(item.query,120));
     return;
   }
   if(event.type==='item.completed'){
-    if(item.type==='reasoning') return log('Codex думает: '+short(item.text,160),{level:'think',detail:item.text});
-    if(item.type==='agent_message'){ onText(item.text||''); return log('Codex ответил · '+((item.text||'').length/1000).toFixed(1)+'k симв.',{level:'step'}); }
-    if(item.type==='command_execution') return log('Команда завершена'+(item.exit_code!==undefined?' · код '+item.exit_code:''),{level:item.exit_code?'warn':'info',quiet:true,detail:short(item.aggregated_output,800)});
-    if(item.type==='mcp_tool_call') return log('Инструмент '+(item.tool||'')+' · '+(item.status||'готово'),{level:item.status==='failed'||item.error?'warn':'info',quiet:true,detail:item.error?.message});
-    if(item.type==='todo_list') return log('План Codex',{detail:(item.items||[]).map(i=>(i.completed?'✓ ':'· ')+i.text).join('\n')});
-    if(item.type==='file_change') return log('Codex изменил файлы',{level:'warn'});
+    if(item.type==='reasoning') return log('Codex is thinking: '+short(item.text,160),{level:'think',detail:item.text});
+    if(item.type==='agent_message'){ onText(item.text||''); return log('Codex replied · '+((item.text||'').length/1000).toFixed(1)+'k characters',{level:'step'}); }
+    if(item.type==='command_execution') return log('Command finished'+(item.exit_code!==undefined?' · exit code '+item.exit_code:''),{level:item.exit_code?'warn':'info',quiet:true,detail:short(item.aggregated_output,800)});
+    if(item.type==='mcp_tool_call') return log('Tool '+(item.tool||'')+' · '+(item.status||'done'),{level:item.status==='failed'||item.error?'warn':'info',quiet:true,detail:item.error?.message});
+    if(item.type==='todo_list') return log('Codex plan',{detail:(item.items||[]).map(i=>(i.completed?'✓ ':'· ')+i.text).join('\n')});
+    if(item.type==='file_change') return log('Codex modified files',{level:'warn'});
   }
 }
 // Forwards JSON lines that media-mcp.mjs appends to its log file.
@@ -108,7 +108,7 @@ export async function generateCodex({dir, files, scenario, style, billing="api",
       '-c','mcp_servers.forma_media.tool_timeout_sec=900'] : []),
     '--model',model,'-c','model_reasoning_effort="'+effort+'"','--output-last-message',resultFile,'-'];
   const stopTail = useMedia ? tailFile(mediaLog, log) : async()=>{};
-  log('Запуск Codex CLI · '+model+' · effort '+effort+(useMedia?' · медиа-инструменты подключены':''),{level:'step'});
+  log('Starting Codex CLI · '+model+' · effort '+effort+(useMedia?' · media tools connected':''),{level:'step'});
   try {
     const job = run(process.env.CODEX_BIN || 'codex',args,{
       cwd:temp, signal:controller.signal, timeout:useMedia ? 1800000 : 900000, maxBuffer:16*1024*1024,

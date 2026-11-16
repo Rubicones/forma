@@ -16,7 +16,7 @@ export const moneyPrecise = v =>
 
 export function stepCostLabel(cost) {
   if (!cost || (!cost.total && !cost.unknown)) return '';
-  return `≈ ${money(cost.total)}${cost.unknown ? ' +?' : ''} по API`;
+  return `≈ ${money(cost.total)}${cost.unknown ? ' +?' : ''} at API rates`;
 }
 
 export async function api(url, init = {}) {
@@ -27,7 +27,7 @@ export async function api(url, init = {}) {
   const res = await fetch(url, {...init, headers});
   if (!res.ok) {
     const error = await res.json().catch(() => ({}));
-    throw Error(error.error || 'Не удалось выполнить запрос.');
+    throw Error(error.error || 'The request failed.');
   }
   return res;
 }
@@ -99,42 +99,42 @@ export function describeSetupInvalidation(prev, next, campaign) {
   const s = campaign.steps;
 
   if (prev.kind !== next.kind) {
-    if (s.scenario?.entryId) effects.push('Сценарий устареет (сменился тип креатива)');
-    if (s.preview?.entryId) effects.push('Превью устареет');
-    if (s.final?.entryId) effects.push('Финал устареет');
+    if (s.scenario?.entryId) effects.push('The script will be out of date (creative type changed)');
+    if (s.preview?.entryId) effects.push('The preview will be out of date');
+    if (s.final?.entryId) effects.push('The final will be out of date');
     return effects;
   }
 
   if (prev.languages?.[0] !== next.languages?.[0]) {
-    if (s.preview?.entryId) effects.push('Превью устареет (сменился основной язык)');
-    if (s.final?.entryId) effects.push('Финал устареет');
+    if (s.preview?.entryId) effects.push('The preview will be out of date (primary language changed)');
+    if (s.final?.entryId) effects.push('The final will be out of date');
   }
   if (prev.formats?.[0] !== next.formats?.[0]) {
-    if (s.preview?.entryId) effects.push('Превью устареет (сменился основной формат)');
-    if (s.final?.entryId) effects.push('Финал устареет');
+    if (s.preview?.entryId) effects.push('The preview will be out of date (primary format changed)');
+    if (s.final?.entryId) effects.push('The final will be out of date');
   }
 
   const addedLangs = (next.languages || []).filter(l => !(prev.languages || []).includes(l));
   const langsChanged = (prev.languages || []).join(',') !== (next.languages || []).join(',');
   if (addedLangs.length && s.scenario?.entryId) {
-    effects.push(`Сценарию потребуется перевод на: ${addedLangs.join(', ')}`);
+    effects.push(`The script needs translation into: ${addedLangs.join(', ')}`);
   }
-  if (langsChanged && s.final?.entryId && !effects.some(e => e.includes('Финал'))) {
-    effects.push('Финал устареет (изменился список языков)');
+  if (langsChanged && s.final?.entryId && !effects.some(e => e.includes('final'))) {
+    effects.push('The final will be out of date (languages changed)');
   }
 
   const addedLengths = (next.lengths || []).filter(l => !(prev.lengths || []).includes(l));
   const lengthsChanged = (prev.lengths || []).join(',') !== (next.lengths || []).join(',');
   if (next.kind === 'multi' && addedLengths.length && s.scenario?.entryId) {
-    effects.push(`Сценарию потребуется расчёт нарезки для: ${addedLengths.join(', ')} с`);
+    effects.push(`The script needs new cuts for: ${addedLengths.join(', ')} s`);
   }
-  if (lengthsChanged && s.final?.entryId && !effects.some(e => e.includes('Финал'))) {
-    effects.push('Финал устареет (изменились длины роликов)');
+  if (lengthsChanged && s.final?.entryId && !effects.some(e => e.includes('final'))) {
+    effects.push('The final will be out of date (video lengths changed)');
   }
 
   const formatsChanged = (prev.formats || []).join(',') !== (next.formats || []).join(',');
-  if (formatsChanged && s.final?.entryId && !effects.some(e => e.includes('Финал'))) {
-    effects.push('Финал устареет (изменился набор форматов)');
+  if (formatsChanged && s.final?.entryId && !effects.some(e => e.includes('final'))) {
+    effects.push('The final will be out of date (formats changed)');
   }
 
   return effects;

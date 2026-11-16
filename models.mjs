@@ -19,7 +19,7 @@ export function settings(mode, model, effort) {
   model ??= Object.keys(models[mode])[0];
   effort ??= 'medium';
   if (!Object.hasOwn(models[mode],model) || !models[mode][model].includes(effort)) {
-    throw Object.assign(Error('Выберите доступную модель и уровень effort.'),{status:400});
+    throw Object.assign(Error('Choose an available model and effort level.'),{status:400});
   }
   return {model,effort};
 }

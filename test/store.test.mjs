@@ -522,7 +522,7 @@ describe('Supabase migrations & entryToRow / rowToEntry round-trip (§3, M3)', (
     assert.equal(upRetryOk.name, 'Name after 1 retry');
     assert.equal(upRetryOk.version, 4);
 
-    // Double concurrent conflict -> throws 409 «Кампанию только что изменил Анна — обновите страницу»
+    // Double concurrent conflict -> throws 409 «Анна just updated this campaign. Refresh the page.»
     simulateConcurrentWriter = () => {
       const r = tables.entries.get(camp.id);
       r.version += 1;
@@ -530,7 +530,7 @@ describe('Supabase migrations & entryToRow / rowToEntry round-trip (§3, M3)', (
     };
     await assert.rejects(
       () => sbStore.history.update(camp.id, {name: 'Should fail'}),
-      err => err.status === 409 && err.message === 'Кампанию только что изменил Анна — обновите страницу'
+      err => err.status === 409 && err.message === 'Анна just updated this campaign. Refresh the page.'
     );
     simulateConcurrentWriter = null;
   });
@@ -891,7 +891,7 @@ describe('Runs locking, heartbeat, event flushing, render-progress fallback & FO
       });
     });
 
-  it('sweeps dead runs older than 120s with «Процесс прервался», batches >100 events, and serves colleague runs via render-progress fallback', async () => {
+  it('sweeps dead runs older than 120s with «Run interrupted», batches >100 events, and serves colleague runs via render-progress fallback', async () => {
     const cloud = createMemoryCloud({dataDir: tempDir});
     const campaignId = randomUUID();
     const deadRunId = randomUUID();
@@ -907,7 +907,7 @@ describe('Runs locking, heartbeat, event flushing, render-progress fallback & FO
     const deadRow = cloud.tables.runs.get(deadRunId);
     deadRow.heartbeat_at = new Date(Date.now() - 130_000).toISOString();
 
-    // Starting a new run on the same campaign marks the dead run as error «Процесс прервался» and succeeds
+    // Starting a new run on the same campaign marks the dead run as error «Run interrupted» and succeeds
     const liveRunId = randomUUID();
     await cloud.runs.start({
       id: liveRunId,
@@ -917,7 +917,7 @@ describe('Runs locking, heartbeat, event flushing, render-progress fallback & FO
       author: 'Анна',
     });
     assert.equal(cloud.tables.runs.get(deadRunId).status, 'error');
-    assert.equal(cloud.tables.runs.get(deadRunId).status_text, 'Процесс прервался');
+    assert.equal(cloud.tables.runs.get(deadRunId).status_text, 'Run interrupted');
 
     // Batch 135 events into run_events and update heartbeat
     const eventsBatch = Array.from({length: 135}, (_, i) => ({
@@ -983,7 +983,7 @@ describe('Runs locking, heartbeat, event flushing, render-progress fallback & FO
 
     // 1. Author A starts scenario step; while it is running:
     //    - Author B sees it in GET /api/runs/active
-    //    - Author B starting a step on the same campaign gets 409 «Дождитесь окончания текущего шага (запущен Дмитрий).»
+    //    - Author B starting a step on the same campaign gets 409 «Wait for the current step to finish (started by Дмитрий).»
     const stepAPromise = req('POST', `/api/campaigns/${cid}/scenario`, {notes: 'Author A scenario'}, {author: 'Дмитрий'});
 
     // Wait a tick so Author A's run is registered in DB
@@ -1016,7 +1016,7 @@ describe('Runs locking, heartbeat, event flushing, render-progress fallback & FO
     // Author B tries to start a step on the same campaign while Author A's step is running -> 409
     const blockedB = await req('POST', `/api/campaigns/${cid}/scenario`, {}, {author: 'Анна'});
     assert.equal(blockedB.status, 409);
-    assert.equal(blockedB.body.error, 'Дождитесь окончания текущего шага (запущен Дмитрий).');
+    assert.equal(blockedB.body.error, 'Wait for the current step to finish (started by Дмитрий).');
 
     const stepADone = await stepAPromise;
     assert.equal(stepADone.status, 200);
@@ -1037,14 +1037,22 @@ describe('Runs locking, heartbeat, event flushing, render-progress fallback & FO
     const conflictPatch = await req('PATCH', `/api/campaigns/${cid}`, {name: 'Conflicting Rename'}, {author: 'Анна'});
     memoryStore.setBeforeUpdateHook(null);
     assert.equal(conflictPatch.status, 409);
-    assert.equal(conflictPatch.body.error, 'Кампанию только что изменил Дмитрий — обновите страницу');
+    assert.equal(conflictPatch.body.error, 'Дмитрий just updated this campaign. Refresh the page.');
 
     // 3. Build Variant 1 (styles -> choose 0 -> preview -> approve -> final) by Author A
+    const cover = async () => {
+      const response = await req('GET', '/api/brand-campaigns?covers=1');
+      assert.equal(response.status, 200);
+      return response.body.find(c => c.id === cid).cover;
+    };
+    assert.equal(await cover(), null);
     const stRes = await req('POST', `/api/campaigns/${cid}/styles`, {}, {author: 'Дмитрий'});
     assert.equal(stRes.status, 200);
+    assert.equal((await cover()).stage, 'sketch');
     await req('POST', `/api/campaigns/${cid}/styles/choose`, {index: 0}, {author: 'Дмитрий'});
     const prev1 = await req('POST', `/api/campaigns/${cid}/preview`, {}, {author: 'Дмитрий'});
     assert.equal(prev1.status, 200);
+    assert.equal((await cover()).stage, 'preview');
     await req('POST', `/api/campaigns/${cid}/approve`, {step: 'preview'}, {author: 'Дмитрий'});
     const fin1 = await req('POST', `/api/campaigns/${cid}/final`, {media: {images: false, video: false}}, {author: 'Дмитрий'});
     assert.equal(fin1.status, 200);
@@ -1056,6 +1064,7 @@ describe('Runs locking, heartbeat, event flushing, render-progress fallback & FO
     assert.equal(chooseVar2.body.variants.length, 2);
     const v2Id = chooseVar2.body.activeVariant;
     assert.notEqual(v2Id, v1Id);
+    assert.equal((await cover()).path, fin1.body.campaign.entries.final.output.path);
     assert.equal(chooseVar2.body.variants.find(v => v.id === v2Id).author, 'Анна');
 
     const prev2 = await req('POST', `/api/campaigns/${cid}/preview`, {}, {author: 'Анна'});

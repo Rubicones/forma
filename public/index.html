@@ -364,7 +364,6 @@
           <div id="variantsList" class="variants-list" role="list" aria-label="Campaign styles"></div>
           <div class="variants-strip-actions">
             <button type="button" id="newStylesPitchBtn" class="btn secondary small">Generate 3 new directions</button>
-            <button type="button" id="pickOtherDirectionBtn" class="btn secondary small" hidden>Choose another direction</button>
           </div>
         </div>
 
@@ -374,6 +373,15 @@
             <button type="button" id="proposeStylesBtn" class="btn secondary small">Suggest 3 directions</button>
           </div>
           <div id="choices" aria-label="Visual style options" hidden></div>
+          <div id="styleReviseBox" class="style-revise" hidden>
+            <label for="styleFeedback">Changes to the directions</label>
+            <textarea id="styleFeedback" rows="3" maxlength="4000" placeholder="What should change: mood, medium, colour, a reference, what to drop…"></textarea>
+            <div class="style-revise-actions">
+              <select id="styleReviseTarget" aria-label="Which directions to rework"></select>
+              <button type="button" id="reviseStylesBtn" class="btn secondary small">Rework all three</button>
+            </div>
+            <p class="note">All three: a new set of directions that follows your notes. One direction: only that one is replaced, the others stay. Notes are optional for a single direction.</p>
+          </div>
         </div>
 
         <div id="styleDirectionBox" class="step-subblock" hidden>

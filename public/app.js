@@ -254,7 +254,7 @@ function applyProgress(p, task, trackerState) {
     if (keyframe.hidden) previousCaption = $('#caption').textContent;
     keyframe.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(p.sketches.at(-1));
     keyframe.hidden = false;
-    $('#caption').textContent = 'Sketch ' + trackerState.sketches + ' of 3';
+    $('#caption').textContent = 'Sketch ' + trackerState.sketches + ' of ' + (p.sketchTotal || 3);
   }
 }
 
@@ -953,7 +953,6 @@ function variantStatusText(v) {
 function renderVariantsStrip() {
   const c = state.campaign;
   const listEl = $('#variantsList');
-  const pickOtherBtn = $('#pickOtherDirectionBtn');
   const newPitchBtn = $('#newStylesPitchBtn');
   if (!c || !listEl) return;
 
@@ -1026,12 +1025,6 @@ function renderVariantsStrip() {
   if (newPitchBtn) {
     newPitchBtn.disabled = busy;
   }
-  if (pickOtherBtn) {
-    const canPickOther = Boolean(styles.length && prevEntry?.output?.path);
-    pickOtherBtn.hidden = !canPickOther;
-    pickOtherBtn.disabled = busy;
-    pickOtherBtn.setAttribute('aria-pressed', String(pickingOtherDirection));
-  }
 }
 
 function renderStyleCards(styles = [], chosenIndex = null, cardsLocked = false) {
@@ -1042,9 +1035,11 @@ function renderStyleCards(styles = [], chosenIndex = null, cardsLocked = false) 
   }
   choices.hidden = false;
   styles.forEach((option, idx) => {
+    const card = el('div', 'choice');
     const button = document.createElement('button');
     const img = new Image();
     button.type = 'button';
+    button.className = 'choice-card';
     const isChosen = !pickingOtherDirection && idx === chosenIndex;
     button.setAttribute('aria-pressed', String(isChosen));
     img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(option.svg);
@@ -1055,28 +1050,105 @@ function renderStyleCards(styles = [], chosenIndex = null, cardsLocked = false) 
     button.disabled = busy || cardsLocked;
     button.onclick = async () => {
       if (busy || cardsLocked) return;
+      if (isChosen) return;
       const defaultDir = [option.name, option.idea, option.direction].filter(Boolean).join('\n\n');
       $('#styleDirection').value = defaultDir;
       $('#styleDirectionBox').hidden = false;
-      for (const sib of choices.children) sib.setAttribute('aria-pressed', String(sib === button));
+      for (const sib of choices.querySelectorAll('.choice-card')) sib.setAttribute('aria-pressed', String(sib === button));
       if (keyframe.hidden) previousCaption = $('#caption').textContent;
       keyframe.src = img.src;
       keyframe.hidden = false;
       $('#caption').textContent = 'Sketch · ' + option.name;
       try {
         pickingOtherDirection = false;
+        const countBefore = state.campaign.variants?.length || 0;
         const updated = await chooseStyle(state.campaign.id, {index: idx, direction: defaultDir});
         setCampaign(updated);
         renderWorkspace();
         syncRightPaneToCampaign();
         refreshHistory();
+        if ((updated.variants?.length || 0) > countBefore) {
+          status.textContent = 'New style “' + option.name + '” created. The previous style keeps its preview.';
+        }
       } catch (e) {
         status.textContent = e.message;
       }
     };
-    choices.append(button);
+    const revise = el('button', 'choice-revise', 'Rework this one');
+    revise.type = 'button';
+    revise.disabled = busy || cardsLocked;
+    revise.setAttribute('aria-label', 'Rework direction ' + (idx + 1) + ': ' + option.name);
+    revise.onclick = () => {
+      reviseTarget = String(idx);
+      renderReviseBox(styles, cardsLocked);
+      $('#styleFeedback').focus();
+    };
+    card.append(button, revise);
+    choices.append(card);
   });
 }
+
+// Revision round before the preview: 'all' reworks the three directions, '0'..'2' replaces one of them.
+let reviseTarget = 'all';
+
+function renderReviseBox(styles = [], locked = false) {
+  const box = $('#styleReviseBox');
+  const select = $('#styleReviseTarget');
+  const btn = $('#reviseStylesBtn');
+  if (!Array.isArray(styles) || styles.length !== 3 || locked) {
+    box.hidden = true;
+    return;
+  }
+  box.hidden = false;
+  if (!['all', '0', '1', '2'].includes(reviseTarget)) reviseTarget = 'all';
+  select.replaceChildren(
+    new Option('All three directions', 'all'),
+    ...styles.map((st, i) => new Option(`Only ${i + 1} · ${st.name}`, String(i)))
+  );
+  select.value = reviseTarget;
+  select.disabled = busy;
+  $('#styleFeedback').disabled = busy;
+  btn.disabled = busy;
+  if (!btn.classList.contains('is-loading')) {
+    btn.textContent = reviseTarget === 'all' ? 'Rework all three' : 'Rework ' + styles[Number(reviseTarget)].name;
+  }
+}
+
+$('#styleReviseTarget').onchange = e => {
+  reviseTarget = e.target.value;
+  const styles = state.campaign?.entries?.styles?.output?.styles || [];
+  renderReviseBox(styles);
+};
+
+$('#reviseStylesBtn').onclick = () => {
+  if (busy || !state.campaign) return;
+  const revise = reviseTarget === 'all' ? 'all' : Number(reviseTarget);
+  const feedbackEl = $('#styleFeedback');
+  const feedback = feedbackEl.value.trim();
+  if (revise === 'all' && !feedback) {
+    status.textContent = 'Describe what should change in all three directions.';
+    feedbackEl.focus();
+    return;
+  }
+  const styles = state.campaign.entries?.styles?.output?.styles || [];
+  const label = revise === 'all' ? 'all three directions' : '“' + (styles[revise]?.name || 'direction ' + (revise + 1)) + '”';
+  pickingOtherDirection = false;
+  runCampaignTask({
+    stepNum: 2,
+    task: 'style',
+    startMsg: 'Reworking ' + label + '…',
+    triggerBtn: $('#reviseStylesBtn'),
+    fn: ({requestId, signal}) => proposeStyles(state.campaign.id, {requestId, signal, revise, feedback}),
+  }).then(() => {
+    feedbackEl.value = '';
+    reviseTarget = 'all';
+    state.reviewUnlocked[2] = false;
+    renderWorkspace();
+    syncRightPaneToCampaign();
+    refreshHistory();
+    status.textContent = revise === 'all' ? 'Three reworked directions are ready.' : 'The reworked direction is ready.';
+  }).catch(() => {});
+};
 
 function renderStep2Panel() {
   const c = state.campaign;
@@ -1114,8 +1186,10 @@ function renderStep2Panel() {
   }
 
   $('#proposeStylesBtn').disabled = busy || reviewMode;
-  const cardsLocked = reviewMode || (Boolean(prevEntry?.output?.path) && !pickingOtherDirection);
+  // Cards stay clickable after a preview: the server keeps the built style and starts a new one for another direction.
+  const cardsLocked = reviewMode;
   renderStyleCards(styles, chosenIndex, cardsLocked);
+  renderReviseBox(styles, cardsLocked);
 
   const dirBox = $('#styleDirectionBox');
   if (styles.length && (chosenIndex !== null && chosenIndex !== undefined)) {
@@ -1671,15 +1745,6 @@ function handleProposeStyles(triggerBtn = $('#proposeStylesBtn')) {
 $('#proposeStylesBtn').onclick = () => handleProposeStyles($('#proposeStylesBtn'));
 $('#newStylesPitchBtn').onclick = () => handleProposeStyles($('#newStylesPitchBtn'));
 
-$('#pickOtherDirectionBtn').onclick = () => {
-  if (busy || !state.campaign) return;
-  pickingOtherDirection = !pickingOtherDirection;
-  renderStep2Panel();
-  if (pickingOtherDirection) {
-    status.textContent = 'Choose a direction below to create a new campaign style.';
-    choices.scrollIntoView({behavior: 'smooth', block: 'nearest'});
-  }
-};
 
 async function handleForkCampaign({targetStep = 2} = {}) {
   if (busy || !state.campaign) return;

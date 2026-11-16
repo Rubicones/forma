@@ -535,6 +535,72 @@ describe('campaigns.mjs: HTTP endpoints, gating and history integration', () => 
     assert.deepEqual(s10Mid.visibleLines, ['p1']);
   });
 
+  it('revises the three directions before the preview: one direction, all three, with Claude prompts', async () => {
+    const created = await req('POST', '/api/campaigns', {
+      project: projectId,
+      setup: {kind: 'multi', languages: ['en'], lengths: [4], formats: ['9x16'], provider: {mode: 'demo'}},
+    });
+    const cid = created.body.id;
+    await req('PUT', `/api/campaigns/${cid}/scenario`, {scenario: sampleScenario()});
+    await req('POST', `/api/campaigns/${cid}/approve`, {step: 'scenario'});
+
+    // Revising before any directions exist is refused
+    assert.equal((await req('POST', `/api/campaigns/${cid}/styles`, {revise: 0})).status, 409);
+
+    const st = await req('POST', `/api/campaigns/${cid}/styles`, {});
+    const before = st.body.styles.map(x => x.name);
+    await req('POST', `/api/campaigns/${cid}/styles/choose`, {index: 1});
+
+    assert.equal((await req('POST', `/api/campaigns/${cid}/styles`, {revise: 7})).status, 400);
+    assert.equal((await req('POST', `/api/campaigns/${cid}/styles`, {revise: 'all'})).status, 400);
+
+    // One direction: only it changes, a choice of another direction survives
+    const r0 = await req('POST', `/api/campaigns/${cid}/styles`, {revise: 0, feedback: 'Warmer, less corporate'});
+    assert.equal(r0.status, 200);
+    assert.deepEqual(r0.body.styles.map(x => x.name), [before[0] + ' · v2', before[1], before[2]]);
+    assert.equal(r0.body.campaign.variants.length, 1);
+    assert.equal(r0.body.campaign.variants[0].styles.chosenIndex, 1);
+    assert.equal(r0.body.campaign.variants[0].label, before[1]);
+    const e0 = await history.get(r0.body.historyId);
+    assert.equal(e0.input.revise, 0);
+    assert.equal(e0.input.feedback, 'Warmer, less corporate');
+    assert.equal(e0.input.parentId, st.body.historyId);
+
+    // Reworking the chosen direction resets the choice and the auto label
+    const r1 = await req('POST', `/api/campaigns/${cid}/styles`, {revise: 1});
+    assert.equal(r1.status, 200);
+    assert.equal(r1.body.campaign.variants[0].styles.chosenIndex, null);
+    assert.equal(r1.body.campaign.variants[0].label, 'Style 1');
+
+    // All three
+    const ra = await req('POST', `/api/campaigns/${cid}/styles`, {revise: 'all', feedback: 'Go darker'});
+    assert.equal(ra.status, 200);
+    assert.deepEqual(ra.body.styles.map(x => x.name), [before[0] + ' · v3', before[1] + ' · v3', before[2] + ' · v2']);
+
+    // Claude: the revision prompt and message reach the model; a single returned direction is merged in
+    const cc = await req('POST', '/api/campaigns', {
+      project: projectId,
+      setup: {kind: 'multi', languages: ['en'], lengths: [4], formats: ['9x16'], provider: {mode: 'claude', billing: 'subscription'}},
+    });
+    const ccid = cc.body.id;
+    await req('PUT', `/api/campaigns/${ccid}/scenario`, {scenario: sampleScenario()});
+    await req('POST', `/api/campaigns/${ccid}/approve`, {step: 'scenario'});
+    const stylesFixture = await fs.readFile(path.resolve('fixtures/styles.json'), 'utf8');
+    mockTextImpl = async () => stylesFixture;
+    const cst = await req('POST', `/api/campaigns/${ccid}/styles`, {});
+    assert.equal(cst.status, 200);
+    modelCalls = [];
+    const one = {style: {name: cst.body.styles[0].name, idea: 'A cut-paper stage', direction: 'Approach: paper · stage · puppetry · Leap: x', svg: '<svg xmlns="http://www.w3.org/2000/svg"></svg>'}};
+    mockTextImpl = async ({onText}) => { onText?.(JSON.stringify(one)); return JSON.stringify(one); };
+    const rc = await req('POST', `/api/campaigns/${ccid}/styles`, {revise: 2, feedback: 'More handmade'});
+    assert.equal(rc.status, 200);
+    assert.equal(rc.body.styles[2].name, cst.body.styles[0].name + ' 2');
+    assert.equal(rc.body.styles[0].name, cst.body.styles[0].name);
+    assert.match(modelCalls[0].system, /REVISION ROUND: REWORK ONE DIRECTION/);
+    assert.match(modelCalls[0].user, /More handmade/);
+    assert.doesNotMatch(modelCalls[0].user, /<svg/);
+  });
+
   it('wires Claude and Codex per step: scenario auto-repair, translate, cuts, styles, preview, final, stage-aware revise and copy patches', async () => {
     const created = await req('POST', '/api/campaigns', {
       project: projectId,

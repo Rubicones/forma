@@ -134,6 +134,7 @@ export function snapshot(job, since = 0) {
     text: job.task === 'scenario' ? job.text : undefined,
     tail: ['creative', 'preview', 'final'].includes(job.task) ? job.tail : undefined,
     sketches: ['style', 'styles'].includes(job.task) ? job.sketches : undefined,
+    sketchTotal: ['style', 'styles'].includes(job.task) ? job.sketchTotal || 3 : undefined,
   };
 }
 

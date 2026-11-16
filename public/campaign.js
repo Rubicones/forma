@@ -201,11 +201,12 @@ export const approveStep = (id, step, {variant} = {}) =>
     body: JSON.stringify({step, variant}),
   });
 
-export const proposeStyles = (id, {requestId, variant, signal} = {}) =>
+// revise: 'all' | 0..2 turns the call into a revision round over the current three directions.
+export const proposeStyles = (id, {requestId, variant, revise, feedback, signal} = {}) =>
   apiJson(`/api/campaigns/${encodeURIComponent(id)}/styles`, {
     method: 'POST',
     signal,
-    body: JSON.stringify({requestId, variant}),
+    body: JSON.stringify({requestId, variant, revise, feedback}),
   });
 
 export const chooseStyle = (id, {index, direction, label, variant}) =>

@@ -14,7 +14,7 @@ import {parseScenario, validateScenario, missingLanguages, missingCuts} from './
 import {
   scenarioPrompt, scenarioMessage, scenarioRepairMessage,
   translatePrompt, translateMessage,
-  stylesPrompt, stylesMessage, parseStyleChoices,
+  stylesPrompt, styleRevisionPrompt, styleRevisionMessage, parseStyleRevision, stylesMessage, parseStyleChoices,
   previewPrompt, previewMessage,
   finalPrompt, finalMessage,
   stageRevisionPrompt, revisionMessage, output as checkHTML,
@@ -1488,7 +1488,8 @@ export function registerCampaignRoutes(app, {
     res.json(await hydrateCampaign(updated));
   });
 
-  // POST /api/campaigns/:id/styles {requestId, variant?}
+  // POST /api/campaigns/:id/styles {requestId, variant?, revise?: 'all'|0|1|2, feedback?}
+  // Without `revise`: a fresh pitch of three directions. With it: a revision round over the variant's current three.
   app.post('/api/campaigns/:id/styles', async (req, res) => {
     const campaign = await requireCampaign(req.params.id);
     await ensureIdle(campaign.id);
@@ -1497,6 +1498,18 @@ export function registerCampaignRoutes(app, {
     }
 
     const targetVarCheck = findTargetVariant(campaign.variants, req.body?.variant, campaign.activeVariant);
+    const rawRevise = req.body?.revise;
+    const revise = rawRevise === undefined || rawRevise === null ? null
+      : rawRevise === 'all' || [0, 1, 2].includes(rawRevise) ? rawRevise : undefined;
+    if (revise === undefined) throw conflict('Choose which direction to revise.', 400);
+    const feedback = typeof req.body?.feedback === 'string' ? req.body.feedback.trim().slice(0, 4000) : '';
+    if (revise === 'all' && !feedback) throw conflict('Describe what should change in all three directions.', 400);
+    let previous = null;
+    const parentEntryId = revise === null ? null : targetVarCheck.styles?.entryId || null;
+    if (revise !== null) {
+      previous = parentEntryId ? (await history.get(parentEntryId))?.output?.styles : null;
+      if (!Array.isArray(previous) || previous.length !== 3) throw conflict('Generate three visual directions first.', 409);
+    }
     const requestId = validId(req.body?.requestId) ? req.body.requestId : randomUUID();
     await startCampaignRun(campaign, requestId, 'style');
 
@@ -1517,31 +1530,47 @@ export function registerCampaignRoutes(app, {
       const scenarioObj = scEntry?.output?.scenario;
       if (!scenarioObj) throw conflict('Script not found.', 409);
 
-      log(`Step 2 · Three visual directions · ${sel.mode}`, {level: 'step'});
+      const stepTitle = revise === null ? 'Three visual directions'
+        : revise === 'all' ? 'Reworking all three directions'
+        : `Reworking direction ${revise + 1} · ${previous[revise].name}`;
+      log(`Step 2 · ${stepTitle} · ${sel.mode}`, {level: 'step'});
+      if (feedback) log('Notes: ' + (feedback.length > 240 ? feedback.slice(0, 240) + '…' : feedback));
+      job.sketchTotal = typeof revise === 'number' ? 1 : 3;
       let pitch;
       if (sel.mode === 'demo') {
         await wait(350, controller.signal);
         const raw = await fs.readFile(path.join(root, 'fixtures', 'styles.json'), 'utf8');
         pitch = parseStyleChoices(raw);
-        job.sketches = pitch.styles.map(s => s.svg);
-        log('Three demo directions ready: ' + pitch.styles.map(s => s.name).join(' · '), {level: 'done'});
+        if (revise !== null) {
+          const bump = name => {
+            const m = /^(.*) · v(\d+)$/.exec(name);
+            return m ? `${m[1]} · v${Number(m[2]) + 1}` : name + ' · v2';
+          };
+          pitch = {styles: previous.map((s, i) => revise === 'all' || revise === i ? {...pitch.styles[i], name: bump(s.name)} : s)};
+        }
+        job.sketches = typeof revise === 'number' ? [pitch.styles[revise].svg] : pitch.styles.map(s => s.svg);
+        log('Demo directions ready: ' + pitch.styles.map(s => s.name).join(' · '), {level: 'done'});
       } else {
-        const system = stylesPrompt({kind: campaign.setup.kind, scenario: scenarioObj, setup: campaign.setup});
-        const user = stylesMessage({setup: campaign.setup, scenario: scenarioObj, files});
+        let system = stylesPrompt({kind: campaign.setup.kind, scenario: scenarioObj, setup: campaign.setup});
+        let user = stylesMessage({setup: campaign.setup, scenario: scenarioObj, files});
+        if (revise !== null) {
+          system += '\n\n' + styleRevisionPrompt({previous, revise, hasFeedback: Boolean(feedback)});
+          user = styleRevisionMessage({setup: campaign.setup, scenario: scenarioObj, files, previous, feedback, revise});
+        }
         const onText = text => {
           job.text = text;
           const found = streamedSketches(text);
           if (found.length > job.sketches.length) {
             job.sketches = found;
-            log('Sketch ' + found.length + ' of 3 ready', {level: 'done'});
+            log('Sketch ' + found.length + ' of ' + job.sketchTotal + ' ready', {level: 'done'});
           }
         };
         const rawText = await runModelText({
           mode: sel.mode, billing: sel.billing, model: sel.model, effort: sel.effort,
           dir: assets, system, user, task: 'style', controller, log, onText,
         });
-        pitch = parseStyleChoices(rawText);
-        log('Three directions ready: ' + pitch.styles.map(s => s.name).join(' · '), {level: 'done'});
+        pitch = revise === null ? parseStyleChoices(rawText) : parseStyleRevision(rawText, {previous, revise});
+        log((revise === null ? 'Three directions ready: ' : 'Revised directions ready: ') + pitch.styles.map(s => s.name).join(' · '), {level: 'done'});
       }
 
       await store.sync.up(campaign.project, {dataDir});
@@ -1556,7 +1585,10 @@ export function registerCampaignRoutes(app, {
         model: sel.model,
         effort: sel.effort,
         durationMs: Date.now() - job.started,
-        input: {setup: campaign.setup, scenarioId: scEntry.id, files},
+        input: {
+          setup: campaign.setup, scenarioId: scEntry.id, files,
+          ...(revise !== null ? {revise, feedback, parentId: parentEntryId} : {}),
+        },
         output: {styles: pitch.styles},
         cost: job.costs,
         log: job.events,
@@ -1579,7 +1611,15 @@ export function registerCampaignRoutes(app, {
         variants.push(newVar);
         activeVariant = newVar.id;
       } else {
-        targetVar.styles = {entryId: entry.id, chosenIndex: null, direction: ''};
+        // A revision of one direction keeps the client's choice when a different direction was chosen.
+        const chosen = targetVar.styles?.chosenIndex;
+        const keepChoice = typeof revise === 'number' && chosen !== null && chosen !== undefined && chosen !== revise;
+        if (!keepChoice && previous?.some(s => s?.name && s.name === targetVar.label)) {
+          targetVar.label = `Style ${variants.indexOf(targetVar) + 1}`;
+        }
+        targetVar.styles = keepChoice
+          ? {...targetVar.styles, entryId: entry.id}
+          : {entryId: entry.id, chosenIndex: null, direction: ''};
         targetVar.cost = addCost(targetVar.cost, job.costs);
       }
 

@@ -787,6 +787,17 @@ describe('R2 blobs, asset index, sync.up/down & preview read-through middleware 
       const historyGuardRes = await callPreview(`/history/${randomUUID()}.json`);
       assert.equal(historyGuardRes.status, 404);
       assert.equal(historyGuardRes.headers['Content-Security-Policy'], PREVIEW_SECURITY_HEADERS['Content-Security-Policy']);
+
+      // 5. A brand file referenced without the assets/ prefix falls back to assets/<rest>, locally and from R2
+      await fs.mkdir(path.join(cacheDir, project, 'assets', 'Pack'), {recursive: true});
+      await fs.writeFile(path.join(cacheDir, project, 'assets', 'Pack', 'logo.svg'), '<svg></svg>');
+      const localFallback = await callPreview(`/${project}/Pack/logo.svg`);
+      assert.equal(localFallback.status, 200);
+      assert.equal(localFallback.body, '<svg></svg>');
+      blobMap.set(`projects/${project}/assets/Pack/font.ttf`, Buffer.from('FONT'));
+      const remoteFallback = await callPreview(`/${project}/Pack/font.ttf`);
+      assert.equal(remoteFallback.status, 200);
+      assert.equal(remoteFallback.body, 'FONT');
     } finally {
       await fs.rm(cacheDir, {recursive: true, force: true}).catch(() => {});
     }

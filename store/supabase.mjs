@@ -1140,55 +1140,59 @@ export function createPreviewReadThrough({dataDir, blobs}) {
       return res.sendStatus(404);
     }
 
-    const localFile = path.resolve(root, rel);
-    if (!localFile.startsWith(root + path.sep)) {
-      return res.sendStatus(404);
-    }
-
-    const contentType = contentTypeForPath(localFile);
-
-    // 1. Try local cache first
-    try {
-      const st = await fs.stat(localFile);
-      if (st.isFile()) {
-        res.set('Content-Type', contentType);
-        res.set('Content-Length', String(st.size));
-        if (req.method === 'HEAD') return res.status(200).end();
-        const rs = createReadStream(localFile);
-        rs.on('error', () => {
-          if (!res.headersSent) res.sendStatus(404);
-          else res.end();
-        });
-        return rs.pipe(res);
-      }
-    } catch {}
-
-    // 2. Cache miss -> fetch `projects/<rel>` from blob store (when available)
-    if (!blobs?.get) {
-      return res.sendStatus(404);
-    }
+    // Generated pages sometimes reference brand files relative to the assets folder the model worked in
+    // ("Pack/logo.svg" instead of "assets/Pack/logo.svg"). A miss outside assets/ retries assets/<rest>.
+    const fallbackRel = parts.length > 1 && parts[1] !== 'assets' ? [parts[0], 'assets', ...parts.slice(1)].join('/') : null;
 
     try {
-      const stream = await blobs.get(`projects/${rel}`);
-      if (!stream) {
-        return res.sendStatus(404);
-      }
-
-      const buf = await streamToBuffer(stream);
-      await fs.mkdir(path.dirname(localFile), {recursive: true});
-      const partFile = `${localFile}.${process.pid}.${randomUUID().slice(0, 8)}.part`;
-      await fs.writeFile(partFile, buf);
-      await fs.rename(partFile, localFile);
-
-      res.set('Content-Type', contentType);
-      res.set('Content-Length', String(buf.length));
-      if (req.method === 'HEAD') return res.status(200).end();
-      return res.status(200).end(buf);
+      if (await serveRel(rel, req, res)) return;
+      if (fallbackRel && await serveRel(fallbackRel, req, res)) return;
+      return res.sendStatus(404);
     } catch (err) {
       if (next) return next(err);
       return res.sendStatus(500);
     }
   };
+
+  // Serves one data-relative path: local cache first, then `projects/<rel>` from the blob store. false = not found.
+  async function serveRel(rel, req, res) {
+    const localFile = path.resolve(root, rel);
+    if (!localFile.startsWith(root + path.sep)) return false;
+    const contentType = contentTypeForPath(localFile);
+
+    const st = await fs.stat(localFile).catch(() => null);
+    if (st?.isFile()) {
+      res.set('Content-Type', contentType);
+      res.set('Content-Length', String(st.size));
+      if (req.method === 'HEAD') {
+        res.status(200).end();
+        return true;
+      }
+      const rs = createReadStream(localFile);
+      rs.on('error', () => {
+        if (!res.headersSent) res.sendStatus(404);
+        else res.end();
+      });
+      rs.pipe(res);
+      return true;
+    }
+
+    if (!blobs?.get) return false;
+    const stream = await blobs.get(`projects/${rel}`);
+    if (!stream) return false;
+
+    const buf = await streamToBuffer(stream);
+    await fs.mkdir(path.dirname(localFile), {recursive: true});
+    const partFile = `${localFile}.${process.pid}.${randomUUID().slice(0, 8)}.part`;
+    await fs.writeFile(partFile, buf);
+    await fs.rename(partFile, localFile);
+
+    res.set('Content-Type', contentType);
+    res.set('Content-Length', String(buf.length));
+    if (req.method === 'HEAD') res.status(200).end();
+    else res.status(200).end(buf);
+    return true;
+  }
 }
 
 export const supabaseStore = createSupabaseStore();

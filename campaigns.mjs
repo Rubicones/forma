@@ -1,3 +1,4 @@
+import {materializeBrand} from './brands.mjs';
 // Campaign state, invalidation (§2.5), concurrency gating (§6.2), cost roll-up and HTTP routes (§6).
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -7,7 +8,7 @@ import * as history from './history.mjs';
 import {store, authorStorage, currentAuthor} from './store/index.mjs';
 import {createJob, getJob, logger, finishJob, snapshot, draftHTML, streamedSketches, setJobRunSink} from './jobs.mjs';
 import {formats, pickFormats, inject, uninject} from './motion.mjs';
-import {LANGUAGES, language} from './shared/languages.mjs';
+import {LANGUAGES} from './shared/languages.mjs';
 import {windowNeed} from './shared/reading.mjs';
 import {parseScenario, validateScenario, missingLanguages, missingCuts} from './scenario.mjs';
 import {
@@ -16,7 +17,7 @@ import {
   stylesPrompt, stylesMessage, parseStyleChoices,
   previewPrompt, previewMessage,
   finalPrompt, finalMessage,
-  stageRevisionPrompt, revisionMessage, revisionReply, output as checkHTML,
+  stageRevisionPrompt, revisionMessage, output as checkHTML,
   extractCopyPatch, validateCopyPatch, mergeCopyPatches, applyCopyPatch,
 } from './creative.mjs';
 import {settings} from './models.mjs';
@@ -231,7 +232,7 @@ export function upgradeCampaign(doc) {
   }
 
   const variant = createVariantRecord({
-    id: randomUUID(),
+    id: clone.id || randomUUID(),
     label: inferredLabel,
     createdAt: clone.createdAt || new Date().toISOString(),
     author: clone.author ?? null,
@@ -803,12 +804,17 @@ export function registerCampaignRoutes(app, {
 
   // POST /api/campaigns {project, setup, name?}
   app.post('/api/campaigns', async (req, res) => {
-    const {project, setup, name} = req.body || {};
+    const {brandId, brandVersion, setup, name} = req.body || {};
+    const project = brandId ? randomUUID() : req.body?.project;
     if (!project || !validId(project)) throw conflict('Укажите корректную папку материалов (project).', 409);
     const dir = folder(project);
     await fs.mkdir(path.join(dir, 'assets'), {recursive: true});
     await store.registerProject(project);
     const rec = createCampaignRecord({project, setup, name});
+    if (brandId) {
+      await materializeBrand(brandId, brandVersion, project, dir);
+      Object.assign(rec, {brandId, brandVersion});
+    }
     const saved = await history.record(rec);
     res.status(201).json(await hydrateCampaign(saved));
   });
@@ -869,6 +875,7 @@ export function registerCampaignRoutes(app, {
       setup: src.setup,
       name: (typeof req.body?.name === 'string' && req.body.name.trim()) ? req.body.name.trim() : `${src.name} (копия)`,
     });
+    if (src.brandId) Object.assign(rec, {brandId:src.brandId, brandVersion:src.brandVersion});
     if (src.steps?.scenario?.entryId) {
       rec.steps.scenario = structuredClone(src.steps.scenario);
     }

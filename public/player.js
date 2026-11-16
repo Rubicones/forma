@@ -2,7 +2,7 @@
 import {language} from '/shared/languages.mjs';
 import {state} from '/campaign.js';
 
-const $ = s => document.querySelector(s);
+import {$} from './dom.js';
 
 export const view = {
   url: null,

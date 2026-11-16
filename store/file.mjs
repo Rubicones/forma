@@ -4,7 +4,6 @@ import fs from 'node:fs/promises';
 import {createReadStream} from 'node:fs';
 import path from 'node:path';
 import {randomUUID, createHash} from 'node:crypto';
-import {Readable} from 'node:stream';
 import {getJob, snapshot} from '../jobs.mjs';
 
 const index = new Map();
@@ -23,7 +22,7 @@ const light = ({log, ...entry}) => {
   };
   if (out.type === 'campaign' && (!Array.isArray(out.variants) || !out.variants.length)) {
     const s = out.steps || {};
-    const vid = randomUUID();
+    const vid = out.id;
     const dir = s.styles?.direction || '';
     const firstLine = dir.includes('\n\n') ? dir.split('\n\n')[0].trim() : '';
     const v0 = {
@@ -253,13 +252,16 @@ async function streamToBuffer(stream) {
 }
 
 const blobs = {
-  async put(key, bufOrStream, {contentType, sha256} = {}) {
+  async put(key, bufOrStream, {contentType, sha256, ifAbsent} = {}) {
     const file = keyToFilePath(key);
     await fs.mkdir(path.dirname(file), {recursive: true});
     const buf = await streamToBuffer(bufOrStream);
-    const tmp = file + '.' + process.pid + '.tmp';
+    const tmp = file + '.' + randomUUID() + '.tmp';
     await fs.writeFile(tmp, buf);
-    await fs.rename(tmp, file);
+    try {
+      if (ifAbsent) await fs.link(tmp, file);
+      else await fs.rename(tmp, file);
+    } finally { await fs.rm(tmp, {force:true}); }
     const digest = sha256 || createHash('sha256').update(buf).digest('hex');
     return {key, size: buf.length, sha256: digest, contentType: contentType || null};
   },
@@ -294,7 +296,7 @@ const blobs = {
       if (!e.isFile() || e.name.endsWith('.tmp') || e.name.startsWith('.')) continue;
       const full = path.join(e.parentPath, e.name);
       const relFromData = path.relative(dataRoot, full).split(path.sep).join('/');
-      const key = relFromData.startsWith('logs/') || relFromData.startsWith('history/')
+      const key = relFromData.startsWith('brands/') || relFromData.startsWith('logs/') || relFromData.startsWith('history/')
         ? relFromData
         : 'projects/' + relFromData;
       if (clean && !key.startsWith(clean)) continue;

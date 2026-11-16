@@ -8,17 +8,6 @@ export const state = {
   formatInfo: {'1x1': {id: '1x1', label: '1:1', name: 'Post', w: 1080, h: 1080}},
 };
 
-const STORAGE_KEY = 'forma.campaign';
-
-export function getSavedCampaignId() {
-  return localStorage.getItem(STORAGE_KEY) || null;
-}
-
-export function setSavedCampaignId(id) {
-  if (id) localStorage.setItem(STORAGE_KEY, id);
-  else localStorage.removeItem(STORAGE_KEY);
-}
-
 export const money = v =>
   typeof v === 'number' ? '$' + (v < 0.01 && v > 0 ? v.toFixed(4) : v.toFixed(2)) : '—';
 
@@ -63,12 +52,10 @@ export function furthestStep(c) {
 export function setCampaign(campaign, {chooseStep = false} = {}) {
   state.campaign = campaign || null;
   if (!campaign) {
-    setSavedCampaignId(null);
     state.activeStep = 1;
     state.reviewUnlocked = {1: false, 2: false, 3: false};
     return;
   }
-  setSavedCampaignId(campaign.id);
   if (chooseStep) {
     state.activeStep = furthestStep(campaign);
     state.reviewUnlocked = {1: false, 2: false, 3: false};
@@ -155,8 +142,8 @@ export function describeSetupInvalidation(prev, next, campaign) {
 
 // ---- Campaign HTTP client ----
 
-export const createCampaign = ({project, setup, name}) =>
-  apiJson('/api/campaigns', {method: 'POST', body: JSON.stringify({project, setup, name})});
+export const createCampaign = ({project, brandId, brandVersion, setup, name}) =>
+  apiJson('/api/campaigns', {method: 'POST', body: JSON.stringify({project, brandId, brandVersion, setup, name})});
 
 export const forkCampaign = (id, {styleIndex, name} = {}) =>
   apiJson(`/api/campaigns/${encodeURIComponent(id)}/fork`, {

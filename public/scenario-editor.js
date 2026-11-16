@@ -1,9 +1,9 @@
 // Structured Scenario Editor with live Cut Table (§8.4) and Copy Editor Drawer (§6.6, §8.6).
 import {language} from '/shared/languages.mjs';
-import {readingSeconds, windowNeed, verdict} from '/shared/reading.mjs';
+import {windowNeed, verdict} from '/shared/reading.mjs';
 import {state} from '/campaign.js';
 
-const $ = s => document.querySelector(s);
+import {$} from './dom.js';
 
 const ROLES_NO_HIDE = new Set(['hook', 'offer', 'cta']);
 const LANG_PREF_KEY = 'forma.scenLang';

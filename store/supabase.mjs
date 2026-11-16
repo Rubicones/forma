@@ -144,7 +144,7 @@ export function rowToEntry(row) {
   }
   if (doc.type === 'campaign' && (!Array.isArray(doc.variants) || !doc.variants.length)) {
     const s = doc.steps || {};
-    const vid = randomUUID();
+    const vid = doc.id || row.id;
     const dir = s.styles?.direction || '';
     const firstLine = dir.includes('\n\n') ? dir.split('\n\n')[0].trim() : '';
     const v0 = {
@@ -274,7 +274,7 @@ export function createR2Blobs({s3Client = null, bucket = null} = {}) {
     err?.$metadata?.httpStatusCode === 404;
 
   return {
-    async put(key, bufOrStream, {contentType, sha256} = {}) {
+    async put(key, bufOrStream, {contentType, sha256, ifAbsent} = {}) {
       const c = await s3();
       const {PutObjectCommand} = await import('@aws-sdk/client-s3');
       const body = await streamToBuffer(bufOrStream);
@@ -285,6 +285,7 @@ export function createR2Blobs({s3Client = null, bucket = null} = {}) {
           Bucket: getBucket(),
           Key: key,
           Body: body,
+          ...(ifAbsent ? {IfNoneMatch:'*'} : {}),
           ContentType: ct,
           Metadata: {sha256: digest},
         })
@@ -1135,7 +1136,7 @@ export function createPreviewReadThrough({dataDir, blobs}) {
     }
 
     const parts = rel.split('/');
-    if (parts.some(seg => !seg || seg === '.' || seg === '..' || seg.startsWith('.'))) {
+    if (!valid(parts[0]) || parts.some(seg => !seg || seg === '.' || seg === '..' || seg.startsWith('.'))) {
       return res.sendStatus(404);
     }
 

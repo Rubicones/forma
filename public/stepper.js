@@ -2,7 +2,7 @@
 import {language} from '/shared/languages.mjs';
 import {state, stepCostLabel} from '/campaign.js';
 
-const $ = s => document.querySelector(s);
+import {$} from './dom.js';
 
 const KIND_LABELS = {
   poster: 'Постер',

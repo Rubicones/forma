@@ -20,9 +20,10 @@ export function createMemoryCloud({dataDir = null} = {}) {
 
   const blobs = {
     raw: blobMap,
-    async put(key, bufOrStream, {contentType = 'application/octet-stream', sha256} = {}) {
+    async put(key, bufOrStream, {contentType = 'application/octet-stream', sha256, ifAbsent} = {}) {
       const buf = await streamToBuffer(bufOrStream);
       const digest = sha256 || createHash('sha256').update(buf).digest('hex');
+      if (ifAbsent && blobMap.has(key)) throw Object.assign(Error('Already exists'), {code:'EEXIST'});
       blobMap.set(key, {
         key,
         buf: Buffer.from(buf),

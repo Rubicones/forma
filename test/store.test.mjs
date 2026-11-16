@@ -17,6 +17,7 @@ import {
   PREVIEW_SECURITY_HEADERS,
   SCHEMA_NOT_READY_MSG,
 } from '../store/supabase.mjs';
+import {registerBrandRoutes} from '../brands.mjs';
 import {upgradeCampaign, registerCampaignRoutes} from '../campaigns.mjs';
 import * as history from '../history.mjs';
 
@@ -805,6 +806,7 @@ describe('Runs locking, heartbeat, event flushing, render-progress fallback & FO
     await fs.mkdir(path.join(tempDir, projectId, 'assets'), {recursive: true});
 
     app = express();
+    registerBrandRoutes(app);
     const {reviseCampaignEntry} = registerCampaignRoutes(app, {
       root: rootDir,
       dataDir: tempDir,
@@ -1077,6 +1079,14 @@ describe('Runs locking, heartbeat, event flushing, render-progress fallback & FO
     assert.deepEqual(switchedToV1.body.entries.final.output.lengths, [4, 10]);
     assert.equal(switchedToV1.body.entries.final.id, fin1.body.historyId);
 
+    // The third direction can carry edited art direction without overwriting the first two finals.
+    const third = await req('POST', `/api/campaigns/${cid}/styles/choose`, {index:2, direction:'Custom art direction'});
+    assert.equal(third.body.steps.styles.direction, 'Custom art direction');
+    assert.equal((await req('POST', `/api/campaigns/${cid}/preview`, {})).status, 200);
+    await req('POST', `/api/campaigns/${cid}/approve`, {step:'preview'});
+    const fin3 = await req('POST', `/api/campaigns/${cid}/final`, {media:{images:false,video:false}});
+    assert.equal(new Set(fin3.body.campaign.variants.map(v => v.finalPath)).size, 3);
+
     // 5. Author B creates a second campaign; verify author/excludeAuthor filters on GET /api/campaigns and store.status() (M6)
     const createdByAnna = await req(
       'POST',
@@ -1126,6 +1136,36 @@ describe('Runs locking, heartbeat, event flushing, render-progress fallback & FO
       else process.env.FORMA_AUTHOR = prevAuthor;
     }
   });
+  it('reuses and versions brand files across independent campaign projects', async () => {
+    const create = async (name, text, previous = {}) => {
+      const file = await req('PUT', '/api/brand-files', Buffer.from(text));
+      assert.equal(file.status, 200);
+      return req('POST', '/api/brands', {...previous, name, files:[{name:'logos/mark.svg', hash:file.body.hash}]});
+    };
+    const first = await create('Original', 'v1');
+    assert.equal(first.status, 201);
+    const brand = first.body;
+    const setup = {kind:'poster', languages:['en'], lengths:[], formats:['1x1'], provider:{mode:'demo'}};
+    const campaign = version => req('POST', '/api/campaigns', {brandId:brand.id, brandVersion:version, setup});
+    const a = await campaign(1);
+    assert.equal(a.status, 201);
+    const second = await create('Renamed', 'v2', brand);
+    assert.equal(second.body.version, 2);
+    assert.equal((await create('Stale edit', 'v3', brand)).status, 409);
+    assert.equal((await req('GET','/api/brands')).body[0].name, 'Renamed');
+    const b = await campaign(2);
+    assert.equal(b.status, 201);
+    assert.notEqual(a.body.project,b.body.project);
+    for (const [c,text] of [[a,'v1'],[b,'v2']]) {
+      const file = path.join(tempDir,c.body.project,'assets','logos','mark.svg');
+      await fs.unlink(file);
+      await store.sync.down(c.body.project,{dataDir:tempDir});
+      assert.equal(await fs.readFile(file,'utf8'),text);
+    }
+    const listed = await req('GET','/api/brand-campaigns?brand=' + brand.id);
+    assert.deepEqual(new Set(listed.body.map(c => c.id)),new Set([a.body.id,b.body.id]));
+  });
+
 });
 
 

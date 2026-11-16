@@ -51,10 +51,48 @@
 </aside>
 
 <main>
-  <div class="intro">
-    <h1>Студия креативов</h1>
-    <p>От брендбука и сценария до готового ролика или постера во всех форматах и языках.</p>
-  </div>
+  <nav id="libraryNav" class="library-nav" aria-label="Навигация" hidden>
+    <button type="button" id="brandsHome" class="crumb">Бренды</button>
+    <button type="button" id="brandBack" class="crumb" hidden></button>
+    <span id="currentCrumb" aria-current="page"></span>
+  </nav>
+  <section id="brandsPage" class="library-page" aria-labelledby="brandsHeading">
+    <header class="library-head"><h1 id="brandsHeading">Бренды</h1>
+      <button type="button" id="addBrand" class="btn primary">＋ Новый бренд</button></header>
+    <div id="brandCards" class="brand-grid" aria-live="polite"><p class="library-empty">Загрузка брендов…</p></div>
+    <button type="button" id="legacyCampaigns" class="btn secondary" hidden>Кампании без бренда →</button>
+  </section>
+  <section id="campaignsPage" class="library-page" aria-labelledby="brandHeading" hidden>
+    <header class="library-head"><h1 id="brandHeading"></h1>
+      <div class="library-actions">
+        <button type="button" id="editBrand" class="btn secondary">Изменить бренд</button>
+        <button type="button" id="addCampaign" class="btn primary">＋ Новая кампания</button>
+      </div></header>
+    <h2 class="collection-heading">Кампании</h2>
+    <div id="campaignCards" class="campaign-list" aria-live="polite"></div>
+  </section>
+    <form id="brandEditor" class="card library-editor" hidden>
+      <h1 id="editorHeading">Новый бренд</h1>
+      <label>Название бренда<input type="text" id="brandName" maxlength="160" required></label>
+          <p id="importBrandNote" class="note" hidden></p>
+          <div id="drop">
+            <div class="upload" aria-hidden="true">↥</div>
+            <strong>Перетащите файлы или папку</strong>
+            <div class="links">
+              <button type="button" id="choose">Выбрать файлы</button>
+              <span>или</span>
+              <button type="button" id="folder">папку</button>
+            </div>
+          </div>
+          <input hidden multiple type="file" id="files">
+          <input hidden multiple type="file" webkitdirectory id="folders">
+          <ul id="list"></ul>
+      <div class="library-actions"><button type="button" id="cancelBrand" class="btn secondary">Отмена</button>
+      <button type="submit" class="btn primary">Сохранить бренд</button></div>
+    </form>
+    <p id="brandMessage" role="status" aria-live="polite"></p>
+  <div id="pipelinePage" hidden>
+  <button type="button" id="importBrand" class="btn secondary small" hidden>Создать бренд из кампании</button>
 
   <!-- Campaign bar (§8.1) -->
   <section id="campaignBar" class="campaign-bar card" hidden aria-label="Параметры кампании">
@@ -68,7 +106,7 @@
     </button>
     <span id="campaignCost" class="pill"></span>
     <button type="button" id="forkCampaignBtn" class="btn secondary small" title="Создать копию кампании">⎘ Копия кампании</button>
-    <button type="button" id="newCampaignBtn" class="btn primary small" title="Создать новый пайплайн (текущий сохранится в истории)">＋ Новый пайплайн</button>
+    <button type="button" id="newCampaignBtn" class="btn primary small" title="Создать новый пайплайн (текущий сохранится в истории)">＋ Новая кампания</button>
   </section>
 
   <!-- 3-step Stepper (§8.2, §4.3) -->
@@ -117,24 +155,13 @@
           <button type="button" id="setupPopoverClose" class="icon-btn" aria-label="Закрыть">×</button>
         </div>
 
-        <section class="group">
-          <h2>1 · Материалы бренда</h2>
-          <div id="drop">
-            <div class="upload" aria-hidden="true">↥</div>
-            <strong>Перетащите файлы или папку</strong>
-            <div class="links">
-              <button type="button" id="choose">Выбрать файлы</button>
-              <span>или</span>
-              <button type="button" id="folder">папку</button>
-            </div>
-          </div>
-          <input hidden multiple type="file" id="files">
-          <input hidden multiple type="file" webkitdirectory id="folders">
-          <ul id="list"></ul>
+        <section class="group" id="newCampaignNameGroup">
+          <label for="newCampaignName">Название кампании</label>
+          <input id="newCampaignName" type="text" placeholder="Например, осенний запуск" maxlength="160">
         </section>
 
         <section class="group">
-          <h2>2 · Что делаем</h2>
+          <h2>Что делаем</h2>
           <div id="kindGroup" class="kind-grid" role="radiogroup" aria-label="Тип креатива">
             <button type="button" class="kind-card" role="radio" data-kind="poster" aria-checked="false">
               <span class="kind-glyph glyph-poster" aria-hidden="true"></span>
@@ -155,7 +182,7 @@
         </section>
 
         <section class="group">
-          <h2>3 · Языки</h2>
+          <h2>Языки</h2>
           <div id="langChips" class="lang-chips" aria-label="Выбранные языки"></div>
           <div class="lang-combo">
             <input type="text" id="langSearch" placeholder="Добавить язык (например, English, Русский, Srpski)…" autocomplete="off" aria-label="Поиск языка">
@@ -165,7 +192,7 @@
         </section>
 
         <section id="lengthsSection" class="group">
-          <h2>4 · Длина роликов</h2>
+          <h2>Длина роликов</h2>
           <div class="length-picker-row">
             <div id="lengthPresets" class="chips" role="group" aria-label="Длины роликов"></div>
             <button type="button" id="customLengthBtn" class="btn secondary small">Своя…</button>
@@ -178,12 +205,12 @@
         </section>
 
         <section class="group">
-          <h2>5 · Форматы</h2>
+          <h2>Форматы</h2>
           <div id="formats" class="chips" role="group" aria-label="Форматы креатива"></div>
         </section>
 
         <section class="group">
-          <h2>6 · Модель</h2>
+          <h2>Модель</h2>
           <button type="button" id="modelSummaryBtn" class="model-summary-btn" aria-expanded="false">
             <span id="modelSummaryText">Тестовый шаблон · без токенов</span>
             <span aria-hidden="true">▾</span>
@@ -519,6 +546,7 @@
         <ol id="log" aria-live="polite"></ol>
       </section>
     </div>
+  </div>
   </div>
 </main>
 <script type="module" src="/app.js"></script>

@@ -6,7 +6,6 @@ import {
   money,
   moneyPrecise,
   stepCostLabel,
-  getSavedCampaignId,
   setCampaign,
   effectiveScenario,
   describeSetupInvalidation,
@@ -32,7 +31,6 @@ import {
 import {renderCampaignBar, renderStepper, isStepInReviewMode} from '/stepper.js';
 import {
   loadScenarioIntoEditor,
-  renderScenarioEditor,
   bindScenarioControls,
   openCopyEditor,
 } from '/scenario-editor.js';
@@ -48,13 +46,20 @@ import {
   setVariantSwitchHandler,
 } from '/player.js';
 
-const $ = s => document.querySelector(s);
+import {$, el} from './dom.js';
+import {libraryCard, listBrands, listBrandCampaigns, saveBrand} from './brand-library.js';
 const items = new Map();
 let busy = false;
 let busyStep = null;
 let pending = 0;
 let editingSetup = false;
-let project = null;
+let brandLibrary = [];
+let editingBrand = null;
+let importingCampaign = null;
+let brandNavigation = 0;
+let activeBrandId = '';
+const selectedBrand = () => brandLibrary.find(b => b.id === activeBrandId);
+
 let lastStepRetry = {1: null, 2: null, 3: null};
 
 // Setup form state
@@ -79,13 +84,6 @@ let previousCaption = '';
 
 const providerName = {claude: 'Claude', codex: 'Codex', demo: 'Тестовый шаблон'};
 const KIND_NAMES = {poster: 'Постер', single: 'Односценовое', multi: 'Многосценовое'};
-
-function el(tag, cls, text) {
-  const n = document.createElement(tag);
-  if (cls) n.className = cls;
-  if (text !== undefined) n.textContent = text;
-  return n;
-}
 
 // ---- Journal and live preview ----
 const logList = $('#log');
@@ -373,34 +371,141 @@ drop.ondrop = async e => {
   }
 };
 
-async function ensureProjectUploaded() {
-  const files = [...items];
-  if (state.campaign?.project && !files.length) {
-    return state.campaign.project;
+function showLibraryPage(page, title = '') {
+  for (const id of ['brandsPage', 'campaignsPage', 'brandEditor', 'pipelinePage']) {
+    $('#' + id).hidden = id !== page;
   }
-  if (
-    project &&
-    files.length === project.files.length &&
-    files.every(([name, file], i) => name === project.files[i][0] && file === project.files[i][1])
-  ) {
-    return project.id;
-  }
-  const targetId = state.campaign?.project || (await (await api('/api/projects', {method: 'POST'})).json()).id;
-  if (files.length) {
-    localLog('Загрузка материалов · ' + files.length + ' файл(ов)', 'step');
-    for (const [name, file] of files) {
-      status.textContent = 'Загрузка · ' + name;
-      localLog('↑ ' + name + ' · ' + (file.size / 1024).toFixed(0) + ' КБ');
-      await api('/api/projects/' + targetId + '/file?name=' + encodeURIComponent(name), {
-        method: 'PUT',
-        headers: {'Content-Type': 'application/octet-stream'},
-        body: file,
-      }).catch(() => {});
-    }
-  }
-  project = {id: targetId, files};
-  return targetId;
+  $('#libraryNav').hidden = page === 'brandsPage';
+  const parent = page === 'pipelinePage' || (page === 'brandEditor' && editingBrand);
+  $('#brandBack').hidden = !parent;
+  $('#brandBack').textContent = selectedBrand()?.name || 'Без бренда';
+  $('#currentCrumb').textContent = title;
+  $('#brandMessage').textContent = '';
 }
+
+function renderBrandCards() {
+  const cards = brandLibrary.map(b => libraryCard(b.name, 'Файлов: ' + b.files.length, () => openBrand(b.id), true));
+  $('#brandCards').replaceChildren(...(cards.length ? cards : [el('p', 'library-empty', 'Добавьте первый бренд, чтобы создать кампанию с его материалами.')]));
+}
+
+function openBrands() {
+  ++brandNavigation;
+  setCampaign(null);
+  editingSetup = false;
+  closeBrandEditor();
+  showLibraryPage('brandsPage');
+  renderBrandCards();
+  window.scrollTo(0, 0);
+}
+
+async function openBrand(id) {
+  if (busy) return;
+  const request = ++brandNavigation;
+  activeBrandId = id || '';
+  setCampaign(null);
+  editingSetup = false;
+  closeBrandEditor();
+  const brand = selectedBrand();
+  const title = brand?.name || 'Без бренда';
+  showLibraryPage('campaignsPage', title);
+  $('#brandHeading').textContent = title;
+  $('#editBrand').hidden = $('#addCampaign').hidden = !brand;
+  $('#campaignCards').replaceChildren(el('p', 'library-empty', 'Загрузка кампаний…'));
+  window.scrollTo(0, 0);
+  try {
+    const list = await listBrandCampaigns(activeBrandId);
+    if (request !== brandNavigation) return;
+    const cards = list.map(c => libraryCard(c.name,
+      [KIND_NAMES[c.kind], c.updatedAt && when(c.updatedAt)].filter(Boolean).join(' · '), () => openCampaign(c.id)));
+    $('#campaignCards').replaceChildren(...(cards.length ? cards : [el('p', 'library-empty', 'Здесь пока нет кампаний.')]));
+  } catch (err) {
+    if (request === brandNavigation) $('#campaignCards').replaceChildren(el('p', 'library-empty', err.message));
+  }
+}
+
+async function openCampaign(id) {
+  const request = ++brandNavigation;
+  try {
+    const campaign = await fetchCampaign(id);
+    if (request !== brandNavigation) return;
+    editingSetup = false;
+    setCampaign(campaign, {chooseStep:true});
+    renderWorkspace();
+    syncRightPaneToCampaign();
+    window.scrollTo(0, 0);
+  } catch (err) { if (request === brandNavigation) $('#brandMessage').textContent = err.message; }
+}
+
+$('#brandsHome').onclick = openBrands;
+$('#brandBack').onclick = () => openBrand(activeBrandId);
+$('#legacyCampaigns').onclick = () => openBrand('');
+$('#addCampaign').onclick = () => { ++brandNavigation; beginCampaign(); };
+
+function beginCampaign() {
+  setCampaign(null);
+  editingSetup = false;
+  $('#newCampaignName').value = '';
+  openThread(null);
+  renderWorkspace();
+  showEmptyStage('Настройте кампанию и утвердите сценарий');
+  refreshUI();
+}
+
+function closeBrandEditor() {
+  $('#brandEditor').hidden = true;
+  editingBrand = null;
+  importingCampaign = null;
+  items.clear();
+}
+
+function editBrand(brand, source = null) {
+  importingCampaign = source;
+  $('#drop').hidden = Boolean(source);
+  $('#importBrandNote').hidden = !source;
+  $('#importBrandNote').textContent = source ? `В бренд войдут материалы кампании «${source.name}».` : '';
+  editingBrand = brand;
+  items.clear();
+  for (const file of brand?.files || []) items.set(file.name, file);
+  $('#brandName').value = brand?.name || source?.name || '';
+  const title = brand ? 'Редактирование бренда' : 'Новый бренд';
+  $('#editorHeading').textContent = title;
+  showLibraryPage('brandEditor', title);
+  $('#brandMessage').textContent = '';
+  displayMaterials();
+  $('#brandName').focus();
+}
+
+$('#addBrand').onclick = () => editBrand(null);
+$('#editBrand').onclick = () => editBrand(selectedBrand());
+$('#importBrand').onclick = () => editBrand(null, state.campaign);
+$('#cancelBrand').onclick = () => {
+  if (importingCampaign) {
+    closeBrandEditor();
+    renderWorkspace();
+  } else if (editingBrand) openBrand(activeBrandId);
+  else openBrands();
+};
+$('#brandEditor').onsubmit = async e => {
+  e.preventDefault();
+  if (busy || pending) return;
+  busy = true;
+  refreshUI();
+  try {
+    const brand = await saveBrand({
+      name: $('#brandName').value,
+      brand: editingBrand,
+      campaign: importingCampaign,
+      materials: items,
+    });
+    brandLibrary = [...brandLibrary.filter(b => b.id !== brand.id), brand];
+    activeBrandId = brand.id;
+    closeBrandEditor();
+    busy = false;
+    await openBrand(brand.id);
+    if (!$('#campaignsPage').hidden && activeBrandId === brand.id) $('#brandMessage').textContent = 'Бренд сохранён.';
+  } catch (err) { $('#brandMessage').textContent = err.message; }
+  finally { busy = false; refreshUI(); }
+};
 
 // ---- Setup Card Controls (§8.3) ----
 
@@ -726,6 +831,7 @@ function validateSetupForm() {
       reason = `Длина ролика должна быть от ${minLen} до 60 секунд.`;
     }
   }
+  if (!reason && !state.campaign && !selectedBrand()) reason = 'Выберите бренд или создайте новый.';
   if (!reason && !setupDraft.formats.length) {
     reason = 'Выберите хотя бы один формат.';
   }
@@ -1168,6 +1274,11 @@ function syncRightPaneToCampaign({keepTime = false} = {}) {
 
 function renderWorkspace() {
   const c = state.campaign;
+  if (c) activeBrandId = c.brandId || '';
+  showLibraryPage('pipelinePage', c?.name || 'Новая кампания');
+  $('#newCampaignBtn').hidden = !selectedBrand();
+  $('#importBrand').hidden = !c || Boolean(c.brandId);
+  $('#newCampaignNameGroup').hidden = Boolean(c);
   const setupCard = $('#brief');
   const s1 = $('#step1Panel');
   const s2 = $('#step2Panel');
@@ -1197,16 +1308,8 @@ function renderWorkspace() {
     },
     onNewCampaign: () => {
       if (busy) return;
-      editingSetup = false;
-      // Preserve current project's uploaded files reference so user can start a new pipeline run without losing materials
-      if (state.campaign?.project && !project) {
-        project = {id: state.campaign.project, files: [...items]};
-      }
-      setCampaign(null);
-      openThread(null);
-      renderWorkspace();
+      beginCampaign();
       refreshHistory();
-      status.textContent = 'Предыдущий пайплайн сохранён в «Истории». Настройте и запустите новый пайплайн.';
     },
   });
 
@@ -1352,6 +1455,9 @@ function refreshUI() {
         : ''
       : 'Добавьте OPENROUTER_API_KEY в .env и перезапустите сервер.';
 
+  for (const control of document.querySelectorAll('.library-nav button, .library-page button, .library-editor button, .library-editor input, #importBrand')) {
+    control.disabled = busy || pending > 0;
+  }
   document.body.classList.toggle('busy', busy);
   validateSetupForm();
   renderStepper({busyStep});
@@ -1374,7 +1480,7 @@ $('#brief').onsubmit = async e => {
   try {
     busy = true;
     refreshUI();
-    const projId = await ensureProjectUploaded();
+
 
     if (state.campaign && editingSetup) {
       const effects = describeSetupInvalidation(state.campaign.setup, newSetup, state.campaign);
@@ -1391,7 +1497,9 @@ $('#brief').onsubmit = async e => {
       return;
     }
 
-    const created = await createCampaign({project: projId, setup: newSetup});
+    const brand = selectedBrand();
+    if (!brand) throw Error('Выберите бренд или сохраните новый бренд с материалами.');
+    const created = await createCampaign({brandId:brand.id, brandVersion:brand.version, name:$('#newCampaignName').value.trim(), setup:newSetup});
     editingSetup = false;
     setCampaign(created, {chooseStep: true});
     renderWorkspace();
@@ -1434,7 +1542,6 @@ async function runCampaignTask({stepNum, task, startMsg, triggerBtn, fn}) {
   tracker = startTracking(requestId, task, startMsg);
 
   try {
-    await ensureProjectUploaded();
     const res = await fn({requestId, signal: controller.signal});
     await tracker.stop();
     if (res?.campaign) {
@@ -2070,6 +2177,7 @@ async function showSavedLog(entry) {
   for (const e of full.log || []) {
     addLog({...e, media: e.media ? {...e.media, url: state.config.previewURL + '/p/' + full.project + '/assets/' + e.media.file} : undefined});
   }
+  if ($('#pipelinePage').hidden) showLibraryPage('pipelinePage', 'Журнал сборки');
   journal.hidden = false;
   journal.scrollIntoView({behavior: 'smooth', block: 'nearest'});
 }
@@ -2113,6 +2221,8 @@ function campaignHistoryItem(c) {
   li.append(title);
 
   const metaParts = [];
+  const brand = brandLibrary.find(b => b.id === c.brandId);
+  if (brand) metaParts.push(brand.name);
   if (c.setup?.languages?.length) metaParts.push(c.setup.languages.map(l => l.toUpperCase()).join(', '));
   if (c.setup?.kind !== 'poster' && c.setup?.lengths?.length) metaParts.push(c.setup.lengths.join(' / ') + ' с');
   if (c.setup?.formats?.length) metaParts.push(c.setup.formats.map(id => state.formatInfo[id]?.label || id).join(' '));
@@ -2306,6 +2416,7 @@ function legacyHistoryItem(e) {
   if (e.type === 'creative' && e.output?.path) {
     actions.append(
       actionBtn('Открыть', () => {
+        showLibraryPage('pipelinePage', 'Сборка из истории');
         closeKeyframe();
         showStage({
           url: state.config.previewURL + e.output.path,
@@ -2456,6 +2567,7 @@ async function attachReadonlyRun(run) {
   const stepLabel = STEP_LABELS[run.step] || run.step || 'Шаг';
   const authorLabel = run.author || 'коллега';
   localLog(`Наблюдение за сборкой (${authorLabel} · ${stepLabel})`, 'step');
+  if ($('#pipelinePage').hidden) showLibraryPage('pipelinePage', 'Журнал сборки');
   journal.hidden = false;
   journal.scrollIntoView({behavior: 'smooth', block: 'nearest'});
 
@@ -2558,6 +2670,7 @@ setInterval(async () => {
   if (busy || editingSetup || !state.campaign?.id) return;
   try {
     const latest = await fetchCampaign(state.campaign.id);
+    if (latest?.id !== state.campaign?.id) return;
     if (latest && latest.version && state.campaign.version && latest.version !== state.campaign.version) {
       setCampaign(latest);
       renderWorkspace();
@@ -2571,6 +2684,7 @@ addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     if (!historyPanel.hidden) closeHistory();
     else if (!$('#copyDrawer').hidden) $('#copyDrawer').hidden = true;
+    else if (!$('#brandEditor').hidden && !busy && !pending) $('#cancelBrand').click();
     else if (editingSetup) {
       editingSetup = false;
       renderWorkspace();
@@ -2613,6 +2727,15 @@ addEventListener('click', e => {
 (async () => {
   try {
     state.config = await (await api('/api/status')).json();
+    try {
+      brandLibrary = await listBrands();
+      renderBrandCards();
+      const legacy = await listBrandCampaigns();
+      $('#legacyCampaigns').hidden = !legacy.length;
+    } catch (err) {
+      if (!brandLibrary.length) $('#brandCards').replaceChildren();
+      $('#brandMessage').textContent = err.message;
+    }
     await importBrowserHistory().catch(() => {});
     state.formatInfo = Object.fromEntries(state.config.formats.map(f => [f.id, f]));
     setupDraft.formats = state.config.defaultFormats.filter(id => state.formatInfo[id]);
@@ -2632,29 +2755,8 @@ addEventListener('click', e => {
     refreshHistory();
     pollActiveRuns();
 
-    // Restore persisted active campaign if any (§10)
-    const savedId = getSavedCampaignId();
-    if (savedId) {
-      try {
-        const restored = await fetchCampaign(savedId);
-        setCampaign(restored, {chooseStep: true});
-        renderWorkspace();
-        syncRightPaneToCampaign();
-        return;
-      } catch {
-        setCampaign(null);
-      }
-    }
-
-    renderWorkspace();
-    showStage({
-      url: state.config.previewURL + '/demo',
-      stage: 'legacy',
-      formats: [...setupDraft.formats],
-      duration: 8,
-    });
   } catch (err) {
-    status.textContent = err.message;
+    $('#brandMessage').textContent = err.message;
   }
   refreshUI();
 })();

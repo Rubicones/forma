@@ -10,7 +10,6 @@ export const imageModel = () => process.env.OPENROUTER_IMAGE_MODEL || 'google/ge
 export const videoModel = () => process.env.OPENROUTER_VIDEO_MODEL || 'x-ai/grok-imagine-video-1.5-lite';
 // Gemini image models ("Nano Banana") cannot output alpha.
 const supportsTransparency = model => !/gemini|nano-banana/i.test(model);
-const short = (text, n = 160) => { const s = String(text).replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
 const kb = bytes => (bytes / 1024).toFixed(0) + ' КБ';
 const usd = cost => typeof cost === 'number' ? ' · $' + cost.toFixed(4) : '';
 export const mediaLimits = () => ({

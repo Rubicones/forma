@@ -5,9 +5,9 @@ import {fileURLToPath} from 'node:url';
 import {randomUUID} from 'node:crypto';
 import {parseStyleChoices, revisionInstructions, revisionMessage, revisionReply, output as checkHTML} from './creative.mjs';
 import {tmpdir} from 'node:os';
-import {createJob, getJob, logger, finishJob, snapshot, draftHTML, streamedSketches, setJobRunSink} from './jobs.mjs';
+import {createJob, logger, finishJob, draftHTML, streamedSketches} from './jobs.mjs';
 import * as history from './history.mjs';
-import {store, authorStorage, currentAuthor} from './store/index.mjs';
+import {store, authorStorage} from './store/index.mjs';
 import {createPreviewReadThrough} from './store/supabase.mjs';
 import {subscriptionReady} from './claude-auth.mjs';
 import {generate, revise} from './generator.mjs';
@@ -15,6 +15,7 @@ import {generateCodex, codexKey, chatLogin} from './codex.mjs';
 import {inject, uninject, formats, defaultFormats, durations, pickFormats, pickDuration} from './motion.mjs';
 import {mediaKey, imageModel, videoModel, mediaLimits} from './media.mjs';
 import {models, settings} from './models.mjs';
+import {registerBrandRoutes} from './brands.mjs';
 import {registerCampaignRoutes} from './campaigns.mjs';
 const root=path.dirname(fileURLToPath(import.meta.url));
 const data=path.resolve(process.env.DATA_DIR || path.join(root,'data'));
@@ -30,7 +31,6 @@ function assetName(name){
  return name;
 }
 const ready=()=>Boolean(process.env.ANTHROPIC_API_KEY);
-setJobRunSink(store.runs);
 app.use('/api',(req,res,next)=>{
  if(req.headers.host!=='127.0.0.1:'+port && req.headers.host!=='localhost:'+port && req.headers.host!==process.env.PUBLIC_HOST)return res.sendStatus(403);
  if(req.method!=='GET' && req.headers['x-forma']!=='studio') return res.sendStatus(403);
@@ -38,6 +38,7 @@ app.use('/api',(req,res,next)=>{
  authorStorage.run(author, next);
 });
 app.use(express.json({limit:'256kb'}));
+registerBrandRoutes(app);
 const localChatLogin=()=>['127.0.0.1','localhost','::1'].includes(host) && chatLogin();
 const localClaudeLogin=()=>['127.0.0.1','localhost','::1'].includes(host) && subscriptionReady();
 app.get('/api/status',async(req,res)=>res.json({ready:ready(),claudeSubscription:await localClaudeLogin(),codexReady:Boolean(codexKey()),chatReady:await localChatLogin(),models,previewURL,
@@ -56,20 +57,6 @@ app.put('/api/projects/:id/file',express.raw({type:'application/octet-stream',li
  await fs.writeFile(dest,req.body || Buffer.alloc(0),{flag:'wx'});
  await store.sync.up(req.params.id,{path:'assets/'+relAsset,dataDir:data});
  res.sendStatus(201);
-});
-app.get('/api/render-progress/:requestId',async(req,res)=>{
- const since=Number(req.query.since)||0;
- const job=getJob(req.params.requestId);
- const data=job ? snapshot(job,since) : await store.runs.get(req.params.requestId,since);
- res.set('Cache-Control','no-store').json(data);
-});
-app.get('/api/runs/active',async(req,res)=>{
- const raw=await store.runs.active();
- const runs=await Promise.all(raw.map(async r=>{
-   const c=r.campaignId ? await history.get(r.campaignId).catch(()=>null) : null;
-   return {...r,campaignName:c?.name||null};
- }));
- res.set('Cache-Control','no-store').json({runs});
 });
 async function checkProvider(mode,billing){
  if(mode==='codex' && !['chatgpt','api'].includes(billing))throw issue('Неизвестный способ входа.');
@@ -304,6 +291,14 @@ preview.get('/demo',(req,res)=>res.sendFile(path.join(root,'demo.html')));
 preview.use('/p/history',(req,res)=>res.sendStatus(404)); // logs and prompts stay off the preview origin
 preview.use('/p',createPreviewReadThrough({dataDir:data,blobs:store.blobs}));
 app.use((err,req,res,next)=>{res.status(err.status||500).json({error:err.code==='EEXIST'?'Файл с таким именем уже добавлен.':err.message});});
+if (store.driver === 'supabase') await import('@aws-sdk/client-s3').catch(err => {
+ throw Error('Для доступа к R2 выполните npm ci в ' + root + ' и перезапустите Forma.', {cause:err});
+});
+preview.use((err,req,res,next)=>{
+ console.error('[preview]',err.message);
+ if (res.headersSent) return next(err);
+ res.status(502).type('text/plain').send('Не удалось загрузить файл предпросмотра из хранилища.');
+});
 await fs.mkdir(data,{recursive:true});
 const known=await history.openHistory(data), imported=await history.importExisting(data);
 console.log('История: '+(known+imported)+' записей'+(imported?' (импортировано креативов из data/: '+imported+')':''));

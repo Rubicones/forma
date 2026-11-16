@@ -1,0 +1,3 @@
+# Supabase CLI config. Forma uses only remote migrations (npx supabase link + db push);
+# the local Supabase stack is not used, so everything else stays at CLI defaults.
+project_id = "forma"

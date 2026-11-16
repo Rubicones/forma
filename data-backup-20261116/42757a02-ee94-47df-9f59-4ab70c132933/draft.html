@@ -1,0 +1,633 @@
+<html lang="ru" dir="ltr">
+<head><script>(function runtimeV2(resolveFn, data) {
+  const params = new URLSearchParams(location.search);
+  const state = resolveFn(params, data);
+  const short = state.short, long = state.long, safe = state.safe;
+  const root = document.documentElement;
+  root.lang = state.lang;
+  root.dir = state.dir;
+  root.dataset.format = state.format;
+  root.dataset.orientation = state.orientation;
+  root.dataset.kind = state.kind;
+  root.dataset.stage = state.stage;
+  root.dataset.lang = state.lang;
+  const vars = {
+    '--w': state.width + 'px',
+    '--h': state.height + 'px',
+    '--s': short / 100 + 'px',
+    '--l': long / 100 + 'px',
+    '--safe-top': safe.top + 'px',
+    '--safe-bottom': safe.bottom + 'px',
+    '--safe-left': safe.left + 'px',
+    '--safe-right': safe.right + 'px',
+  };
+  for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
+  const setups = [];
+  window.FORMA = {
+    ...state,
+    playing: false,
+    setup(fn) { setups.push(fn); },
+    _setups: setups,
+    fit(el, {max = short * .2, min = short * .03, step = 1} = {}) {
+      if (!el) return 0;
+      const fits = () => el.scrollWidth <= el.clientWidth + 1 && el.scrollHeight <= el.clientHeight + 1;
+      let lo = min, hi = max, best = min;
+      el.style.fontSize = hi + 'px';
+      if (fits()) return hi;
+      while (hi - lo > step) {
+        const mid = (lo + hi) / 2;
+        el.style.fontSize = mid + 'px';
+        if (fits()) { best = mid; lo = mid; } else hi = mid;
+      }
+      el.style.fontSize = best + 'px';
+      return best;
+    },
+    fitGroup(elements, {max = short * .2, min = short * .03, step = 1} = {}) {
+      const list = Array.from(elements || []).filter(Boolean);
+      if (!list.length) return 0;
+      const fitsAll = size => {
+        for (const el of list) el.style.fontSize = size + 'px';
+        return list.every(el => el.scrollWidth <= el.clientWidth + 1 && el.scrollHeight <= el.clientHeight + 1);
+      };
+      let lo = min, hi = max, best = min;
+      if (fitsAll(hi)) return hi;
+      while (hi - lo > step) {
+        const mid = (lo + hi) / 2;
+        if (fitsAll(mid)) { best = mid; lo = mid; } else hi = mid;
+      }
+      for (const el of list) el.style.fontSize = best + 'px';
+      return best;
+    },
+    syncVideo(video, t, offset = 0) {
+      if (!video) return;
+      video.muted = true; video.playsInline = true;
+      const target = Math.max(0, Math.min((video.duration || Infinity) - .05, t - offset));
+      if (window.FORMA.playing && t >= offset) {
+        if (video.paused) video.play().catch(() => {});
+        if (Math.abs(video.currentTime - target) > .25) video.currentTime = target;
+      } else {
+        if (!video.paused) video.pause();
+        if (Math.abs(video.currentTime - target) > .04) video.currentTime = target;
+      }
+    },
+    random(seed = 1) {
+      let s = seed >>> 0 || 1;
+      return () => ((s = Math.imul(s ^ s >>> 15, 1 | s), s ^= s + Math.imul(s ^ s >>> 7, 61 | s), (s ^ s >>> 14) >>> 0) / 4294967296);
+    },
+  };
+})(function resolveRuntime(params, data = {}) {
+  const q = typeof params === 'string'
+    ? new URLSearchParams(params)
+    : params && typeof params.get === 'function'
+      ? params
+      : {get: k => (params && Object.prototype.hasOwnProperty.call(params, k) ? String(params[k]) : null)};
+
+  const fallbackFormats = {
+    '1x1':   {id:'1x1',   label:'1:1',    name:'Post',            w:1080, h:1080, safe:{top:.05,  bottom:.05,  left:.05, right:.05}},
+    '4x5':   {id:'4x5',   label:'4:5',    name:'Feed',            w:1080, h:1350, safe:{top:.05,  bottom:.06,  left:.05, right:.05}},
+    '9x16':  {id:'9x16',  label:'9:16',   name:'Reels / Stories', w:1080, h:1920, safe:{top:.13,  bottom:.20,  left:.06, right:.12}},
+    '16x9':  {id:'16x9',  label:'16:9',   name:'Pre-roll / YouTube', w:1920, h:1080, safe:{top:.06, bottom:.10, left:.05, right:.05}},
+    '5x4':   {id:'5x4',   label:'5:4',    name:'Landscape post',  w:1350, h:1080, safe:{top:.05,  bottom:.05,  left:.05, right:.05}},
+    '191x1': {id:'191x1', label:'1.91:1', name:'Link / Display',  w:1200, h:628,  safe:{top:.06,  bottom:.06,  left:.04, right:.04}},
+  };
+
+  const rawFormats = Array.isArray(data.formats) && data.formats.length ? data.formats : [fallbackFormats['1x1']];
+  const list = rawFormats.map(f => (typeof f === 'string' ? fallbackFormats[f] || fallbackFormats['1x1'] : f));
+  const reqF = q.get('f');
+  const fmt = list.find(f => f.id === reqF) || list[0];
+  const short = Math.min(fmt.w, fmt.h), long = Math.max(fmt.w, fmt.h);
+  const ratio = fmt.w / fmt.h;
+  const orientation = ratio > 1.05 ? 'landscape' : ratio < .95 ? 'portrait' : 'square';
+  const safe = {
+    top: Math.round(fmt.safe.top * fmt.h),
+    bottom: Math.round(fmt.safe.bottom * fmt.h),
+    left: Math.round(fmt.safe.left * fmt.w),
+    right: Math.round(fmt.safe.right * fmt.w),
+  };
+
+  const sc = data.scenario || null;
+  const stage = data.stage || 'final';
+  const kind = data.kind || sc?.kind || 'multi';
+
+  const rawLangs = Array.isArray(data.langs) && data.langs.length
+    ? data.langs
+    : Array.isArray(sc?.languages) && sc.languages.length
+      ? sc.languages
+      : ['en'];
+  const langs = rawLangs.map(l => (typeof l === 'string' ? l : l.code));
+  const reqL = q.get('l');
+  const lang = langs.includes(reqL) ? reqL : langs[0];
+  const dir = /^(ar|he|fa|ur)(-|$)/i.test(lang) ? 'rtl' : 'ltr';
+
+  const rawLines = sc?.lines || {};
+  const neverHide = {hook: true, offer: true, cta: true};
+  const isHidden = key => {
+    const ln = rawLines[key];
+    if (!ln) return true;
+    if (neverHide[ln.role]) return false;
+    return Array.isArray(ln.hideIn) && ln.hideIn.includes(fmt.id);
+  };
+
+  const copy = {};
+  const lines = {};
+  for (const [key, ln] of Object.entries(rawLines)) {
+    lines[key] = {role: ln.role, scene: ln.scene};
+    if (!isHidden(key)) {
+      copy[key] = ln.text?.[lang] ?? ln.text?.[langs[0]] ?? '';
+    }
+  }
+
+  const scenes = (sc?.scenes || []).map(s => ({
+    id: s.id,
+    beat: s.beat,
+    lines: (s.lines || []).filter(k => !isHidden(k)),
+  }));
+
+  let scene = null;
+  if (stage === 'preview') {
+    const reqScene = q.get('scene');
+    scene = scenes.some(s => s.id === reqScene) ? reqScene : (scenes[0]?.id || null);
+  } else {
+    const reqScene = q.get('scene');
+    if (reqScene && scenes.some(s => s.id === reqScene)) scene = reqScene;
+  }
+
+  const cutKeys = sc?.cuts ? Object.keys(sc.cuts).map(Number).filter(n => !Number.isNaN(n)) : [];
+  const lengths = (Array.isArray(data.lengths) && data.lengths.length ? data.lengths : cutKeys).map(Number);
+
+  let length = 0;
+  let cut = null;
+  let loop = null;
+
+  if (stage !== 'preview' && kind !== 'poster') {
+    const availLengths = lengths.length ? lengths : [Number(data.duration) || (kind === 'single' ? 6 : 8)];
+    const reqD = Number(q.get('d'));
+    length = availLengths.includes(reqD) ? reqD : availLengths[0];
+
+    if (kind === 'single') {
+      const repeats = Math.max(1, Math.round(length / 4));
+      const period = length / repeats;
+      loop = {period, repeats};
+    } else if (kind === 'multi') {
+      const rawCut = sc?.cuts?.[String(length)] || sc?.cuts?.[String(availLengths[0])] || null;
+      if (rawCut && Array.isArray(rawCut.scenes)) {
+        cut = {
+          length,
+          scenes: rawCut.scenes.map(w => ({
+            id: w.id,
+            start: w.start,
+            end: w.end,
+            lines: (w.lines || []).filter(k => !isHidden(k)),
+          })),
+        };
+      }
+    }
+  }
+
+  return {
+    format: fmt.id,
+    label: fmt.label,
+    width: fmt.w,
+    height: fmt.h,
+    short,
+    long,
+    ratio,
+    orientation,
+    safe,
+    formats: list.map(f => f.id),
+    kind,
+    stage,
+    lang,
+    langs,
+    dir,
+    copy,
+    lines,
+    scenes,
+    cut,
+    loop,
+    length,
+    duration: length,
+    scene,
+  };
+},{"stage":"preview","kind":"multi","formats":[{"id":"1x1","label":"1:1","name":"Post","w":1080,"h":1080,"safe":{"top":0.05,"bottom":0.05,"left":0.05,"right":0.05}}],"langs":["ru"],"lengths":[],"scenario":{"version":2,"kind":"multi","theme":"Когда каждый защищает свой припев, сравнение версий помогает выбрать на слух.","idea":"Два музыканта уверены, что их припев лучше; они слушают обе версии такт за тактом в sonicdesk.","languages":["ru","en"],"lines":{"h1":{"role":"hook","scene":"s1","maxChars":16,"hideIn":[],"text":{"ru":"Какой припев?","en":"Which chorus?"}},"h1b":{"role":"sub","scene":"s1","maxChars":30,"hideIn":[],"text":{"ru":"«Мой лучше». «Нет, мой».","en":"“Mine’s better.” “No, mine.”"}},"p1":{"role":"proof","scene":"s2","maxChars":28,"hideIn":[],"text":{"ru":"Обе версии. Такт за тактом.","en":"Both versions. Bar for bar."}},"brand":{"role":"label","scene":"s3","maxChars":10,"hideIn":[],"text":{"ru":"sonicdesk.","en":"sonicdesk."}},"cta":{"role":"cta","scene":"s3","maxChars":18,"hideIn":[],"text":{"ru":"Сравни версии","en":"Compare versions"}}},"scenes":[{"id":"s1","beat":"HOOK","story":"Два музыканта решают, какой припев оставить; каждый считает свою версию лучше.","lines":["h1","h1b"]},{"id":"s2","beat":"PROOF","story":"Музыканты слушают одинаковые такты двух версий припева через A/B-сравнение в sonicdesk.","lines":["p1"]},{"id":"s3","beat":"CTA","story":"Вместо спора sonicdesk. предлагает сравнить версии и решить на слух.","lines":["brand","cta"]}],"cuts":{"4":{"scenes":[{"id":"s1","start":0,"end":1.3,"lines":["h1"]},{"id":"s3","start":1.3,"end":4,"lines":["cta"]}],"note":"Убраны реплики, демонстрация и отдельная строка бренда, чтобы сохранить время чтения и финальную выдержку. Вопрос получает прямой ответ: сравни версии."},"8":{"scenes":[{"id":"s1","start":0,"end":1.6,"lines":["h1"]},{"id":"s2","start":1.6,"end":4.5,"lines":["p1"]},{"id":"s3","start":4.5,"end":8,"lines":["brand","cta"]}],"note":"Убраны спорящие реплики; сохранены вопрос, доказательство и приглашение сравнить."},"12":{"scenes":[{"id":"s1","start":0,"end":4,"lines":["h1","h1b"]},{"id":"s2","start":4,"end":7.5,"lines":["p1"]},{"id":"s3","start":7.5,"end":12,"lines":["brand","cta"]}],"note":"Полная история: вопрос, спор, сравнение и CTA. Все строки сохранены."}},"notes":"Основание обещания — подтверждённое A/B-сравнение версий такт за тактом. Коммерческий оффер не добавлен: в материалах нет условий акции. Время чтения проверено для обоих языков с секундной выдержкой в финале."}})</script><script type="importmap">{"imports":{"three":"/lib/three/build/three.module.js","three/addons/":"/lib/three/examples/jsm/"}}</script><script src="/lib/gsap.js"></script><script src="/lib/lottie.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+@font-face {
+  font-family: Archivo;
+  src: url("assets/sonicdesk/fonts/archivo-latin-700-normal.woff2") format("woff2");
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: Archivo;
+  src: url("assets/sonicdesk/fonts/archivo-latin-800-normal.woff2") format("woff2");
+  font-weight: 800;
+  font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("assets/sonicdesk/fonts/jetbrains-mono-latin-400-normal.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+:root {
+  color-scheme: dark;
+  --canvas: #070707;
+  --paper: #e8e8e8;
+  --muted: #9e9e9e;
+  --rule: #242424;
+  --app: #000000;
+  --surface: #0d0d0d;
+  --compare-b: #907bff;
+}
+* { box-sizing: border-box; }
+html, body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: var(--canvas);
+}
+body {
+  font-family: Archivo, Arial, sans-serif;
+  color: var(--paper);
+  -webkit-font-smoothing: antialiased;
+}
+[hidden] { display: none !important; }
+#viewport {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+#frame {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1080px;
+  height: 1080px;
+  transform: translate(-50%, -50%) scale(var(--scale, 1));
+  transform-origin: center;
+  background: var(--canvas);
+  isolation: isolate;
+  --left: 64px;
+  --right: 64px;
+  --top: 56px;
+  --bottom: 64px;
+}
+.masthead {
+  position: absolute;
+  left: var(--left);
+  right: var(--right);
+  top: var(--top);
+  height: 120px;
+  border-bottom: 1px solid var(--rule);
+}
+.app-icon {
+  display: block;
+  width: 80px;
+  height: 80px;
+}
+.copy-zone {
+  position: absolute;
+  left: var(--left);
+  right: var(--right);
+  top: calc(var(--top) + 160px);
+  height: 248px;
+}
+.headline {
+  margin: 0;
+  font-size: 112px;
+  font-weight: 800;
+  line-height: .965;
+  letter-spacing: -.03em;
+  white-space: pre-line;
+  overflow-wrap: normal;
+}
+.subline {
+  width: fit-content;
+  max-width: 100%;
+  margin: 38px 0 0;
+  padding: 0;
+  font-size: 42px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -.025em;
+}
+.wordmark {
+  width: 660px;
+  max-width: 100%;
+  height: 104px;
+  background: var(--paper);
+  -webkit-mask: url("assets/sonicdesk/logos/wordmark.svg") left center / contain no-repeat;
+  mask: url("assets/sonicdesk/logos/wordmark.svg") left center / contain no-repeat;
+}
+.cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 36px;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 108px;
+  margin-top: 34px;
+  padding: 19px 28px 22px;
+  color: var(--canvas);
+  background: var(--paper);
+}
+.cta-copy {
+  display: block;
+  font-size: 64px;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: -.035em;
+  white-space: nowrap;
+}
+.cta-arrow {
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+}
+#frame.no-brand .cta { margin-top: 0; }
+#frame.no-brand .copy-zone {
+  display: flex;
+  align-items: center;
+}
+.hero {
+  position: absolute;
+  left: calc(var(--left) + 12px);
+  right: calc(var(--right) + 12px);
+  top: 500px;
+  bottom: calc(var(--bottom) + 30px);
+  margin: 0;
+  transform: rotate(-3deg);
+  transform-origin: 50% 50%;
+}
+.paper-edge, .paper {
+  position: absolute;
+  inset: 0;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 52px), calc(100% - 52px) 100%, 0 100%);
+}
+.paper-edge {
+  background: var(--muted);
+  transform: translate(7px, 8px);
+}
+.paper {
+  background-color: var(--paper);
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent 0,
+    transparent 7px,
+    rgba(7, 7, 7, .08) 7px,
+    rgba(7, 7, 7, .08) 8px
+  );
+}
+.paper::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 52px;
+  height: 52px;
+  background: var(--muted);
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+}
+.comparison {
+  position: absolute;
+  inset: 24px 24px 60px;
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  gap: 20px;
+}
+.track {
+  position: relative;
+  min-height: 0;
+  background: var(--app);
+  border-bottom: 4px solid var(--muted);
+}
+.track-b { --wave-color: var(--compare-b); }
+.track-a { --wave-color: var(--paper); }
+.version {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: 34px;
+  border-right: 1px solid var(--rule);
+  font-size: 86px;
+  font-weight: 700;
+  letter-spacing: -.04em;
+}
+.ruler {
+  position: absolute;
+  left: 120px;
+  right: 0;
+  top: 0;
+  height: 44px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  background: var(--surface);
+  border-bottom: 1px solid var(--rule);
+  color: var(--muted);
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 400;
+  font-size: 22px;
+  line-height: 44px;
+}
+.ruler span {
+  padding-left: 18px;
+  border-left: 1px solid var(--rule);
+}
+.ruler span:first-child { border-left: 0; }
+.bar-grid {
+  position: absolute;
+  top: 44px;
+  left: 120px;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+}
+.bar-grid i + i { border-left: 1px solid var(--rule); }
+.waveform {
+  position: absolute;
+  left: 143px;
+  right: 22px;
+  top: 56px;
+  bottom: 17px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.pill {
+  display: block;
+  width: 22px;
+  flex: 1 1 22px;
+  max-width: 22px;
+  min-width: 0;
+  height: var(--peak);
+  border-radius: 999px;
+  background: var(--wave-color);
+  box-shadow: 3px 4px 0 var(--muted);
+}
+.track-b .pill { box-shadow: 3px 4px 0 var(--rule); }
+.registration {
+  position: absolute;
+  left: calc(120px + (100% - 120px) / 3);
+  top: -24px;
+  bottom: -12px;
+  width: 2px;
+  background: var(--paper);
+  z-index: 2;
+}
+.registration::before,
+.registration::after {
+  content: "";
+  position: absolute;
+  left: -5px;
+  width: 12px;
+  height: 18px;
+  background: var(--canvas);
+}
+.registration::before { top: 0; }
+.registration::after { bottom: -12px; }
+.photo-caption {
+  position: absolute;
+  left: 24px;
+  right: 70px;
+  bottom: 15px;
+  margin: 0;
+  padding: 3px 5px;
+  background: var(--paper);
+  color: var(--rule);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11.5px;
+  font-weight: 400;
+  line-height: 1.4;
+  letter-spacing: -.02em;
+}
+#frame[data-scene="s1"] .track-a { transform: translateX(-12px); }
+#frame[data-scene="s1"] .track-b { transform: translateX(12px); }
+#frame[data-scene="s1"] .registration,
+#frame[data-scene="s3"] .registration { display: none; }
+#frame[data-scene="s2"] .track {
+  border-bottom-width: 1px;
+}
+#frame[data-scene="s2"] .pill { box-shadow: none; }
+#frame[data-scene="s2"] .track-b {
+  outline: 1px solid var(--muted);
+  outline-offset: -1px;
+}
+#frame[data-scene="s3"] .hero {
+  top: 520px;
+}
+#frame[data-scene="s3"] .comparison {
+  gap: 16px;
+}
+#frame[data-scene="s3"] .version { font-size: 78px; }
+</style>
+</head>
+<body>
+<div id="viewport">
+  <main id="frame">
+    <header class="masthead">
+      <img class="app-icon" src="assets/sonicdesk/logos/app-icon.svg" alt="">
+    </header>
+
+    <section class="copy-zone">
+      <h1 class="headline" id="headline" hidden></h1>
+      <p class="subline" id="subline" hidden></p>
+      <div class="wordmark" id="wordmark" role="img" hidden></div>
+      <div class="cta" id="cta" hidden>
+        <span class="cta-copy" id="cta-copy"></span>
+        <svg class="cta-arrow" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+          <path d="M5 24H41M27 10L41 24L27 38" stroke="currentColor" stroke-width="3"/>
+        </svg>
+      </div>
+    </section>
+
+    <figure class="hero">
+      <div class="paper-edge" aria-hidden="true"></div>
+      <div class="paper">
+        <div class="comparison" aria-hidden="true">
+          <div class="track track-a">
+            <div class="version">A</div>
+            <div class="ruler"><span>41</span><span>42</span><span>43</span></div>
+            <div class="bar-grid"><i></i><i></i><i></i></div>
+            <div class="waveform" id="wave-a"></div>
+          </div>
+          <div class="track track-b">
+            <div class="version">B</div>
+            <div class="ruler"><span>41</span><span>42</span><span>43</span></div>
+            <div class="bar-grid"><i></i><i></i><i></i></div>
+            <div class="waveform" id="wave-b"></div>
+          </div>
+          <div class="registration"></div>
+        </div>
+        <figcaption class="photo-caption" id="photo-caption"></figcaption>
+      </div>
+    </figure>
+  </main>
+</div>
+
+
+
+
+<script>(function controllerV2() {
+  const F = window.FORMA, isStatic = F.stage === 'preview' || F.kind === 'poster';
+  if (isStatic) {
+    const send = () => {
+      try {
+        parent.postMessage({type:'forma:time', t:0, duration:0, playing:false, timeline:false, static:true, format:F.format, lang:F.lang, scene:F.scene}, '*');
+      } catch {}
+    };
+    const draw = () => { try { window.renderFrame?.(0); } catch (e) { console.error(e); } send(); };
+    addEventListener('message', e => {
+      if (e.source !== parent || !e.data) return;
+      if (e.data.type === 'forma:hello') send();
+    });
+    const loaded = document.readyState === 'complete' ? Promise.resolve() : new Promise(r => addEventListener('load', r, {once:true}));
+    Promise.all([loaded, document.fonts.ready])
+      .then(async () => { for (const fn of F._setups) await fn(); })
+      .catch(e => console.error(e))
+      .then(() => { F.playing = false; draw(); });
+    return;
+  }
+
+  const D = F.length, params = new URLSearchParams(location.search);
+  let t = Math.max(0, Math.min(D, Number(params.get('t')) || 0)), playing = !params.has('paused'), last = null, started = false;
+  const send = () => {
+    try {
+      parent.postMessage({type:'forma:time', t, duration:D, playing, timeline:typeof window.renderFrame === 'function', format:F.format, lang:F.lang, length:D}, '*');
+    } catch {}
+  };
+  const draw = () => { try { window.renderFrame?.(t); } catch (e) { console.error(e); } send(); };
+  function tick(now) {
+    if (!playing) return;
+    if (last !== null) t = Math.min(D, t + (now - last) / 1000);
+    last = now;
+    draw();
+    if (t >= D) { playing = F.playing = false; send(); return; }
+    requestAnimationFrame(tick);
+  }
+  function play() { if (!started) return; if (t >= D) t = 0; playing = F.playing = true; last = null; requestAnimationFrame(tick); }
+  function pause() { playing = F.playing = false; draw(); }
+  addEventListener('message', e => {
+    if (e.source !== parent || !e.data) return;
+    const m = e.data;
+    if (m.type === 'forma:play') play();
+    if (m.type === 'forma:pause') pause();
+    if (m.type === 'forma:seek') { t = Math.max(0, Math.min(D, Number(m.t) || 0)); if (!playing) draw(); }
+    if (m.type === 'forma:hello') send();
+  });
+  const loaded = document.readyState === 'complete' ? Promise.resolve() : new Promise(r => addEventListener('load', r, {once:true}));
+  Promise.all([loaded, document.fonts.ready])
+    .then(async () => { for (const fn of F._setups) await fn(); })
+    .catch(e => console.error(e))
+    .then(() => { started = true; F.playing = playing; draw(); if (playing) play(); });
+})()</script></body>
+</html>

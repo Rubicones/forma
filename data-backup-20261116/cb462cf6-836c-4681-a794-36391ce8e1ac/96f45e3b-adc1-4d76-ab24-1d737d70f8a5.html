@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><script type="importmap">{"imports":{"three":"/lib/three/build/three.module.js","three/addons/":"/lib/three/examples/jsm/"}}</script><script src="/lib/gsap.js"></script><script src="/lib/lottie.js"></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1080, initial-scale=1">
+<title>Toggle Concepts — The frame changes. The idea holds.</title>
+<style>
+@font-face{font-family:InterTight;src:url("assets/Toggle_Concepts_Brand_Pack/fonts/InterTight-Regular.ttf") format("truetype");font-weight:400;font-display:block}
+@font-face{font-family:InterTight;src:url("assets/Toggle_Concepts_Brand_Pack/fonts/InterTight-Medium.ttf") format("truetype");font-weight:500;font-display:block}
+@font-face{font-family:InterTight;src:url("assets/Toggle_Concepts_Brand_Pack/fonts/InterTight-SemiBold.ttf") format("truetype");font-weight:600;font-display:block}
+@font-face{font-family:InterTight;src:url("assets/Toggle_Concepts_Brand_Pack/fonts/InterTight-Bold.ttf") format("truetype");font-weight:700;font-display:block}
+:root{--navy:#0C2B3F;--sky:#B4E4FA}
+*{box-sizing:border-box}
+html,body{width:1080px;height:1080px;margin:0;overflow:hidden;background:#fff}
+body{font-family:InterTight,Arial,sans-serif;color:var(--navy);-webkit-font-smoothing:antialiased}
+#artboard{position:relative;width:1080px;height:1080px;overflow:hidden;background:#fff}
+.scene{position:absolute;inset:0}
+.logo{position:absolute;left:108px;top:108px;width:368px;height:auto;display:block}
+.copy{position:absolute;left:108px;top:208px;width:864px;margin:0;font-weight:600;letter-spacing:-.035em}
+#hook{font-size:88px;line-height:.98}
+#engine{font-size:60px;line-height:1.02;visibility:hidden}
+#human{font-size:64px;line-height:1.04;visibility:hidden}
+.stage{position:absolute;inset:0}
+.outline{position:absolute;left:540px;top:712px;transform:translate(-50%,-50%);border:3px solid var(--navy);border-radius:16px}
+#active{width:416px;height:520px}
+#portrait{width:416px;height:520px;opacity:0}
+#square{width:520px;height:520px;opacity:0}
+#ring{position:absolute;width:384px;height:auto;left:348px;top:712px;transform:translateY(-50%);display:block}
+#founder{position:absolute;left:108px;top:469px;width:864px;height:486px;object-fit:contain;display:block;visibility:hidden}
+#end{background:var(--navy);color:white;visibility:hidden}
+.promise{position:absolute;left:108px;top:284px;width:864px;height:292px;border:3px solid var(--sky);border-radius:16px;display:flex;align-items:center;padding:44px}
+.promise h1{font-size:68px;font-weight:600;letter-spacing:-.035em;line-height:1.08;margin:0}
+.promise span{display:block;white-space:nowrap}
+.offer{position:absolute;left:108px;top:628px;font-size:36px;font-weight:400;line-height:1.2;margin:0}
+.cta{position:absolute;left:108px;top:716px;height:96px;padding:0 44px;background:#fff;color:var(--navy);border-radius:999px;display:inline-flex;align-items:center;justify-content:center;font-size:30px;font-weight:700;letter-spacing:.01em;text-decoration:none}
+.cta:focus-visible{outline:4px solid var(--sky);outline-offset:8px}
+.destination{position:absolute;left:108px;top:864px;color:var(--sky);font-size:30px;font-weight:400;text-decoration:none}
+</style>
+</head>
+<body>
+<main id="artboard" aria-label="Toggle Concepts. More formats. Still you.">
+<section id="light" class="scene" aria-label="One identity across every format">
+<img class="logo" src="assets/Toggle_Concepts_Brand_Pack/logo/toggle-concepts-lockup-navy.svg" alt="Toggle Concepts">
+<h1 id="hook" class="copy">More formats.<br>Still you.</h1>
+<h2 id="engine" class="copy">One concept.<br>Our engine builds<br>every version.</h2>
+<h2 id="human" class="copy">Senior creatives lead.<br>Experts check every file.</h2>
+<div id="graphic" class="stage" aria-label="The frame changes from portrait to square to landscape. The orange Toggle ring stays fixed.">
+<div id="portrait" class="outline"></div>
+<div id="square" class="outline"></div>
+<div id="active" class="outline"></div>
+<img id="ring" src="assets/Toggle_Concepts_Brand_Pack/logo/png/toggle-ring-gloss.png" alt="Glossy orange Toggle ring">
+</div>
+<img id="founder" src="assets/Toggle_Concepts_Brand_Pack/img/founder.png" alt="Roman, Co-founder and Creative Director of Toggle, in his studio">
+</section>
+<section id="end" class="scene" aria-label="Pay for concepts. Every version is included." aria-hidden="true">
+<img class="logo" src="assets/Toggle_Concepts_Brand_Pack/logo/toggle-concepts-lockup-white.svg" alt="Toggle Concepts">
+<div class="promise">
+<h1><span>Pay for concepts.</span><span>Every version is included.</span></h1>
+</div>
+<p class="offer">20% off your first month</p>
+<a class="cta" href="https://concepts.toggle.studio" target="_blank" rel="noopener" tabindex="-1">START A TEST MONTH</a>
+<a class="destination" href="https://concepts.toggle.studio" target="_blank" rel="noopener" tabindex="-1">concepts.toggle.studio</a>
+</section>
+</main>
+<script>
+(() => {
+  const el = id => document.getElementById(id);
+  const hook=el('hook'), engine=el('engine'), human=el('human');
+  const active=el('active'), portrait=el('portrait'), square=el('square');
+  const graphic=el('graphic'), founder=el('founder'), light=el('light'), end=el('end');
+  const clamp=x=>Math.max(0,Math.min(1,x));
+  const ease=x=>1-Math.pow(1-clamp(x),5);
+  let start, lastTime=0, audio, master;
+  const sounded=new Set();
+  function visible(node,value){node.style.visibility=value?'visible':'hidden'}
+  function clickSound(){
+    if(!audio || audio.state!=='running')return;
+    const oscillator=audio.createOscillator(), gain=audio.createGain(), now=audio.currentTime;
+    oscillator.type='sine';
+    oscillator.frequency.setValueAtTime(1050,now);
+    oscillator.frequency.exponentialRampToValueAtTime(220,now+.045);
+    gain.gain.setValueAtTime(.0001,now);
+    gain.gain.exponentialRampToValueAtTime(.065,now+.004);
+    gain.gain.exponentialRampToValueAtTime(.0001,now+.075);
+    oscillator.connect(gain);gain.connect(master);
+    oscillator.start(now);oscillator.stop(now+.08);
+  }
+  function enableAudio(){
+    if(audio || lastTime>=15)return;
+    const AudioContext=window.AudioContext||window.webkitAudioContext;
+    if(!AudioContext)return;
+    try{
+      audio=new AudioContext();
+      master=audio.createGain();master.gain.value=.18;master.connect(audio.destination);
+      audio.resume();
+      [130.81,196].forEach(frequency=>{
+        const oscillator=audio.createOscillator(), gain=audio.createGain();
+        oscillator.type='sine';oscillator.frequency.value=frequency;
+        gain.gain.value=.018;oscillator.connect(gain);gain.connect(master);
+        oscillator.start();oscillator.stop(audio.currentTime+Math.max(.1,15-lastTime));
+      });
+    }catch(e){}
+  }
+  document.addEventListener('pointerdown',enableAudio,{once:true});
+  function render(t){
+    lastTime=t;
+    visible(hook,t<3);
+    visible(engine,t>=3&&t<7);
+    visible(human,t>=7&&t<10);
+    visible(graphic,t<7);
+    visible(founder,t>=7&&t<10);
+    visible(light,t<10);
+    visible(end,t>=10);
+    light.setAttribute('aria-hidden',String(t>=10));
+    end.setAttribute('aria-hidden',String(t<10));
+    end.querySelectorAll('a').forEach(a=>a.tabIndex=t>=10?0:-1);
+    const first=ease((t-2)/.6), second=ease((t-4.6)/.6);
+    active.style.width=(416+104*first+344*second)+'px';
+    active.style.height=(520-34*second)+'px';
+    portrait.style.opacity=t>=2?.18:0;
+    square.style.opacity=t>=4.6?.18:0;
+    if(t>=3&&t<3.24){
+      const p=clamp((t-3)/.24);
+      engine.style.opacity=p;
+      engine.style.filter='blur('+(3*(1-p))+'px)';
+    }else{
+      engine.style.opacity=1;engine.style.filter='none';
+    }
+    for(const beat of [2.6,5.2]){
+      if(t>=beat&&!sounded.has(beat)){sounded.add(beat);clickSound()}
+    }
+    if(audio&&master){
+      master.gain.setTargetAtTime(t>=15?0:t>=7&&t<10?.07:.18,audio.currentTime,.3);
+    }
+  }
+  async function ready(){
+    await Promise.all([
+      document.fonts.ready,
+      ...Array.from(document.images).map(img=>img.decode?img.decode().catch(()=>{}):Promise.resolve())
+    ]);
+    requestAnimationFrame(function tick(now){
+      if(start===undefined)start=now;
+      const t=Math.min(15,(now-start)/1000);
+      render(t);
+      if(t<15)requestAnimationFrame(tick);
+    });
+  }
+  ready();
+})();
+</script>
+</body>
+</html>

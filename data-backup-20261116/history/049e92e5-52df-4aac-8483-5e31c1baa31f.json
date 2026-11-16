@@ -1,0 +1,96 @@
+{
+ "id": "049e92e5-52df-4aac-8483-5e31c1baa31f",
+ "createdAt": "2026-11-16T00:47:10.921Z",
+ "status": "error",
+ "log": [
+  {
+   "i": 0,
+   "at": 1,
+   "level": "step",
+   "msg": "Шаг 1 · Сценарий · codex · gpt-6-astra"
+  },
+  {
+   "i": 1,
+   "at": 2,
+   "level": "step",
+   "msg": "Запуск Codex CLI · gpt-6-astra · effort high"
+  },
+  {
+   "i": 2,
+   "at": 8955,
+   "level": "step",
+   "msg": "Codex: сессия начата"
+  },
+  {
+   "i": 3,
+   "at": 9005,
+   "level": "info",
+   "msg": "Codex: модель работает"
+  },
+  {
+   "i": 4,
+   "at": 12904,
+   "level": "error",
+   "msg": "Codex: ошибка",
+   "detail": "Quota exceeded. Check your plan and billing details."
+  },
+  {
+   "i": 5,
+   "at": 12914,
+   "level": "error",
+   "msg": "Codex: ход завершился ошибкой",
+   "detail": "Quota exceeded. Check your plan and billing details."
+  },
+  {
+   "i": 6,
+   "at": 12930,
+   "level": "error",
+   "msg": "Ошибка: OpenAI: исчерпана квота API (Quota exceeded). Проверьте баланс и лимит расходов организации, к которой относится ключ."
+  }
+ ],
+ "type": "scenario",
+ "campaign": "7daba4bd-03ee-4d9d-aa84-d7dfa3ae41f1",
+ "stage": "scenario",
+ "kind": "multi",
+ "project": "42757a02-ee94-47df-9f59-4ab70c132933",
+ "mode": "codex",
+ "model": "gpt-6-astra",
+ "effort": "high",
+ "error": "OpenAI: исчерпана квота API (Quota exceeded). Проверьте баланс и лимит расходов организации, к которой относится ключ.",
+ "durationMs": 12930,
+ "input": {
+  "setup": {
+   "kind": "multi",
+   "languages": [
+    "ru",
+    "en"
+   ],
+   "lengths": [
+    4,
+    8,
+    12
+   ],
+   "formats": [
+    "1x1",
+    "4x5",
+    "9x16",
+    "16x9"
+   ],
+   "provider": {
+    "mode": "codex",
+    "billing": "api",
+    "model": "gpt-6-astra",
+    "effort": "high"
+   },
+   "stepModels": {}
+  }
+ },
+ "output": null,
+ "cost": {
+  "llm": 0,
+  "image": 0,
+  "video": 0,
+  "total": 0,
+  "unknown": false
+ }
+}

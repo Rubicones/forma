@@ -1,0 +1,1347 @@
+<!DOCTYPE html>
+<html>
+<head><script>(function runtimeV2(resolveFn, data) {
+  const params = new URLSearchParams(location.search);
+  const state = resolveFn(params, data);
+  const short = state.short, long = state.long, safe = state.safe;
+  const root = document.documentElement;
+  root.lang = state.lang;
+  root.dir = state.dir;
+  root.dataset.format = state.format;
+  root.dataset.orientation = state.orientation;
+  root.dataset.kind = state.kind;
+  root.dataset.stage = state.stage;
+  root.dataset.lang = state.lang;
+  const vars = {
+    '--w': state.width + 'px',
+    '--h': state.height + 'px',
+    '--s': short / 100 + 'px',
+    '--l': long / 100 + 'px',
+    '--safe-top': safe.top + 'px',
+    '--safe-bottom': safe.bottom + 'px',
+    '--safe-left': safe.left + 'px',
+    '--safe-right': safe.right + 'px',
+  };
+  for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
+  const setups = [];
+  window.FORMA = {
+    ...state,
+    playing: false,
+    setup(fn) { setups.push(fn); },
+    _setups: setups,
+    fit(el, {max = short * .2, min = short * .03, step = 1} = {}) {
+      if (!el) return 0;
+      const fits = () => el.scrollWidth <= el.clientWidth + 1 && el.scrollHeight <= el.clientHeight + 1;
+      let lo = min, hi = max, best = min;
+      el.style.fontSize = hi + 'px';
+      if (fits()) return hi;
+      while (hi - lo > step) {
+        const mid = (lo + hi) / 2;
+        el.style.fontSize = mid + 'px';
+        if (fits()) { best = mid; lo = mid; } else hi = mid;
+      }
+      el.style.fontSize = best + 'px';
+      return best;
+    },
+    fitGroup(elements, {max = short * .2, min = short * .03, step = 1} = {}) {
+      const list = Array.from(elements || []).filter(Boolean);
+      if (!list.length) return 0;
+      const fitsAll = size => {
+        for (const el of list) el.style.fontSize = size + 'px';
+        return list.every(el => el.scrollWidth <= el.clientWidth + 1 && el.scrollHeight <= el.clientHeight + 1);
+      };
+      let lo = min, hi = max, best = min;
+      if (fitsAll(hi)) return hi;
+      while (hi - lo > step) {
+        const mid = (lo + hi) / 2;
+        if (fitsAll(mid)) { best = mid; lo = mid; } else hi = mid;
+      }
+      for (const el of list) el.style.fontSize = best + 'px';
+      return best;
+    },
+    syncVideo(video, t, offset = 0) {
+      if (!video) return;
+      video.muted = true; video.playsInline = true;
+      const target = Math.max(0, Math.min((video.duration || Infinity) - .05, t - offset));
+      if (window.FORMA.playing && t >= offset) {
+        if (video.paused) video.play().catch(() => {});
+        if (Math.abs(video.currentTime - target) > .25) video.currentTime = target;
+      } else {
+        if (!video.paused) video.pause();
+        if (Math.abs(video.currentTime - target) > .04) video.currentTime = target;
+      }
+    },
+    random(seed = 1) {
+      let s = seed >>> 0 || 1;
+      return () => ((s = Math.imul(s ^ s >>> 15, 1 | s), s ^= s + Math.imul(s ^ s >>> 7, 61 | s), (s ^ s >>> 14) >>> 0) / 4294967296);
+    },
+  };
+})(function resolveRuntime(params, data = {}) {
+  const q = typeof params === 'string'
+    ? new URLSearchParams(params)
+    : params && typeof params.get === 'function'
+      ? params
+      : {get: k => (params && Object.prototype.hasOwnProperty.call(params, k) ? String(params[k]) : null)};
+
+  const fallbackFormats = {
+    '1x1':   {id:'1x1',   label:'1:1',    name:'Post',            w:1080, h:1080, safe:{top:.05,  bottom:.05,  left:.05, right:.05}},
+    '4x5':   {id:'4x5',   label:'4:5',    name:'Feed',            w:1080, h:1350, safe:{top:.05,  bottom:.06,  left:.05, right:.05}},
+    '9x16':  {id:'9x16',  label:'9:16',   name:'Reels / Stories', w:1080, h:1920, safe:{top:.13,  bottom:.20,  left:.06, right:.12}},
+    '16x9':  {id:'16x9',  label:'16:9',   name:'Pre-roll / YouTube', w:1920, h:1080, safe:{top:.06, bottom:.10, left:.05, right:.05}},
+    '5x4':   {id:'5x4',   label:'5:4',    name:'Landscape post',  w:1350, h:1080, safe:{top:.05,  bottom:.05,  left:.05, right:.05}},
+    '191x1': {id:'191x1', label:'1.91:1', name:'Link / Display',  w:1200, h:628,  safe:{top:.06,  bottom:.06,  left:.04, right:.04}},
+  };
+
+  const rawFormats = Array.isArray(data.formats) && data.formats.length ? data.formats : [fallbackFormats['1x1']];
+  const list = rawFormats.map(f => (typeof f === 'string' ? fallbackFormats[f] || fallbackFormats['1x1'] : f));
+  const reqF = q.get('f');
+  const fmt = list.find(f => f.id === reqF) || list[0];
+  const short = Math.min(fmt.w, fmt.h), long = Math.max(fmt.w, fmt.h);
+  const ratio = fmt.w / fmt.h;
+  const orientation = ratio > 1.05 ? 'landscape' : ratio < .95 ? 'portrait' : 'square';
+  const safe = {
+    top: Math.round(fmt.safe.top * fmt.h),
+    bottom: Math.round(fmt.safe.bottom * fmt.h),
+    left: Math.round(fmt.safe.left * fmt.w),
+    right: Math.round(fmt.safe.right * fmt.w),
+  };
+
+  const sc = data.scenario || null;
+  const stage = data.stage || 'final';
+  const kind = data.kind || sc?.kind || 'multi';
+
+  const rawLangs = Array.isArray(data.langs) && data.langs.length
+    ? data.langs
+    : Array.isArray(sc?.languages) && sc.languages.length
+      ? sc.languages
+      : ['en'];
+  const langs = rawLangs.map(l => (typeof l === 'string' ? l : l.code));
+  const reqL = q.get('l');
+  const lang = langs.includes(reqL) ? reqL : langs[0];
+  const dir = /^(ar|he|fa|ur)(-|$)/i.test(lang) ? 'rtl' : 'ltr';
+
+  const rawLines = sc?.lines || {};
+  const neverHide = {hook: true, offer: true, cta: true};
+  const isHidden = key => {
+    const ln = rawLines[key];
+    if (!ln) return true;
+    if (neverHide[ln.role]) return false;
+    return Array.isArray(ln.hideIn) && ln.hideIn.includes(fmt.id);
+  };
+
+  const copy = {};
+  const lines = {};
+  for (const [key, ln] of Object.entries(rawLines)) {
+    lines[key] = {role: ln.role, scene: ln.scene};
+    if (!isHidden(key)) {
+      copy[key] = ln.text?.[lang] ?? ln.text?.[langs[0]] ?? '';
+    }
+  }
+
+  const scenes = (sc?.scenes || []).map(s => ({
+    id: s.id,
+    beat: s.beat,
+    lines: (s.lines || []).filter(k => !isHidden(k)),
+  }));
+
+  let scene = null;
+  if (stage === 'preview') {
+    const reqScene = q.get('scene');
+    scene = scenes.some(s => s.id === reqScene) ? reqScene : (scenes[0]?.id || null);
+  } else {
+    const reqScene = q.get('scene');
+    if (reqScene && scenes.some(s => s.id === reqScene)) scene = reqScene;
+  }
+
+  const cutKeys = sc?.cuts ? Object.keys(sc.cuts).map(Number).filter(n => !Number.isNaN(n)) : [];
+  const lengths = (Array.isArray(data.lengths) && data.lengths.length ? data.lengths : cutKeys).map(Number);
+
+  let length = 0;
+  let cut = null;
+  let loop = null;
+
+  if (stage !== 'preview' && kind !== 'poster') {
+    const availLengths = lengths.length ? lengths : [Number(data.duration) || (kind === 'single' ? 6 : 8)];
+    const reqD = Number(q.get('d'));
+    length = availLengths.includes(reqD) ? reqD : availLengths[0];
+
+    if (kind === 'single') {
+      const repeats = Math.max(1, Math.round(length / 4));
+      const period = length / repeats;
+      loop = {period, repeats};
+    } else if (kind === 'multi') {
+      const rawCut = sc?.cuts?.[String(length)] || sc?.cuts?.[String(availLengths[0])] || null;
+      if (rawCut && Array.isArray(rawCut.scenes)) {
+        cut = {
+          length,
+          scenes: rawCut.scenes.map(w => ({
+            id: w.id,
+            start: w.start,
+            end: w.end,
+            lines: (w.lines || []).filter(k => !isHidden(k)),
+          })),
+        };
+      }
+    }
+  }
+
+  return {
+    format: fmt.id,
+    label: fmt.label,
+    width: fmt.w,
+    height: fmt.h,
+    short,
+    long,
+    ratio,
+    orientation,
+    safe,
+    formats: list.map(f => f.id),
+    kind,
+    stage,
+    lang,
+    langs,
+    dir,
+    copy,
+    lines,
+    scenes,
+    cut,
+    loop,
+    length,
+    duration: length,
+    scene,
+  };
+},{"stage":"final","kind":"multi","formats":[{"id":"1x1","label":"1:1","name":"Post","w":1080,"h":1080,"safe":{"top":0.05,"bottom":0.05,"left":0.05,"right":0.05}},{"id":"4x5","label":"4:5","name":"Feed","w":1080,"h":1350,"safe":{"top":0.05,"bottom":0.06,"left":0.05,"right":0.05}},{"id":"9x16","label":"9:16","name":"Reels / Stories","w":1080,"h":1920,"safe":{"top":0.13,"bottom":0.2,"left":0.06,"right":0.12}},{"id":"16x9","label":"16:9","name":"Pre-roll / YouTube","w":1920,"h":1080,"safe":{"top":0.06,"bottom":0.1,"left":0.05,"right":0.05}}],"langs":["ru","en"],"lengths":[4,8,12],"scenario":{"version":2,"kind":"multi","theme":"Когда каждый защищает свой припев, сравнение версий помогает выбрать на слух.","idea":"Два музыканта уверены, что их припев лучше; они слушают обе версии такт за тактом в sonicdesk.","languages":["ru","en"],"lines":{"h1":{"role":"hook","scene":"s1","maxChars":16,"hideIn":[],"text":{"ru":"Какой припев?","en":"Which chorus?"}},"h1b":{"role":"sub","scene":"s1","maxChars":30,"hideIn":[],"text":{"ru":"«Мой лучше». «Нет, мой».","en":"“Mine’s better.” “No, mine.”"}},"p1":{"role":"proof","scene":"s2","maxChars":28,"hideIn":[],"text":{"ru":"Обе версии. Такт за тактом.","en":"Both versions. Bar for bar."}},"brand":{"role":"label","scene":"s3","maxChars":10,"hideIn":[],"text":{"ru":"sonicdesk.","en":"sonicdesk."}},"cta":{"role":"cta","scene":"s3","maxChars":18,"hideIn":[],"text":{"ru":"Сравни версии","en":"Compare versions"}}},"scenes":[{"id":"s1","beat":"HOOK","story":"Два музыканта решают, какой припев оставить; каждый считает свою версию лучше.","lines":["h1","h1b"]},{"id":"s2","beat":"PROOF","story":"Музыканты слушают одинаковые такты двух версий припева через A/B-сравнение в sonicdesk.","lines":["p1"]},{"id":"s3","beat":"CTA","story":"Вместо спора sonicdesk. предлагает сравнить версии и решить на слух.","lines":["brand","cta"]}],"cuts":{"4":{"scenes":[{"id":"s1","start":0,"end":1.3,"lines":["h1"]},{"id":"s3","start":1.3,"end":4,"lines":["cta"]}],"note":"Убраны реплики, демонстрация и отдельная строка бренда, чтобы сохранить время чтения и финальную выдержку. Вопрос получает прямой ответ: сравни версии."},"8":{"scenes":[{"id":"s1","start":0,"end":1.6,"lines":["h1"]},{"id":"s2","start":1.6,"end":4.5,"lines":["p1"]},{"id":"s3","start":4.5,"end":8,"lines":["brand","cta"]}],"note":"Убраны спорящие реплики; сохранены вопрос, доказательство и приглашение сравнить."},"12":{"scenes":[{"id":"s1","start":0,"end":4,"lines":["h1","h1b"]},{"id":"s2","start":4,"end":7.5,"lines":["p1"]},{"id":"s3","start":7.5,"end":12,"lines":["brand","cta"]}],"note":"Полная история: вопрос, спор, сравнение и CTA. Все строки сохранены."}},"notes":"Основание обещания — подтверждённое A/B-сравнение версий такт за тактом. Коммерческий оффер не добавлен: в материалах нет условий акции. Время чтения проверено для обоих языков с секундной выдержкой в финале."}})</script><script type="importmap">{"imports":{"three":"/lib/three/build/three.module.js","three/addons/":"/lib/three/examples/jsm/"}}</script><script src="/lib/gsap.js"></script><script src="/lib/lottie.js"></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+@font-face {
+  font-family: Archivo;
+  src: url("assets/sonicdesk/fonts/archivo-latin-800-normal.woff2") format("woff2");
+  font-weight: 800;
+  font-display: block;
+  unicode-range: U+0000-024F,U+2000-206F,U+20AC,U+2122;
+}
+@font-face {
+  font-family: Archivo;
+  src: url("assets/sonicdesk/fonts/archivo-latin-700-normal.woff2") format("woff2");
+  font-weight: 700;
+  font-display: block;
+  unicode-range: U+0000-024F,U+2000-206F,U+20AC,U+2122;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("assets/sonicdesk/fonts/jetbrains-mono-latin-400-normal.woff2") format("woff2");
+  font-weight: 400;
+  font-display: block;
+}
+:root {
+  color-scheme: dark;
+  --s: 1vmin;
+  --u: calc(var(--s) * .092592592593);
+  --bg: #070707;
+  --fg: #e8e8e8;
+  --muted: #9e9e9e;
+  --rule: #242424;
+  --app-bg: #000000;
+  --surface: #0d0d0d;
+  --surface-2: #141414;
+  --compare-b: #907bff;
+  --display: Archivo, Arial, sans-serif;
+  --top: max(calc(var(--s) * 5.185185), var(--safe-top, 0px));
+  --bottom: max(calc(var(--s) * 5.185185), var(--safe-bottom, 0px));
+  --start: max(calc(var(--s) * 5.925926), var(--safe-left, 0px));
+  --end: max(calc(var(--s) * 5.925926), var(--safe-right, 0px));
+  --headline-size: calc(var(--s) * 10.370370);
+  --sub-size: calc(var(--s) * 4.074074);
+  --cta-size: calc(var(--s) * 5.925926);
+}
+* { box-sizing: border-box; }
+html, body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: var(--bg);
+}
+body {
+  color: var(--fg);
+  font-family: var(--display);
+  -webkit-font-smoothing: antialiased;
+}
+[hidden] { display: none !important; }
+.stage {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  isolation: isolate;
+}
+.masthead {
+  position: absolute;
+  z-index: 10;
+  inset-block-start: var(--top);
+  inset-inline-start: var(--start);
+  inset-inline-end: var(--end);
+  height: calc(var(--s) * 11.111111);
+  border-bottom: 1px solid var(--rule);
+}
+.app-icon {
+  display: block;
+  width: calc(var(--s) * 7.407407);
+  height: calc(var(--s) * 7.407407);
+}
+.scenes { position: absolute; inset: 0; }
+.scene {
+  --copy-height: calc(292 * var(--u));
+  --cta-height: 0px;
+  --footer-height: calc(56 * var(--u));
+  position: absolute;
+  inset: 0;
+  padding-block: var(--top) var(--bottom);
+  padding-inline: var(--start) var(--end);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows:
+    calc(120 * var(--u))
+    var(--copy-height)
+    minmax(0, 1fr)
+    var(--cta-height)
+    var(--footer-height);
+  visibility: hidden;
+  pointer-events: none;
+}
+.scene:first-child { visibility: visible; }
+.copy-zone {
+  grid-column: 1;
+  grid-row: 2;
+  min-width: 0;
+  padding-top: calc(var(--s) * 3.703704);
+  position: relative;
+  z-index: 4;
+}
+.headline {
+  --rows: 1;
+  width: 100%;
+  height: calc(var(--headline-size) * .965 * var(--rows));
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  font-size: var(--headline-size);
+  font-weight: 800;
+  line-height: .965;
+  letter-spacing: -.03em;
+  text-align: start;
+  text-wrap: balance;
+  hyphens: none;
+  overflow-wrap: normal;
+}
+.line-mask {
+  display: block;
+  flex: 0 0 auto;
+  overflow: hidden;
+  padding-block: .1em;
+  margin-block: -.1em;
+}
+.line-ink {
+  display: block;
+  white-space: nowrap;
+  transform-origin: 0 50%;
+}
+.subline {
+  width: 100%;
+  height: calc(var(--sub-size) * 1.32);
+  margin: calc(var(--s) * 2.777778) 0 0;
+  font-size: var(--sub-size);
+  line-height: 1.12;
+  font-weight: 700;
+  letter-spacing: -.025em;
+  text-align: start;
+  text-wrap: pretty;
+  white-space: nowrap;
+  hyphens: none;
+  overflow-wrap: normal;
+}
+.subline:first-child { margin-top: 0; }
+.reply-mask {
+  display: inline-block;
+  vertical-align: top;
+  overflow: hidden;
+  padding-block: .1em;
+  margin-block: -.1em;
+}
+.reply-ink { display: block; }
+.hero-slot {
+  grid-column: 1;
+  grid-row: 3;
+  min-width: 0;
+  min-height: 0;
+  width: calc(100% + var(--end) + 94 * var(--u));
+  justify-self: start;
+  pointer-events: none;
+}
+.brand-clip {
+  width: min(100%, calc(680 * var(--u)));
+  aspect-ratio: 477 / 75;
+  overflow: hidden;
+}
+.wordmark {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--fg);
+  -webkit-mask: url("assets/sonicdesk/logos/wordmark.svg") left center / contain no-repeat;
+  mask: url("assets/sonicdesk/logos/wordmark.svg") left center / contain no-repeat;
+}
+.cta-zone {
+  grid-row: 4;
+  grid-column: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  z-index: 4;
+}
+.cta-plate {
+  position: relative;
+  width: 100%;
+  min-height: calc(var(--s) * 13.333333);
+  padding: calc(var(--s) * 2.592593) calc(var(--s) * 2.962963);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(var(--s) * 2.222222);
+}
+.plate-background {
+  position: absolute;
+  inset: 0;
+  border: 2px solid var(--rule);
+  background: var(--surface-2);
+  transform-origin: left center;
+}
+.cta-mask {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  padding-block: .14em;
+  margin-block: -.14em;
+  font-size: var(--cta-size);
+}
+.cta-copy {
+  width: 100%;
+  height: 1em;
+  margin: 0;
+  font-size: var(--cta-size);
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: -.03em;
+  text-align: start;
+  white-space: nowrap;
+}
+.arrow-mask {
+  position: relative;
+  flex: 0 0 auto;
+  width: calc(var(--s) * 5.185185);
+  height: calc(var(--s) * 5.185185);
+  overflow: hidden;
+}
+.cta-arrow {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.scene[data-scene="s3"] {
+  --copy-height: calc(236 * var(--u));
+  --cta-height: calc(190 * var(--u));
+  --footer-height: calc(40 * var(--u));
+}
+.scene[data-scene="s3"] .copy-zone {
+  padding-top: 0;
+  display: flex;
+  align-items: center;
+}
+.scene.no-copy { --copy-height: calc(80 * var(--u)); }
+.scene.sub-only { --copy-height: calc(160 * var(--u)); }
+.scene[data-scene="s3"].no-copy { --copy-height: calc(80 * var(--u)); }
+.scene[data-scene="s3"].no-cta {
+  --cta-height: 0px;
+  --footer-height: calc(56 * var(--u));
+}
+.compare {
+  position: absolute;
+  z-index: 2;
+  left: var(--start);
+  top: calc(var(--top) + 412 * var(--u));
+  width: calc(100vw - var(--start) + 94 * var(--u));
+  height: calc(100vh - var(--top) - var(--bottom) - 468 * var(--u));
+  display: grid;
+  grid-template-columns: calc(168 * var(--u)) minmax(0, 1fr);
+  grid-template-rows: calc(72 * var(--u)) minmax(0, 1fr) minmax(0, 1fr);
+  border: 2px solid var(--rule);
+  background: var(--app-bg);
+  overflow: hidden;
+  direction: ltr;
+  transform-origin: left center;
+}
+.mode, .ruler, .version, .wave {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+}
+.mode, .version {
+  background: var(--surface);
+  border-right: 2px solid var(--rule);
+}
+.mode, .ruler, .version-a, .wave-a {
+  border-bottom: 2px solid var(--rule);
+}
+.mode {
+  display: flex;
+  align-items: center;
+  padding-left: calc(30 * var(--u));
+}
+.mono {
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 400;
+  font-size: calc(var(--s) * 2.222222);
+  line-height: 1;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.ruler {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+.bar-number {
+  flex: 0 0 calc(234 * var(--u));
+  padding-left: calc(26 * var(--u));
+}
+.version {
+  display: grid;
+  place-items: center;
+  font-family: Archivo, Arial, sans-serif;
+  font-size: calc(var(--s) * 8.888889);
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: -.04em;
+}
+.selection {
+  position: absolute;
+  inset: calc(24 * var(--u)) calc(22 * var(--u));
+  border: 2px solid rgba(232,232,232,.5);
+  background: rgba(232,232,232,.015);
+  opacity: 0;
+}
+.wave { overflow: hidden; }
+.wave-content {
+  position: relative;
+  height: 100%;
+  width: max-content;
+  min-width: 100%;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--s) * .648148);
+  padding-left: calc(28 * var(--u));
+}
+.pill {
+  display: block;
+  position: relative;
+  z-index: 1;
+  flex: 0 0 calc(var(--s) * 1.574074);
+  height: calc(var(--peak) * 1%);
+  max-height: calc(var(--s) * 13.888889);
+  border-radius: 999px;
+  background: var(--fg);
+  opacity: .25;
+}
+.wave-b .pill {
+  background: var(--compare-b);
+  opacity: .45;
+}
+.grid-lines {
+  position: absolute;
+  inset: calc(72 * var(--u)) 0 0 calc(168 * var(--u));
+  display: flex;
+  pointer-events: none;
+}
+.grid-bar {
+  flex: 0 0 calc(234 * var(--u));
+  border-right: 2px solid var(--rule);
+}
+.playhead {
+  position: absolute;
+  z-index: 3;
+  top: calc(58 * var(--u));
+  bottom: calc(16 * var(--u));
+  left: calc(400 * var(--u));
+  width: 2px;
+  background: var(--fg);
+}
+.playhead::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(16 * var(--u));
+  height: calc(12 * var(--u));
+  background: var(--fg);
+  clip-path: polygon(0 0,100% 0,50% 100%);
+}
+.footer {
+  position: absolute;
+  z-index: 5;
+  inset-inline-start: var(--start);
+  inset-inline-end: var(--end);
+  inset-block-end: var(--bottom);
+  height: calc(var(--s) * 3.703704);
+  display: flex;
+  align-items: end;
+  gap: calc(var(--s) * 2.777778);
+}
+.position {
+  flex: 0 0 auto;
+  direction: ltr;
+}
+.footer-rule {
+  flex: 1;
+  height: 1px;
+  margin-bottom: calc(10 * var(--u));
+  background: var(--rule);
+}
+html[data-format="4x5"] .scene {
+  --copy-height: calc(332 * var(--u));
+}
+html[data-format="4x5"] .scene[data-scene="s3"] {
+  --copy-height: calc(276 * var(--u));
+}
+html[data-format="4x5"] .scene.no-copy {
+  --copy-height: calc(100 * var(--u));
+}
+html[data-format="4x5"] .scene.sub-only {
+  --copy-height: calc(180 * var(--u));
+}
+html[data-format="9x16"] .scene {
+  --copy-height: calc(310 * var(--u));
+}
+html[data-format="9x16"] .scene[data-scene="s3"] {
+  --copy-height: calc(236 * var(--u));
+}
+html[data-format="9x16"] .scene.no-copy {
+  --copy-height: calc(80 * var(--u));
+}
+html[data-format="9x16"] .scene.sub-only {
+  --copy-height: calc(170 * var(--u));
+}
+html[data-orientation="landscape"] {
+  --headline-size: calc(var(--s) * 8.518519);
+  --sub-size: calc(var(--s) * 3.703704);
+}
+html[data-orientation="landscape"] .scene {
+  grid-template-columns: minmax(0,42fr) minmax(0,58fr);
+  column-gap: calc(var(--s) * 5.925926);
+  grid-template-rows:
+    calc(120 * var(--u))
+    minmax(0,1fr)
+    var(--cta-height)
+    calc(56 * var(--u));
+}
+html[data-orientation="landscape"] .copy-zone {
+  grid-column: 1;
+  grid-row: 2;
+  padding-top: calc(var(--s) * 4.444444);
+}
+html[data-orientation="landscape"] .hero-slot {
+  grid-column: 2;
+  grid-row: 2 / 4;
+  margin-top: calc(var(--s) * 3.703704);
+}
+html[data-orientation="landscape"] .cta-zone {
+  grid-column: 1;
+  grid-row: 3;
+}
+html[data-orientation="landscape"] .scene[data-scene="s3"] .copy-zone {
+  align-items: flex-start;
+  padding-top: calc(var(--s) * 6.666667);
+}
+html[data-orientation="landscape"] .brand-clip { width: 100%; }
+html[dir="rtl"] .plate-background { transform-origin: right center; }
+html[dir="rtl"] .cta-arrow { transform: scaleX(-1); }
+html[dir="rtl"] .wordmark {
+  -webkit-mask-position: right center;
+  mask-position: right center;
+}
+</style>
+</head>
+<body>
+<main class="stage" id="stage">
+  <header class="masthead">
+    <img class="app-icon" src="assets/sonicdesk/logos/app-icon.svg" alt="">
+  </header>
+  <div class="scenes" id="scenes"></div>
+
+  <section class="compare" id="compare" aria-hidden="true">
+    <div class="mode mono" id="mode"></div>
+    <div class="ruler mono" id="ruler"></div>
+    <div class="version version-a">
+      <span id="version-a"></span>
+      <span class="selection" id="select-a"></span>
+    </div>
+    <div class="wave wave-a"><div class="wave-content" id="wave-a"></div></div>
+    <div class="version version-b">
+      <span id="version-b"></span>
+      <span class="selection" id="select-b"></span>
+    </div>
+    <div class="wave wave-b"><div class="wave-content" id="wave-b"></div></div>
+    <div class="grid-lines" id="grid-lines"></div>
+    <div class="playhead" id="playhead"></div>
+  </section>
+
+  <footer class="footer" aria-hidden="true">
+    <span class="mono position" id="position"></span>
+    <span class="footer-rule"></span>
+  </footer>
+</main>
+
+<script type="application/json" id="forma-motion">
+{
+  "recurring": "One supplied app icon, one continuous A/B surface, unchanged waveform data and one shared ruler.",
+  "s1": {
+    "in": "The opening question is fully readable at frame zero. Waveform rows settle from opposing directions.",
+    "hold": "When supplied by the cut, the two replies reveal sequentially on one baseline. The comparison surface makes a restrained continuous push.",
+    "out": "Masked copy clears while the comparison surface retains its grid and carries into the next scene."
+  },
+  "s2": {
+    "in": "Two proof lines reveal through masks. A neutral outline selects version A.",
+    "hold": "The common cursor traverses the same bar for A and B, returning to the identical starting point between passes. Playback is silent.",
+    "out": "The continuous comparison surface compresses vertically into the measured final layout."
+  },
+  "s3": {
+    "in": "The supplied wordmark appears only when brand is included. A neutral rectangular plate draws before the CTA reveals.",
+    "hold": "All motion finishes before the final second. The icon, requested brand line and CTA remain fully visible."
+  },
+  "reducedMotion": "Static compositions at cut boundaries, with the shared interface and no cursor travel."
+}
+</script>
+
+<script>
+(() => {
+  "use strict";
+
+  const F = window.FORMA;
+  const root = document.documentElement;
+  const stage = document.getElementById("stage");
+  const sceneContainer = document.getElementById("scenes");
+  const hero = document.getElementById("compare");
+  const playhead = document.getElementById("playhead");
+  const waveA = document.getElementById("wave-a");
+  const waveB = document.getElementById("wave-b");
+  const selectA = document.getElementById("select-a");
+  const selectB = document.getElementById("select-b");
+  const positionLabel = document.getElementById("position");
+  const versions = Array.from(document.querySelectorAll(".version"));
+  const copy = F.copy || {};
+  const windows = (F.cut?.scenes || []).filter(win =>
+    ["s1","s2","s3"].includes(win.id) &&
+    Number.isFinite(win.start) &&
+    Number.isFinite(win.end) &&
+    win.end > win.start
+  );
+  const duration = Number(F.cut?.length || F.length || windows.at(-1)?.end || 0);
+  const direction = F.dir === "rtl" ? -1 : 1;
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const short = Number(F.short) || Math.min(innerWidth, innerHeight);
+  const unit = short / 1080;
+  const records = new Map();
+  const progress = { value: 0 };
+  let timeline = null;
+  let requestedTime = 0;
+
+  root.lang = F.lang || root.lang;
+  root.dir = F.dir || root.dir || "ltr";
+  root.dataset.format = F.format || root.dataset.format;
+  root.dataset.orientation = F.orientation || root.dataset.orientation;
+  if (copy.brand) document.title = String(copy.brand);
+
+  const safe = F.safe || {};
+  const left = Math.ceil(Math.max(64 * unit, Number(safe.left) || 0));
+  const right = Math.ceil(Math.max(64 * unit, Number(safe.right) || 0));
+  stage.style.setProperty("--top",
+    Math.ceil(Math.max(56 * unit, Number(safe.top) || 0)) + "px");
+  stage.style.setProperty("--bottom",
+    Math.ceil(Math.max(56 * unit, Number(safe.bottom) || 0)) + "px");
+  stage.style.setProperty("--start", (direction === 1 ? left : right) + "px");
+  stage.style.setProperty("--end", (direction === 1 ? right : left) + "px");
+
+  const create = (tag, className, parent) => {
+    const element = document.createElement(tag);
+    if (className) element.className = className;
+    if (parent) parent.appendChild(element);
+    return element;
+  };
+
+  const hasCopy = (keys, key) =>
+    keys.has(key) &&
+    Object.prototype.hasOwnProperty.call(copy, key) &&
+    copy[key] != null &&
+    String(copy[key]).trim().length > 0;
+
+  const buildHeadline = (parent, key) => {
+    const heading = create("h1", "headline", parent);
+    heading.dataset.role = "headline";
+    heading.dataset.copy = key;
+    const text = String(copy[key]);
+    const phrases = key === "p1"
+      ? (text.match(/[^.!?]+[.!?]+(?:[»”])?|[^.!?]+$/g) || [text])
+      : [text];
+    heading.style.setProperty("--rows", phrases.length);
+    for (const phrase of phrases) {
+      const mask = create("span", "line-mask", heading);
+      const ink = create("span", "line-ink", mask);
+      ink.textContent = phrase.trim();
+    }
+    return heading;
+  };
+
+  const buildSubline = parent => {
+    const paragraph = create("p", "subline", parent);
+    paragraph.dataset.role = "sub";
+    const text = String(copy.h1b);
+    const quoted = text.match(/«[^»]+»[.!?]?|“[^”]+”[.!?]?/g);
+    const pieces = quoted && quoted.join(" ") === text.trim() ? quoted : [text];
+    pieces.forEach((piece, index) => {
+      if (index) paragraph.appendChild(document.createTextNode(" "));
+      const mask = create("span", "reply-mask", paragraph);
+      const ink = create("span", "reply-ink", mask);
+      ink.textContent = piece;
+    });
+    return paragraph;
+  };
+
+  const buildCTA = parent => {
+    const zone = create("section", "cta-zone", parent);
+    const plate = create("div", "cta-plate", zone);
+    create("div", "plate-background", plate);
+    const mask = create("div", "cta-mask", plate);
+    const text = create("p", "cta-copy", mask);
+    text.dataset.role = "cta";
+    text.textContent = String(copy.cta);
+
+    const arrowMask = create("div", "arrow-mask", plate);
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 56 56");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("aria-hidden", "true");
+    svg.classList.add("cta-arrow");
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", "M7 28H47M30 11L47 28L30 45");
+    path.setAttribute("stroke", "currentColor");
+    path.setAttribute("stroke-width", "3");
+    svg.appendChild(path);
+    arrowMask.appendChild(svg);
+    return zone;
+  };
+
+  for (const win of windows) {
+    const keys = new Set(win.lines || []);
+    const element = create("section", "scene", sceneContainer);
+    element.dataset.scene = win.id;
+    const copyZone = create("div", "copy-zone", element);
+    let headline = null;
+    let subline = null;
+    let brand = null;
+    let cta = null;
+
+    if (win.id === "s1") {
+      if (hasCopy(keys, "h1")) headline = buildHeadline(copyZone, "h1");
+      if (hasCopy(keys, "h1b")) subline = buildSubline(copyZone);
+    }
+    if (win.id === "s2" && hasCopy(keys, "p1")) {
+      headline = buildHeadline(copyZone, "p1");
+    }
+    if (win.id === "s3" && hasCopy(keys, "brand")) {
+      const mask = create("div", "brand-clip", copyZone);
+      brand = create("div", "wordmark", mask);
+      brand.setAttribute("role", "img");
+      brand.setAttribute("aria-label", String(copy.brand));
+    }
+    const slot = create("div", "hero-slot", element);
+    slot.setAttribute("aria-hidden", "true");
+    if (win.id === "s3" && hasCopy(keys, "cta")) cta = buildCTA(element);
+
+    if (!headline && !subline && !brand) element.classList.add("no-copy");
+    if (!headline && subline) element.classList.add("sub-only");
+    if (!cta) element.classList.add("no-cta");
+
+    records.set(win, {
+      element, copyZone, headline, subline, brand, cta, slot, rect: null
+    });
+  }
+
+  // Product demonstration data retained from the approved preview.
+  const demo = {
+    versions: ["A", "B"],
+    bars: [41, 42, 43, 44, 45],
+    position: { bar: 42, beat: 1 },
+    peaks: [
+      [18,38,58,27,15,47,72,40,19,33,50,20,14,32,59,43,15,23,49,37,15,27,60,43,20,14,34,53,39,16,29,52,32,15,23,48,68,42,26,16,39,55],
+      [18,38,58,27,15,47,72,40,19,43,65,52,34,18,50,62,38,23,49,37,15,27,60,43,20,14,34,53,39,16,29,52,32,15,23,48,68,42,26,16,39,55]
+    ]
+  };
+
+  document.getElementById("mode").textContent = demo.versions.join("/");
+  demo.versions.forEach((version, index) => {
+    document.getElementById(index ? "version-b" : "version-a").textContent = version;
+    const target = index ? waveB : waveA;
+    for (const peak of demo.peaks[index]) {
+      const pill = create("i", "pill", target);
+      pill.style.setProperty("--peak", peak);
+    }
+  });
+  for (const bar of demo.bars) {
+    const label = create("span", "bar-number", document.getElementById("ruler"));
+    label.textContent = String(bar);
+    create("span", "grid-bar", document.getElementById("grid-lines"));
+  }
+  positionLabel.textContent = [demo.position.bar, demo.position.beat].join(".");
+
+  window.renderFrame = function(t) {
+    requestedTime = Math.max(0, Math.min(duration, Number(t) || 0));
+    if (!timeline) return;
+    timeline.totalTime(requestedTime, true);
+    const beat = Math.min(4, 1 + Math.floor(Math.max(0, progress.value) * 4));
+    positionLabel.textContent = demo.position.bar + "." + beat;
+  };
+
+  F.setup(async () => {
+    await Promise.all([
+      document.fonts.load('800 112px "Archivo"'),
+      document.fonts.load('700 64px "Archivo"'),
+      document.fonts.load('400 24px "JetBrains Mono"'),
+      ...Array.from(document.images).map(img =>
+        img.decode ? img.decode().catch(() => {}) : Promise.resolve()
+      )
+    ]);
+    await document.fonts.ready;
+
+    for (const element of document.querySelectorAll(
+      ".headline,.subline,.cta-copy"
+    )) {
+      const text = element.textContent;
+      const loaded = document.fonts.check('800 16px "Archivo"', text);
+      // The supplied Archivo files are explicitly Latin subsets.
+      if (!loaded || /[\u0400-\u052F]/u.test(text)) {
+        element.style.fontFamily = "Arial, sans-serif";
+      }
+    }
+
+    const landscape = F.orientation === "landscape";
+    const sizes = {
+      headline: (landscape ? 92 : 112) * unit,
+      sub: (landscape ? 40 : 44) * unit,
+      cta: 64 * unit
+    };
+
+    // Locked role sizes keep the same hierarchy in both supplied languages.
+    // Each role has a measured box; complete proof phrases remain unbroken.
+    for (const record of records.values()) {
+      if (record.headline) {
+        await F.fit(record.headline, {
+          max: sizes.headline,
+          min: sizes.headline
+        });
+      }
+    }
+    for (const role of ["headline", "sub", "cta"]) {
+      const elements = Array.from(
+        document.querySelectorAll('[data-role="' + role + '"]')
+      );
+      if (elements.length) {
+        await F.fitGroup(elements, { max: sizes[role], min: sizes[role] });
+      }
+    }
+
+    const stageRect = stage.getBoundingClientRect();
+    for (const record of records.values()) {
+      const rect = record.slot.getBoundingClientRect();
+      record.rect = {
+        left: Math.round(rect.left - stageRect.left),
+        top: Math.round(rect.top - stageRect.top),
+        width: Math.round(rect.width),
+        height: Math.round(rect.height)
+      };
+    }
+
+    if (!windows.length) return;
+
+    const timing = win => {
+      const length = win.end - win.start;
+      const proportion = Math.min(1, length / 1.6);
+      return {
+        length,
+        enter: Math.max(.25, .6 * proportion),
+        exit: Math.max(.25, .5 * proportion),
+        lead: Math.min(.3, Math.max(.25, .3 * proportion))
+      };
+    };
+    const inks = record => Array.from(record.element.querySelectorAll(
+      ".line-ink,.reply-ink"
+    ));
+
+    timeline = gsap.timeline({ paused: true, defaults: { ease: "none" } });
+    gsap.set(Array.from(records.values(), r => r.element), { visibility: "hidden" });
+    gsap.set(records.get(windows[0]).element, { visibility: "visible" });
+    gsap.set(hero, {
+      ...records.get(windows[0]).rect,
+      scaleX: 1,
+      scaleY: 1,
+      transformOrigin: direction === 1 ? "left center" : "right center"
+    });
+    gsap.set([waveA, waveB], { x: 0 });
+    gsap.set(playhead, { x: 0 });
+    gsap.set([selectA, selectB], { opacity: 0 });
+
+    const indexOf = win => windows.indexOf(win);
+
+    function enterScene(tl, win) {
+      const index = indexOf(win);
+      const record = records.get(win);
+      tl.set(record.element, { visibility: "visible" }, win.start);
+
+      if (index > 0) {
+        const previous = windows[index - 1];
+        const previousRecord = records.get(previous);
+        const previousTiming = timing(previous);
+        const transitionStart = previous.end - previousTiming.lead;
+
+        if (reducedMotion) {
+          tl.set(hero, {
+            ...record.rect,
+            scaleX: 1,
+            scaleY: 1
+          }, win.start);
+        } else {
+          tl.fromTo(hero,
+            previousRecord.rect,
+            {
+              ...record.rect,
+              duration: previousTiming.exit,
+              ease: "power2.inOut",
+              immediateRender: false
+            },
+            transitionStart
+          );
+          tl.to(hero, {
+            scaleX: 1,
+            scaleY: 1,
+            duration: previousTiming.exit,
+            ease: "power2.inOut"
+          }, transitionStart);
+        }
+      }
+
+      if (index === windows.length - 1) return;
+
+      const { lead } = timing(win);
+      if (!reducedMotion) {
+        const outgoing = inks(record);
+        if (outgoing.length) {
+          tl.to(outgoing, {
+            yPercent: -110,
+            duration: lead,
+            ease: "power2.in"
+          }, win.end - lead);
+        }
+        if (record.brand) {
+          tl.to(record.brand, {
+            yPercent: -110,
+            duration: lead,
+            ease: "power2.in"
+          }, win.end - lead);
+        }
+        if (record.cta) {
+          tl.to(record.cta, {
+            clipPath: "inset(0 0 100% 0)",
+            duration: lead,
+            ease: "power2.in"
+          }, win.end - lead);
+        }
+      }
+      tl.set(record.element, { visibility: "hidden" }, win.end);
+    }
+
+    function revealHeadline(tl, win) {
+      const record = records.get(win);
+      if (!record.headline) return;
+      const targets = Array.from(record.headline.querySelectorAll(".line-ink"));
+      if (indexOf(win) === 0 || reducedMotion) {
+        tl.set(targets, { yPercent: 0 }, win.start);
+        return;
+      }
+      const { enter } = timing(win);
+      tl.fromTo(targets, { yPercent: 105 }, {
+        yPercent: 0,
+        duration: enter,
+        stagger: Math.min(.06, enter * .1),
+        ease: "power4.out",
+        immediateRender: false
+      }, win.start);
+    }
+
+    const SCENES = {
+      s1: (tl, win, lines) => {
+        const record = records.get(win);
+        const { enter, lead } = timing(win);
+        enterScene(tl, win);
+        revealHeadline(tl, win);
+        tl.set([selectA, selectB], { opacity: 0 }, win.start);
+        tl.set(playhead, { x: 0 }, win.start);
+        tl.set(progress, { value: 0 }, win.start);
+
+        if (record.subline && lines.includes("h1b")) {
+          const replies = Array.from(record.subline.querySelectorAll(".reply-ink"));
+          if (reducedMotion) {
+            tl.set(replies, { yPercent: 0 }, win.start);
+          } else {
+            const stagger = Math.min(.24, (win.end - win.start) * .06);
+            const start = win.start + enter * .55;
+            tl.fromTo(replies, { yPercent: 110 }, {
+              yPercent: 0,
+              duration: enter,
+              stagger,
+              ease: "power4.out",
+              immediateRender: false
+            }, start);
+          }
+        }
+
+        if (reducedMotion) return;
+        const travel = Math.min(record.rect.width * .036, 40 * unit);
+        tl.fromTo(waveA, { x: -travel * direction }, {
+          x: 0,
+          duration: enter,
+          ease: "power4.out",
+          immediateRender: false
+        }, win.start);
+        tl.fromTo(waveB, { x: travel * direction }, {
+          x: 0,
+          duration: enter,
+          ease: "power4.out",
+          immediateRender: false
+        }, win.start);
+
+        const holdStart = win.start + enter;
+        const holdEnd = win.end - lead;
+        if (holdEnd > holdStart) {
+          tl.fromTo(hero, { scaleX: 1 }, {
+            scaleX: 1.012,
+            duration: holdEnd - holdStart,
+            ease: "none",
+            immediateRender: false
+          }, holdStart);
+        }
+      },
+
+      s2: (tl, win, lines) => {
+        enterScene(tl, win);
+        revealHeadline(tl, win);
+        const { enter, lead } = timing(win);
+        tl.set([waveA, waveB], { x: 0 }, win.start);
+        tl.set(selectA, { opacity: 1 }, win.start);
+        tl.set(selectB, { opacity: 0 }, win.start);
+        tl.set(playhead, { x: 0 }, win.start);
+        tl.set(progress, { value: 0 }, win.start);
+        if (reducedMotion) return;
+
+        const bar = document.querySelector(".bar-number").getBoundingClientRect().width;
+        const distance = Math.round(bar * .94);
+        const passStart = win.start + enter;
+        const passEnd = win.end - lead;
+        const passDuration = Math.max(.1, (passEnd - passStart) / 2);
+        const switchTime = passStart + passDuration;
+
+        tl.fromTo(playhead, { x: 0 }, {
+          x: distance,
+          duration: passDuration,
+          ease: "none",
+          immediateRender: false
+        }, passStart);
+        tl.fromTo(progress, { value: 0 }, {
+          value: .94,
+          duration: passDuration,
+          ease: "none",
+          immediateRender: false
+        }, passStart);
+
+        tl.set(selectA, { opacity: 0 }, switchTime);
+        tl.set(selectB, { opacity: 1 }, switchTime);
+
+        tl.fromTo(playhead, { x: 0 }, {
+          x: distance,
+          duration: passDuration,
+          ease: "none",
+          immediateRender: false
+        }, switchTime);
+        tl.fromTo(progress, { value: 0 }, {
+          value: .94,
+          duration: passDuration,
+          ease: "none",
+          immediateRender: false
+        }, switchTime);
+
+        tl.to(playhead, {
+          x: 0,
+          duration: lead,
+          ease: "power2.inOut"
+        }, passEnd);
+        tl.to(progress, {
+          value: 0,
+          duration: lead,
+          ease: "power2.inOut"
+        }, passEnd);
+      },
+
+      s3: (tl, win, lines) => {
+        const record = records.get(win);
+        enterScene(tl, win);
+        tl.set([selectA, selectB], { opacity: 0 }, win.start);
+        tl.set([waveA, waveB], { x: 0 }, win.start);
+        tl.set(playhead, { x: 0 }, win.start);
+        tl.set(progress, { value: 0 }, win.start);
+
+        // All entrances finish well before the required final one-second hold.
+        const available = Math.max(0, win.end - win.start - 1);
+        const enter = Math.min(timing(win).enter, available * .72);
+        const plateDuration = Math.min(.45, available * .5);
+        const textDelay = Math.min(.14, available * .15);
+        const staticFinal = reducedMotion || available < .35;
+
+        if (staticFinal) {
+          tl.set(versions, { fontSize: 80 * unit }, win.start);
+        } else {
+          tl.to(versions, {
+            fontSize: 80 * unit,
+            duration: enter,
+            ease: "power2.inOut"
+          }, win.start);
+        }
+
+        if (record.brand && lines.includes("brand")) {
+          if (staticFinal) {
+            tl.set(record.brand, { yPercent: 0 }, win.start);
+          } else {
+            tl.fromTo(record.brand, { yPercent: 105 }, {
+              yPercent: 0,
+              duration: enter,
+              ease: "power4.out",
+              immediateRender: false
+            }, win.start);
+          }
+        }
+
+        if (record.cta && lines.includes("cta")) {
+          const background = record.cta.querySelector(".plate-background");
+          const text = record.cta.querySelector(".cta-copy");
+          const arrow = record.cta.querySelector(".arrow-mask");
+          if (staticFinal) {
+            tl.set(background, { scaleX: 1 }, win.start);
+            tl.set(text, { yPercent: 0 }, win.start);
+            tl.set(arrow, { clipPath: "inset(0 0 0 0)" }, win.start);
+          } else {
+            tl.fromTo(background, { scaleX: 0 }, {
+              scaleX: 1,
+              duration: plateDuration,
+              ease: "power3.out",
+              immediateRender: false
+            }, win.start);
+            tl.fromTo(text, { yPercent: 115 }, {
+              yPercent: 0,
+              duration: enter,
+              ease: "power4.out",
+              immediateRender: false
+            }, win.start + textDelay);
+            tl.fromTo(arrow, {
+              clipPath: direction === 1
+                ? "inset(0 100% 0 0)"
+                : "inset(0 0 0 100%)"
+            }, {
+              clipPath: "inset(0 0 0 0)",
+              duration: plateDuration,
+              ease: "power3.out",
+              immediateRender: false
+            }, win.start + textDelay);
+          }
+        }
+      }
+    };
+
+    for (const win of windows) {
+      SCENES[win.id](timeline, win, win.lines || []);
+    }
+
+    const clock = { value: 0 };
+    timeline.to(clock, { value: 1, duration, ease: "none" }, 0);
+
+    // Prime every later state, then restore the requested frame.
+    // No callbacks, timers, playback loops or autonomous media are involved.
+    timeline.totalTime(duration, true);
+    timeline.totalTime(0, true);
+    window.renderFrame(requestedTime);
+  });
+})();
+</script>
+<script>(function controllerV2() {
+  const F = window.FORMA, isStatic = F.stage === 'preview' || F.kind === 'poster';
+  if (isStatic) {
+    const send = () => {
+      try {
+        parent.postMessage({type:'forma:time', t:0, duration:0, playing:false, timeline:false, static:true, format:F.format, lang:F.lang, scene:F.scene}, '*');
+      } catch {}
+    };
+    const draw = () => { try { window.renderFrame?.(0); } catch (e) { console.error(e); } send(); };
+    addEventListener('message', e => {
+      if (e.source !== parent || !e.data) return;
+      if (e.data.type === 'forma:hello') send();
+    });
+    const loaded = document.readyState === 'complete' ? Promise.resolve() : new Promise(r => addEventListener('load', r, {once:true}));
+    Promise.all([loaded, document.fonts.ready])
+      .then(async () => { for (const fn of F._setups) await fn(); })
+      .catch(e => console.error(e))
+      .then(() => { F.playing = false; draw(); });
+    return;
+  }
+
+  const D = F.length, params = new URLSearchParams(location.search);
+  let t = Math.max(0, Math.min(D, Number(params.get('t')) || 0)), playing = !params.has('paused'), last = null, started = false;
+  const send = () => {
+    try {
+      parent.postMessage({type:'forma:time', t, duration:D, playing, timeline:typeof window.renderFrame === 'function', format:F.format, lang:F.lang, length:D}, '*');
+    } catch {}
+  };
+  const draw = () => { try { window.renderFrame?.(t); } catch (e) { console.error(e); } send(); };
+  function tick(now) {
+    if (!playing) return;
+    if (last !== null) t = Math.min(D, t + (now - last) / 1000);
+    last = now;
+    draw();
+    if (t >= D) { playing = F.playing = false; send(); return; }
+    requestAnimationFrame(tick);
+  }
+  function play() { if (!started) return; if (t >= D) t = 0; playing = F.playing = true; last = null; requestAnimationFrame(tick); }
+  function pause() { playing = F.playing = false; draw(); }
+  addEventListener('message', e => {
+    if (e.source !== parent || !e.data) return;
+    const m = e.data;
+    if (m.type === 'forma:play') play();
+    if (m.type === 'forma:pause') pause();
+    if (m.type === 'forma:seek') { t = Math.max(0, Math.min(D, Number(m.t) || 0)); if (!playing) draw(); }
+    if (m.type === 'forma:hello') send();
+  });
+  const loaded = document.readyState === 'complete' ? Promise.resolve() : new Promise(r => addEventListener('load', r, {once:true}));
+  Promise.all([loaded, document.fonts.ready])
+    .then(async () => { for (const fn of F._setups) await fn(); })
+    .catch(e => console.error(e))
+    .then(() => { started = true; F.playing = playing; draw(); if (playing) play(); });
+})()</script></body>
+</html>

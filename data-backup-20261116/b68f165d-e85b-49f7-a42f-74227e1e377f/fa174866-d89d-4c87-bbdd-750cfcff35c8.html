@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><script type="importmap">{"imports":{"three":"/lib/three/build/three.module.js","three/addons/":"/lib/three/examples/jsm/"}}</script><script src="/lib/gsap.js"></script><script src="/lib/lottie.js"></script>
+<meta charset="utf-8">
+<title>sonicdesk. — The Full Stop</title>
+<style>
+@font-face{font-family:'Archivo';src:url('assets/sonicdesk/fonts/archivo-latin-800-normal.woff2') format('woff2');font-weight:800;font-style:normal}
+@font-face{font-family:'Archivo';src:url('assets/sonicdesk/fonts/archivo-latin-700-normal.woff2') format('woff2');font-weight:700;font-style:normal}
+@font-face{font-family:'JetBrains Mono';src:url('assets/sonicdesk/fonts/jetbrains-mono-latin-500-normal.woff2') format('woff2');font-weight:500;font-style:normal}
+@font-face{font-family:'JetBrains Mono';src:url('assets/sonicdesk/fonts/jetbrains-mono-latin-400-normal.woff2') format('woff2');font-weight:400;font-style:normal}
+html,body{margin:0;padding:0;width:1080px;height:1080px;overflow:hidden;background:#070707}
+canvas{display:block;width:1080px;height:1080px}
+</style>
+</head>
+<body>
+<canvas id="c" width="2160" height="2160"></canvas>
+<script>
+(function(){
+const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+const BG='#070707', FG='#e8e8e8', MUTE='#9e9e9e', LINE='#242424', GRID='#1b1b1b', LIME='#dfff00';
+
+/* wordmark outlines (assets/sonicdesk/logos/wordmark.svg) without its full stop — the stop is the hero */
+const WM=new Path2D("M27.70 1.20L27.70 1.20Q22.20 1.20 17.80 0Q13.40-1.20 10.30-3.35Q7.20-5.50 5.55-8.50Q3.90-11.50 3.90-15.30L3.90-15.30L3.90-16.10Q3.90-16.500 4-16.70L4-16.70L17.40-16.70L17.40-15.90Q17.50-13.40 19-11.85Q20.50-10.30 22.95-9.60Q25.40-8.90 28.10-8.90L28.10-8.90Q30.50-8.90 32.75-9.35Q35-9.80 36.55-11Q38.10-12.20 38.10-14.10L38.10-14.10Q38.10-16.50 36.15-17.80Q34.20-19.10 31.05-19.90Q27.90-20.70 24.20-21.70L24.20-21.70Q20.80-22.50 17.40-23.55Q14-24.60 11.25-26.30Q8.50-28 6.80-30.75Q5.10-33.50 5.10-37.70L5.10-37.70Q5.10-41.80 6.90-44.85Q8.70-47.90 11.85-49.90Q15-51.90 19.25-52.85Q23.50-53.80 28.40-53.80L28.40-53.80Q33-53.80 37-52.85Q41-51.90 44-50.05Q47-48.20 48.70-45.45Q50.40-42.70 50.40-39.30L50.40-39.30L50.40-38Q50.40-37.40 50.30-37.20L50.30-37.20L37-37.20L37-38Q37-39.80 35.90-41.05Q34.80-42.30 32.75-43Q30.70-43.70 27.80-43.70L27.80-43.70Q25.80-43.70 24.15-43.40Q22.50-43.10 21.30-42.50Q20.10-41.90 19.45-41.05Q18.80-40.20 18.80-39L18.80-39Q18.80-37.30 20.25-36.25Q21.70-35.20 24.10-34.50Q26.50-33.80 29.40-33L29.40-33Q33-32 36.95-31.05Q40.90-30.10 44.30-28.50Q47.70-26.90 49.80-23.95Q51.90-21 51.90-16L51.90-16Q51.90-11.20 50.05-7.90Q48.20-4.60 44.90-2.60Q41.60-0.60 37.20 0.30Q32.80 1.20 27.70 1.20Z M82.20 1.20L82.20 1.20Q73.60 1.20 67.60-1.75Q61.60-4.70 58.50-10.85Q55.40-17 55.40-26.30L55.40-26.30Q55.40-35.80 58.50-41.85Q61.60-47.90 67.60-50.85Q73.60-53.80 82.20-53.80L82.20-53.80Q91-53.80 96.95-50.85Q102.90-47.90 106-41.85Q109.10-35.80 109.10-26.30L109.10-26.30Q109.10-17 106-10.85Q102.90-4.70 96.95-1.75Q91 1.20 82.20 1.20ZM82.20-9.60L82.20-9.60Q86.80-9.60 89.55-11.30Q92.30-13 93.60-16.50Q94.90-20 94.90-25.10L94.90-25.10L94.90-27.50Q94.90-32.60 93.60-36.10Q92.30-39.60 89.55-41.35Q86.80-43.10 82.20-43.10L82.20-43.10Q77.70-43.10 74.95-41.35Q72.20-39.60 70.90-36.10Q69.60-32.60 69.60-27.50L69.60-27.50L69.60-25.10Q69.60-20 70.90-16.50Q72.20-13 74.95-11.30Q77.70-9.60 82.20-9.60Z M129.20 0L115.30 0L115.30-52.60L126.80-52.60L127.90-45.40L128.60-45.40Q130.40-48 132.95-49.90Q135.50-51.80 138.70-52.80Q141.90-53.80 145.70-53.80L145.70-53.80Q150.90-53.80 154.80-51.90Q158.70-50 160.85-45.90Q163-41.80 163-35.20L163-35.20L163 0L149.10 0L149.10-33Q149.10-35.50 148.50-37.25Q147.90-39 146.75-40.15Q145.60-41.30 143.90-41.80Q142.20-42.30 140.10-42.30L140.10-42.30Q137-42.30 134.50-40.80Q132-39.30 130.60-36.70Q129.20-34.10 129.20-30.70L129.20-30.70L129.20 0Z M185.40-60.30L171.50-60.30L171.50-72.30L185.40-72.30L185.40-60.30ZM185.40 0L171.50 0L171.50-52.60L185.40-52.60L185.40 0Z M217.30 1.20L217.30 1.20Q208.90 1.20 203.20-1.75Q197.50-4.70 194.55-10.85Q191.60-17 191.60-26.30L191.60-26.30Q191.60-35.80 194.55-41.85Q197.50-47.90 203.25-50.90Q209-53.90 217.30-53.90L217.30-53.90Q222.70-53.90 227.05-52.60Q231.40-51.30 234.60-48.60Q237.80-45.90 239.45-41.95Q241.10-38 241.10-32.60L241.10-32.60L227.20-32.60Q227.20-36.20 226.10-38.50Q225-40.80 222.75-42Q220.50-43.20 217.10-43.20L217.10-43.20Q213.10-43.20 210.60-41.40Q208.10-39.60 206.90-36.10Q205.70-32.60 205.70-27.40L205.70-27.40L205.70-25.10Q205.70-20 206.95-16.50Q208.20-13 210.80-11.25Q213.40-9.50 217.60-9.50L217.60-9.50Q221-9.50 223.25-10.70Q225.50-11.90 226.70-14.30Q227.90-16.70 227.90-20.10L227.90-20.10L241.10-20.10Q241.10-15 239.45-11Q237.80-7 234.65-4.30Q231.50-1.60 227.10-0.20Q222.70 1.20 217.30 1.20Z M266.10 1.20L266.10 1.20Q259.60 1.20 254.85-1.75Q250.10-4.70 247.50-10.80Q244.90-16.90 244.90-26.40L244.90-26.40Q244.90-35.90 247.55-41.95Q250.20-48 254.85-50.90Q259.50-53.80 265.60-53.80L265.60-53.80Q269-53.80 271.95-53.050Q274.90-52.30 277.15-50.70Q279.40-49.10 281-46.80L281-46.80L281.60-46.80L281.60-72.30L295.50-72.30L295.50 0L284.10 0L283-7.10L282.30-7.10Q279.70-2.90 275.50-0.85Q271.30 1.20 266.10 1.20ZM270.50-10.20L270.50-10.20Q274.40-10.20 276.85-12Q279.30-13.80 280.50-17.20Q281.70-20.60 281.70-25.30L281.70-25.30L281.70-27.10Q281.70-30.60 281.05-33.50Q280.40-36.40 279-38.35Q277.60-40.30 275.50-41.35Q273.40-42.40 270.50-42.40L270.50-42.40Q266.30-42.40 263.80-40.75Q261.30-39.10 260.20-35.75Q259.10-32.40 259.10-27.40L259.10-27.40L259.10-25.10Q259.10-20.10 260.20-16.80Q261.30-13.50 263.80-11.85Q266.30-10.20 270.50-10.20Z M328.20 1.20L328.20 1.20Q319.50 1.20 313.60-1.75Q307.70-4.70 304.70-10.80Q301.70-16.90 301.70-26.30L301.70-26.30Q301.70-35.80 304.70-41.85Q307.70-47.90 313.55-50.85Q319.40-53.80 327.90-53.80L327.90-53.80Q335.90-53.80 341.40-50.95Q346.90-48.10 349.70-42.15Q352.50-36.20 352.50-26.80L352.50-26.80L352.50-23.20L315.80-23.20Q316.00-18.60 317.25-15.40Q318.50-12.20 321.15-10.65Q323.80-9.10 328.20-9.10L328.20-9.10Q330.60-9.10 332.55-9.70Q334.50-10.30 335.90-11.50Q337.30-12.70 338.10-14.50Q338.90-16.30 338.90-18.60L338.90-18.60L352.50-18.60Q352.50-13.60 350.70-9.90Q348.90-6.20 345.70-3.75Q342.50-1.30 338.05-0.05Q333.60 1.20 328.20 1.20ZM316.00-32L316.00-32L338.20-32Q338.20-35 337.45-37.20Q336.70-39.40 335.40-40.80Q334.10-42.20 332.25-42.85Q330.40-43.50 328.10-43.50L328.10-43.50Q324.30-43.50 321.75-42.25Q319.20-41 317.85-38.45Q316.50-35.90 316.00-32Z M380 1.20L380 1.20Q374.50 1.20 370.10 0Q365.70-1.20 362.60-3.35Q359.50-5.50 357.85-8.50Q356.20-11.50 356.20-15.30L356.20-15.30L356.20-16.10Q356.20-16.50 356.30-16.70L356.30-16.70L369.70-16.70L369.70-15.90Q369.80-13.40 371.30-11.85Q372.80-10.30 375.25-9.60Q377.70-8.90 380.40-8.90L380.40-8.90Q382.80-8.90 385.05-9.35Q387.30-9.80 388.85-11Q390.40-12.20 390.40-14.10L390.40-14.10Q390.40-16.50 388.45-17.80Q386.50-19.10 383.35-19.90Q380.20-20.70 376.50-21.70L376.50-21.70Q373.10-22.50 369.70-23.55Q366.30-24.60 363.55-26.30Q360.80-28 359.10-30.75Q357.40-33.50 357.40-37.70L357.40-37.70Q357.40-41.80 359.20-44.85Q361-47.90 364.15-49.90Q367.30-51.90 371.55-52.85Q375.80-53.80 380.70-53.80L380.70-53.80Q385.30-53.80 389.30-52.85Q393.30-51.90 396.30-50.05Q399.30-48.20 401-45.45Q402.70-42.70 402.70-39.30L402.70-39.30L402.70-38Q402.70-37.40 402.60-37.20L402.60-37.20L389.30-37.20L389.30-38Q389.30-39.80 388.20-41.05Q387.10-42.30 385.05-43Q383-43.70 380.10-43.70L380.10-43.70Q378.10-43.70 376.45-43.40Q374.80-43.10 373.60-42.50Q372.40-41.90 371.75-41.05Q371.10-40.20 371.10-39L371.10-39Q371.10-37.30 372.55-36.25Q374-35.20 376.40-34.50Q378.80-33.80 381.70-33L381.70-33Q385.30-32 389.25-31.05Q393.20-30.10 396.60-28.50Q400-26.90 402.10-23.95Q404.20-21 404.20-16L404.20-16Q404.20-11.20 402.35-7.90Q400.50-4.60 397.20-2.60Q393.90-0.60 389.50 0.30Q385.10 1.20 380 1.20Z M424.20 0L410.30 0L410.30-72.40L424.20-72.40L424.20-30.70L442.60-52.60L458.90-52.60L440.90-32L459.80 0L443.90 0L431.80-22.20L424.20-14.80L424.20 0Z");
+
+/* ---------- timing helpers (142 BPM: beat .42, 1/8 .21) ---------- */
+const clamp01=v=>v<0?0:v>1?1:v;
+const seg=(t,a,b)=>clamp01((t-a)/(b-a));
+function bz(t,a,b){const u=1-t;return 3*a*u*u*t+3*b*u*t*t+t*t*t}
+function E(x){ /* house ease cubic-bezier(0.16,1,0.3,1) */
+  if(x<=0)return 0; if(x>=1)return 1;
+  let lo=0,hi=1,m=x; for(let i=0;i<26;i++){m=(lo+hi)/2; if(bz(m,.16,.3)<x)lo=m; else hi=m;}
+  return bz(m,1,1);
+}
+const inOut=p=>p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2;
+
+/* ---------- data: Master lane (half heights), bars 41–48 = pills 24..35 ---------- */
+const WA=[12,18,30,22,40,52,34,26,44,56,38,20,14,28,46,36,24,50,42,30,18,12,22,34];
+const SPAN_OLD=[24,30,22,34,28,48,36,26,30,22,28,20];
+const SPAN_NEW=[20,56,30,56,14,48,56,22,50,18,44,28];
+const WB=[32,22,14,26,40,52,46,30,18,24,42,56,36,28,16,22,38,48,34,20,12,26,32];
+const OLD=WA.concat(SPAN_OLD,WB), NEW=WA.concat(SPAN_NEW,WB);
+const N=OLD.length, HI=29, S0=24, S1=35;
+const xc=i=>70+16*i;
+const inSpan=i=>i>=S0&&i<=S1;
+const HITS=[[1.90,96,64],[2.11,64,120],[2.32,120,96]];
+const ROLLS=[1.06,1.90,2.75,3.59];
+const ENT=[null,['BRANCH','IT'],['BREAK','IT'],['COMPARE','IT'],['MERGE IT','BACK']];
+const SHIFT=930;
+
+/* ---------- scramble ---------- */
+const GL='ABCDEFGHJKLMNPRSTUVWXYZ0123456789#/+';
+function hsh(n){n=(n^61)^(n>>>16);n=n+(n<<3);n=n^(n>>>4);n=Math.imul(n,0x27d4eb2d);n=n^(n>>>15);return n>>>0;}
+function scr(s,p,t,seed){
+  if(p<=0)return ''; if(p>=1)return s;
+  const n=s.length,res=Math.floor(p*n),vis=Math.min(n,Math.ceil(p*n*1.8)+1),f=Math.floor(t*30);
+  let o=''; for(let i=0;i<vis;i++){const c=s[i]; if(i<res||c===' '||c==='·'||c==='–')o+=c; else o+=GL[hsh(i*131+f*7919+seed*977)%GL.length];}
+  return o;
+}
+
+/* ---------- camera: 6x pull-back, settles exactly on 0.85 ---------- */
+function cam(t){
+  const p=seg(t,0,0.85), e=1-Math.pow(1-p,4);
+  return {s:Math.pow(6,1-e), fx:540+(534-540)*e, fy:540+(300-540)*e};
+}
+
+/* ---------- hero: the one lime pill ---------- */
+function hitH(t){
+  let h=96;
+  for(const [T,a,b] of HITS){
+    if(t>=T-0.07){
+      if(t<T){const p=seg(t,T-0.07,T); h=a+(b-a)*p*p;}
+      else {const q=seg(t,T,T+0.14); h=b+(b-a)*0.1*Math.sin(Math.PI*q)*(1-q);}
+    }
+  }
+  return h;
+}
+function hero(t){
+  let cx=534,cy=300,w=12,h=96,rf=.5;
+  if(t<0.85){ h=t<0.3?92+12*(1-Math.pow(1-t/0.3,2)):104-8*E((t-0.3)/0.55); }
+  else if(t<0.98){ const p=E(seg(t,0.85,0.98)); h=96*(1-0.12*p); w=12*(1+0.08*p); }
+  else if(t<1.06){ const p=seg(t,0.98,1.06); cy=300+176*p*p; h=84.5+(108-84.5)*p; w=12.96-1.96*p; }
+  else if(t<1.83){ cy=476; const p=E(seg(t,1.06,1.27)); h=78+18*p; w=15-3*p; }
+  else if(t<2.54){ cy=476; h=hitH(t); w=12*Math.sqrt(96/h); }
+  else if(t<2.68){ cy=476; const p=E(seg(t,2.54,2.68)); cx=534-12*p; h=96+8*p; }
+  else if(t<2.75){
+    const p=Math.pow(seg(t,2.68,2.75),2);
+    const L=516+(448-516)*p, R=528+(472-528)*p, T=424+(548-424)*p, B=528+(556-528)*p;
+    cx=(L+R)/2; cy=(T+B)/2; w=R-L; h=B-T;
+  }
+  else if(t<3.59){ const p=E(seg(t,2.75,2.96)); const R=472+164*p; cx=(448+R)/2; w=R-448; cy=552; h=8; }
+  else if(t<3.80){ const p=E(seg(t,3.59,3.80)); cx=542; cy=552; w=188+(79-188)*p; h=8+28*p; rf=.5+(.4615-.5)*p; }
+  else if(t<4.01){ const p=seg(t,3.80,4.01); w=79; h=36; rf=.4615;
+    cx=542+(976.5-542)*(1-Math.pow(1-p,2)); cy=552-80*Math.sin(Math.PI*p)+(895-552)*p*p; }
+  else if(t<4.23){ const p=E(seg(t,4.01,4.12)); w=79*(1.03-0.03*p); h=36*(0.97+0.03*p); cx=976.5; cy=913-h/2; rf=.4615; }
+  else { const p=E(seg(t,4.23,4.44)); w=79+(29-79)*p; h=36+(28.6-36)*p; cx=1016-w/2; cy=913-h/2; rf=.4615*(1-p); }
+  return {cx,cy,w,h,rf};
+}
+
+/* ---------- lanes ---------- */
+function lit(i,t){
+  if(!inSpan(i)||t<2.75)return 0;
+  const R=472+164*E(seg(t,2.75,2.96));
+  return clamp01((R-(xc(i)-6))/12);
+}
+function v13Half(i,t){
+  let v=OLD[i];
+  if(inSpan(i)&&i!==HI){
+    const d=Math.abs(i-HI); let fr=0,rip=0;
+    HITS.forEach((hk,k)=>{const a=hk[0]+d*0.021; fr+=E(seg(t,a,a+0.15))/3;
+      const q=(t-a)/0.14; if(q>0&&q<1) rip+=[1,-1,1][k]*20*Math.pow(0.6,d-1)*Math.sin(Math.PI*q);});
+    v=OLD[i]+(NEW[i]-OLD[i])*fr+rip;
+  }
+  return Math.max(6,v);
+}
+function v13cy(t){
+  if(t<3.38)return 476;
+  if(t<3.50)return 476+8*inOut(seg(t,3.38,3.50));
+  if(t<3.59){const p=seg(t,3.50,3.59); return 484+(300-484)*p*p;}
+  return 300;
+}
+function rollU(q){
+  if(q<=0)return 0; if(q>=1)return 1;
+  if(q<0.8)return E(q/0.8)*(288/286);
+  return (288-2*inOut((q-0.8)/0.2))/286;
+}
+
+/* ---------- drawing ---------- */
+function rr(x,y,w,h,r){
+  r=Math.max(0,Math.min(r,w/2,h/2));
+  ctx.beginPath(); ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+}
+function pill(cx,cy,w,h,rf){ rr(cx-w/2,cy-h/2,w,h,Math.min(w,h)*rf); ctx.fill(); }
+function setLS(v){ if('letterSpacing' in ctx) ctx.letterSpacing=v; }
+
+let lastT=0;
+function draw(t){
+  ctx.setTransform(2,0,0,2,0,0); ctx.globalAlpha=1; ctx.setLineDash([]);
+  ctx.textBaseline='alphabetic'; ctx.textAlign='left';
+  ctx.fillStyle=BG; ctx.fillRect(0,0,1080,1080);
+
+  const C=cam(t);
+  const sx=x=>C.fx+C.s*(x-534), sy=y=>C.fy+C.s*(y-300);
+
+  /* 40px master grid */
+  ctx.fillStyle=GRID;
+  for(let k=0;k<=27;k++){
+    const X=Math.round(sx(40*k)); if(X>=-1&&X<=1080) ctx.fillRect(X,0,1,1080);
+    const Y=Math.round(sy(40*k)); if(Y>=-1&&Y<=1080) ctx.fillRect(0,Y,1080,1);
+  }
+  /* 16px bar grid bands */
+  function band(y0,y1,xl,xr){
+    const Y0=Math.round(sy(y0)),Y1=Math.round(sy(y1));
+    for(let x=78;x<=1006;x+=16){ if(x<xl||x>xr)continue; const X=Math.round(sx(x)); if(X<-1||X>1081)continue; ctx.fillRect(X,Y0,1,Y1-Y0); }
+  }
+  band(232,368,64,1016);
+  const v13on=t>=1.06&&t<3.59, vcy=v13cy(t);
+  if(v13on){ const bw=476*E(seg(t,1.06,1.40)); band(vcy-68,vcy+68,534-bw,534+bw); }
+
+  /* hairlines: strip rule + counter lid */
+  ctx.fillStyle=LINE;
+  [104,632].forEach(y=>{const Y=Math.round(sy(y)),X0=Math.round(sx(64)),X1=Math.round(sx(1016)); if(Y>=-1&&Y<=1080) ctx.fillRect(X0,Y,X1-X0,1);});
+
+  /* world layer */
+  ctx.setTransform(2*C.s,0,0,2*C.s,2*(C.fx-534*C.s),2*(C.fy-300*C.s));
+  ctx.font='500 18px "JetBrains Mono", monospace'; setLS('3px'); ctx.fillStyle=MUTE;
+  ctx.fillText(scr('MASTER',seg(t,0.43,0.85),t,1),64,212);
+  if(t>=2.75) ctx.fillText(scr('BARS 41–48',seg(t,2.75,2.96),t,2),446,212);
+  if(t>=1.06&&t<3.70){
+    ctx.save(); ctx.beginPath(); ctx.rect(64,0,1016,1080); ctx.clip();
+    const p=seg(t,3.50,3.68);
+    ctx.fillText(scr('V13',seg(t,1.06,1.17),t,5),64-160*p*p,vcy-72);
+    ctx.restore();
+  }
+
+  /* Master lane */
+  ctx.fillStyle=FG;
+  const mcy=t<3.59?300:300-2*(1-E(seg(t,3.59,3.66)));
+  for(let i=0;i<N;i++){
+    if(i===HI&&t<0.98)continue;
+    const half=(t>=3.59&&inSpan(i))?NEW[i]:OLD[i];
+    ctx.globalAlpha=0.2+0.8*lit(i,t);
+    pill(xc(i),mcy,12,2*half,.5);
+  }
+  /* V13 lane */
+  if(v13on){
+    for(let i=0;i<N;i++){
+      if(i===HI&&t<2.68)continue;
+      const d=Math.abs(i-HI), st=1.06+d*0.004, g=E(seg(t,st,st+0.42));
+      if(g<=0)continue;
+      const w=12*Math.min(1,g*2.5), h=Math.max(w,2*v13Half(i,t)*g);
+      ctx.globalAlpha=0.2+0.8*lit(i,t);
+      pill(xc(i),vcy,w,h,.5);
+    }
+  }
+  ctx.globalAlpha=1;
+
+  /* counter window */
+  ctx.setTransform(2,0,0,2,0,0);
+  const H=hero(t);
+  ctx.save(); ctx.beginPath(); ctx.rect(0,633,1080,307); ctx.clip();
+  ctx.font='800 168px Archivo, Arial, sans-serif'; setLS('-3px'); ctx.fillStyle=FG;
+  let pos=0; ROLLS.forEach(T=>{pos+=rollU(seg(t,T,T+0.21));});
+  for(let k=1;k<=4;k++){
+    const off=(k-pos)*286; if(off>=300||off<=-300)continue;
+    const l1=ENT[k][0], l2=ENT[k][1];
+    const m1=ctx.measureText(l1), m2=ctx.measureText(l2);
+    const x1=64+m1.actualBoundingBoxLeft, x2=923-m2.actualBoundingBoxRight;
+    if(k===4&&t>=4.23){
+      ctx.save(); ctx.beginPath(); ctx.rect(64,633,1016,307); ctx.clip();
+      const wM=ctx.measureText('MERGE ').width;
+      ctx.fillText('MERGE',x1-SHIFT*E(seg(t,4.23,4.44)),770+off);
+      ctx.fillText('IT',x1+wM-SHIFT*E(seg(t,4.34,4.55)),770+off);
+      const sl=H.cx-H.w/2;
+      ctx.beginPath(); ctx.rect(64,633,Math.max(0,sl-64),307); ctx.clip();
+      const pb=E(seg(t,4.44,4.65));
+      ctx.fillText('BACK',x2-SHIFT*pb,913+off);
+      ctx.save(); ctx.translate(57+SHIFT*(1-pb),913); ctx.scale(2,2); ctx.fill(WM); ctx.restore();
+      ctx.restore();
+    } else {
+      ctx.fillText(l1,x1,770+off);
+      ctx.fillText(l2,x2,913+off);
+    }
+  }
+  ctx.restore();
+  setLS('0px');
+
+  /* hero pill */
+  ctx.setTransform(2*C.s,0,0,2*C.s,2*(C.fx-534*C.s),2*(C.fy-300*C.s));
+  ctx.fillStyle=LIME; pill(H.cx,H.cy,H.w,H.h,H.rf);
+
+  /* top strip */
+  ctx.setTransform(2,0,0,2,0,0);
+  ctx.font='500 22px "JetBrains Mono", monospace'; setLS('4px'); ctx.fillStyle=MUTE;
+  let key=scr('MASTER · V12',seg(t,0.43,0.85),t,3);
+  if(t>=3.59){ const p=seg(t,3.59,3.80); key='MASTER · V1'+(p>=1?'3':String(hsh(Math.floor(t*30)*31+7)%10)); }
+  ctx.fillText(key,64,76);
+  ctx.font='500 28px "JetBrains Mono", monospace'; setLS('0px'); ctx.fillStyle=FG;
+  ctx.fillText(scr('142 BPM · 3:47',seg(t,0.43,0.85),t,4),300,76);
+
+  /* ghost CTA */
+  if(t>=4.44){
+    const p=E(seg(t,4.44,4.65));
+    ctx.font='500 20px "JetBrains Mono", monospace'; setLS('3.6px');
+    const label='+ CREATE MY SPACE';
+    const tw=ctx.measureText(label).width-3.6;
+    const W=Math.round(tw+56), BH=56, X=1016-W, Y=960, P=2*(W+BH);
+    ctx.strokeStyle=LINE; ctx.lineWidth=1; ctx.setLineDash([P*p,P+10]);
+    ctx.strokeRect(X,Y,W,BH); ctx.setLineDash([]);
+    ctx.fillStyle=FG; ctx.textBaseline='middle';
+    ctx.fillText(scr(label,p,t,6),X+28,Y+BH/2+1);
+    ctx.textBaseline='alphabetic'; setLS('0px');
+  }
+}
+
+window.renderFrame=function(t){
+  t=Math.max(0,Math.min(6,+t||0));
+  lastT=t; draw(t);
+};
+draw(0);
+if(document.fonts&&document.fonts.load){
+  Promise.all(['800 168px Archivo','500 20px "JetBrains Mono"','400 20px "JetBrains Mono"'].map(f=>document.fonts.load(f)))
+    .then(()=>draw(lastT)).catch(()=>{});
+}
+})();
+</script>
+<script>document.fonts.ready.then(()=>{(function playShortFilm(draw, requestFrame = requestAnimationFrame) {
+  let start;
+  function frame(now) {
+    start ??= now;
+    const t = Math.min(6, (now - start) / 1000);
+    draw(t);
+    if (t < 6) requestFrame(frame);
+  }
+  requestFrame(frame);
+})(window.renderFrame)})</script></body>
+</html>

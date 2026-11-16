@@ -1,0 +1,549 @@
+{
+ "decisions": [
+  {
+   "where": "parts",
+   "rule": "generated masters are planned at 2048 px (rules: gates.frame-check.size_min_px); every part starts as a stand-in"
+  },
+  {
+   "where": "hook sketch",
+   "rule": "r1 mark: depth 45 px → the kit's 47.5 px"
+  },
+  {
+   "where": "hook sketch",
+   "rule": "hook.headline: left edge to the side margin: measured 106 px, snapped to 108 px (within 16.2 px)"
+  },
+  {
+   "where": "hook sketch",
+   "rule": "e1: left edge to the side margin: measured 110 px, snapped to 108 px (within 16.2 px)"
+  },
+  {
+   "where": "hook 9:16",
+   "rule": "panel edge mark moved 548 → 482 px to stay inside the safe line"
+  },
+  {
+   "where": "hook 16:9",
+   "rule": "panel turns bottom → right; depth 1149.2 px = share 0.599 of the visible length + the right zone"
+  },
+  {
+   "where": "hook",
+   "rule": "fixed (corner): logo — keep their master distance to the corner in u"
+  },
+  {
+   "where": "hook 9:16",
+   "rule": "logo: 108,68 → 108,282.4 (kept from the top-left corner; from the safe line ≤ 3u)"
+  },
+  {
+   "where": "hook 16:9",
+   "rule": "turned layout: hook.headline centred vertically in the text column"
+  },
+  {
+   "where": "hook 16:9",
+   "rule": "collision step 3: panel narrows 11.6 px so hook.headline fits at the minimum scale"
+  },
+  {
+   "where": "hook 16:9",
+   "rule": "hook.headline shrinks to 0.85 in its widest language (collision step 6)"
+  },
+  {
+   "where": "SUPERMARKET",
+   "rule": "stand-in: the hook sketch area of panel (a 1080 px square)"
+  },
+  {
+   "where": "TABLE",
+   "rule": "stand-in: the hook sketch area of panel (a 1080 px square)"
+  },
+  {
+   "where": "problem sketch",
+   "rule": "r1 mark: depth 53 px → the kit's 47.5 px"
+  },
+  {
+   "where": "problem sketch",
+   "rule": "problem.headline: size 83.8 px snapped to the kit's headline 83 px"
+  },
+  {
+   "where": "problem sketch",
+   "rule": "problem.answer: size 85.7 px snapped to the kit's answer 83 px"
+  },
+  {
+   "where": "problem sketch",
+   "rule": "problem.headline: left edge to the side margin: measured 102 px, snapped to 108 px (within 16.2 px)"
+  },
+  {
+   "where": "problem sketch",
+   "rule": "problem.headline: gap to the r1 edge: measured 36 px, snapped to 37.8 px (within 16.2 px)"
+  },
+  {
+   "where": "problem sketch",
+   "rule": "e2: left edge to the side margin: measured 110 px, snapped to 108 px (within 16.2 px)"
+  },
+  {
+   "where": "problem sketch",
+   "rule": "e2: logo top margin: measured 67 px, snapped to 68 px (within 16.2 px)"
+  },
+  {
+   "where": "problem 9:16",
+   "rule": "panel: top → bottom (the bottom platform zone is 23% of the height; media may pass under it, text may not)"
+  },
+  {
+   "where": "problem 9:16",
+   "rule": "panel turns top → bottom; depth 1192.6 px = share 0.612 of the visible length + the bottom zone"
+  },
+  {
+   "where": "problem 9:16",
+   "rule": "panel edge mark moved 30 → 64 px to stay inside the safe line"
+  },
+  {
+   "where": "problem 16:9",
+   "rule": "panel turns top → left; depth 1174.8 px = share 0.612 of the visible length + the left zone"
+  },
+  {
+   "where": "problem",
+   "rule": "fixed (corner): logo — keep their master distance to the corner in u"
+  },
+  {
+   "where": "problem 9:16",
+   "rule": "logo: 108,68 → 108,282.4 (kept from the top-left corner; from the safe line ≤ 3u)"
+  },
+  {
+   "where": "problem 9:16",
+   "rule": "start group: its bound is now the frame edge → 32.4 px from the safe line"
+  },
+  {
+   "where": "problem 9:16",
+   "rule": "start group below the fixed logo at 6u (282.4 → 416.5)"
+  },
+  {
+   "where": "problem 9:16",
+   "rule": "end group: its bound is now a region edge → the kit gap 3.5u"
+  },
+  {
+   "where": "problem 9:16",
+   "rule": "collision step 3: the panel edge moves 65.6 px into panel (its floor 270 px)"
+  },
+  {
+   "where": "problem 9:16",
+   "rule": "problem.headline shrinks to 0.96 in its widest language (collision step 6)"
+  },
+  {
+   "where": "problem 1:1",
+   "rule": "collision step 2: the end group's margin gives 35.3 px"
+  },
+  {
+   "where": "problem 16:9",
+   "rule": "the edge turned, but not every row hugs it: the groups keep their distances (stack rules)"
+  },
+  {
+   "where": "problem 16:9",
+   "rule": "start group: its bound is now the frame edge → 32.4 px from the edge"
+  },
+  {
+   "where": "problem 16:9",
+   "rule": "start group below the fixed logo at 6u (32.4 → 202.1)"
+  },
+  {
+   "where": "problem 16:9",
+   "rule": "collision step 3: panel narrows 57.2 px so problem.headline fits at the minimum scale"
+  },
+  {
+   "where": "problem 16:9",
+   "rule": "problem.headline shrinks to 0.85 in its widest language (collision step 6)"
+  },
+  {
+   "where": "TRAM",
+   "rule": "stand-in: the problem sketch area of panel (a 1080 px square)"
+  },
+  {
+   "where": "problem",
+   "rule": "the panel edge carries riders in 4:5, 1:1, 16:9 only — where the text is anchored to it; riders appear one frame after the swap"
+  },
+  {
+   "where": "solution sketch",
+   "rule": "r1 mark: depth 34 px → the kit's 47.5 px"
+  },
+  {
+   "where": "solution sketch",
+   "rule": "r1 mark: length 320 px kept (kit size 479.5 px is the default)"
+  },
+  {
+   "where": "solution sketch",
+   "rule": "solution.answer: size 83.6 px snapped to the kit's answer 83 px"
+  },
+  {
+   "where": "solution sketch",
+   "rule": "solution.list: size 64.9 px snapped to the kit's list 64 px"
+  },
+  {
+   "where": "solution sketch",
+   "rule": "solution.answer: gap to the r1 edge: measured 45 px, snapped to 37.8 px (within 16.2 px)"
+  },
+  {
+   "where": "solution sketch",
+   "rule": "solution.list: gap to the r1 edge: measured 41 px, snapped to 37.8 px (within 16.2 px)"
+  },
+  {
+   "where": "solution sketch",
+   "rule": "e2: left edge to the side margin: measured 110 px, snapped to 108 px (within 16.2 px)"
+  },
+  {
+   "where": "solution sketch",
+   "rule": "e2: logo top margin: measured 67 px, snapped to 68 px (within 16.2 px)"
+  },
+  {
+   "where": "solution 9:16",
+   "rule": "panel: left → bottom (the bottom platform zone is 23% of the height; media may pass under it, text may not)"
+  },
+  {
+   "where": "solution 9:16",
+   "rule": "panel turns left → bottom; depth 1092.6 px = share 0.531 of the visible length + the bottom zone"
+  },
+  {
+   "where": "solution 9:16",
+   "rule": "panel edge mark moved 708 → 640 px to stay inside the safe line"
+  },
+  {
+   "where": "solution",
+   "rule": "fixed (corner): logo — keep their master distance to the corner in u"
+  },
+  {
+   "where": "solution 4:5",
+   "rule": "solution.answer shrinks to 0.93 in its widest language (collision step 6)"
+  },
+  {
+   "where": "solution 9:16",
+   "rule": "logo: 108,68 → 108,282.4 (kept from the top-left corner; from the safe line ≤ 3u)"
+  },
+  {
+   "where": "solution 9:16",
+   "rule": "the side column becomes a stack: all rows as one group from the top"
+  },
+  {
+   "where": "solution 9:16",
+   "rule": "start group below the fixed logo at 6u (318 → 416.5)"
+  },
+  {
+   "where": "solution 9:16",
+   "rule": "collision step 1: row gaps give 43.2 px (to 6u)"
+  },
+  {
+   "where": "solution 9:16",
+   "rule": "collision step 3: the panel edge moves 105.1 px into panel (its floor 270 px)"
+  },
+  {
+   "where": "solution 1:1",
+   "rule": "collision step 2: the end group's margin gives 260.2 px"
+  },
+  {
+   "where": "solution 1:1",
+   "rule": "solution.answer shrinks to 0.93 in its widest language (collision step 6)"
+  },
+  {
+   "where": "solution 16:9",
+   "rule": "collision step 2: the end group's margin gives 260.2 px"
+  },
+  {
+   "where": "CAFE",
+   "rule": "stand-in: the solution sketch area of panel (a 1350 px square)"
+  },
+  {
+   "where": "solution",
+   "rule": "the panel edge carries riders in 4:5, 1:1, 16:9 only — where the text is anchored to it; riders appear one frame after the swap"
+  },
+  {
+   "where": "end sketch",
+   "rule": "end.sub: size 72.4 px snapped to the kit's end_sub 71 px"
+  },
+  {
+   "where": "end sketch",
+   "rule": "end.cta: size 61.7 px snapped to the kit's cta 64 px"
+  },
+  {
+   "where": "end sketch",
+   "rule": "e0: logo width 47.1u → 47.2u (the end-frame width)"
+  },
+  {
+   "where": "end sketch",
+   "rule": "e3: mark badge_ios 297×89 → the kit's 276.5×88.6"
+  },
+  {
+   "where": "end sketch",
+   "rule": "e4: mark badge_ios 297×89 → the kit's 276.5×88.6"
+  },
+  {
+   "where": "end 4:5",
+   "rule": "end.sub shrinks to 0.94 in its widest language (collision step 6)"
+  },
+  {
+   "where": "end 9:16",
+   "rule": "start group: 448 px, measured from the safe line"
+  },
+  {
+   "where": "end 9:16",
+   "rule": "end group: 134.2 px to the frame edge → 32.4 px from the safe line (≤ 3u)"
+  },
+  {
+   "where": "end 9:16",
+   "rule": "collision step 2: end.sub's margin to the safe line gives way (775.2 → 840 px)"
+  },
+  {
+   "where": "end 9:16",
+   "rule": "end.sub shrinks to 0.92 in its widest language (collision step 6)"
+  },
+  {
+   "where": "end 1:1",
+   "rule": "collision step 2: the end group's margin gives 96.4 px"
+  },
+  {
+   "where": "end 1:1",
+   "rule": "collision step 2: the start group's margin gives 42.1 px"
+  },
+  {
+   "where": "end 1:1",
+   "rule": "end.sub shrinks to 0.94 in its widest language (collision step 6)"
+  },
+  {
+   "where": "end 16:9",
+   "rule": "collision step 2: the end group's margin gives 96.4 px"
+  },
+  {
+   "where": "end 16:9",
+   "rule": "collision step 2: the start group's margin gives 42.1 px"
+  },
+  {
+   "where": "end 16:9",
+   "rule": "end.sub shrinks to 0.94 in its widest language (collision step 6)"
+  },
+  {
+   "where": "6s end ES",
+   "rule": "reading time 3.25 s (11 words) > beat 3 s (checked, not the source language)"
+  },
+  {
+   "where": "12s end ES",
+   "rule": "reading time 3.25 s (11 words) > beat 2.8 s (checked, not the source language)"
+  },
+  {
+   "where": "6s end FR",
+   "rule": "reading time 3.25 s (11 words) > beat 3 s (checked, not the source language)"
+  },
+  {
+   "where": "12s end FR",
+   "rule": "reading time 3.25 s (11 words) > beat 2.8 s (checked, not the source language)"
+  }
+ ],
+ "questions": [
+  {
+   "where": "sketches",
+   "rule": "palette: field in the sketch is #F04C22 (RGB distance 21 from the kit's #FF5A1F); the kit colour is used"
+  },
+  {
+   "where": "sketches",
+   "rule": "palette: black in the sketch is #0A0C0D (RGB distance 21 from the kit's #000000); the kit colour is used"
+  },
+  {
+   "where": "6s end EN",
+   "rule": "reading time 3.25 s (11 words) > beat 3 s"
+  },
+  {
+   "where": "12s end EN",
+   "rule": "reading time 3.25 s (11 words) > beat 2.8 s"
+  }
+ ],
+ "findings": {
+  "blocking": 0,
+  "warnings": 3,
+  "codes": {
+   "L_KEY_CROP": 1,
+   "L_MARGIN": 2
+  }
+ },
+ "behaviours": {
+  "hook.hook.headline": "flow",
+  "hook.logo": "fixed",
+  "problem.problem.headline": "flow",
+  "problem.problem.answer": "flow",
+  "problem.logo": "fixed",
+  "solution.solution.answer": "flow",
+  "solution.solution.list": "flow",
+  "solution.logo": "fixed",
+  "end.end.logo": "flow",
+  "end.end.sub": "flow",
+  "end.end.cta": "flow",
+  "end.end.badge_ios": "flow",
+  "end.end.badge_android": "flow"
+ },
+ "parts": [
+  {
+   "id": "SUPERMARKET",
+   "route": "live_video",
+   "media": "clip",
+   "side": 2048,
+   "what": "supermarket checkout; a hand holds the KITE card",
+   "key_part": "the whole card",
+   "key_part_box": [
+    0.3,
+    0.3,
+    0.7,
+    0.7
+   ],
+   "must_not": [
+    "faces",
+    "readable brands",
+    "cash"
+   ],
+   "cutout": false,
+   "standin": "sketch_area",
+   "beats": [
+    "hook"
+   ],
+   "formats": [
+    "4:5",
+    "9:16",
+    "1:1",
+    "16:9"
+   ],
+   "by_hook": [
+    "H1",
+    "H3"
+   ],
+   "seconds_needed": 3.3,
+   "spec": {
+    "live_video": {
+     "action": []
+    }
+   }
+  },
+  {
+   "id": "TABLE",
+   "route": "live_video",
+   "media": "clip",
+   "side": 2048,
+   "what": "a breakfast table from above; a hand holds the KITE card",
+   "key_part": "the whole card",
+   "key_part_box": [
+    0.3,
+    0.3,
+    0.7,
+    0.7
+   ],
+   "must_not": [
+    "faces",
+    "readable brands",
+    "cash"
+   ],
+   "cutout": false,
+   "standin": "sketch_area",
+   "beats": [
+    "hook"
+   ],
+   "formats": [
+    "4:5",
+    "9:16",
+    "1:1",
+    "16:9"
+   ],
+   "by_hook": [
+    "H2"
+   ],
+   "seconds_needed": 3.3,
+   "spec": {
+    "live_video": {
+     "action": []
+    }
+   }
+  },
+  {
+   "id": "TRAM",
+   "route": "live_video",
+   "media": "clip",
+   "side": 2048,
+   "what": "a canvas tote bag on a tram seat with the KITE card in its front pocket",
+   "key_part": "the bag with the card in its pocket",
+   "key_part_box": [
+    0.3,
+    0.3,
+    0.7,
+    0.7
+   ],
+   "must_not": [
+    "faces",
+    "readable brands"
+   ],
+   "cutout": false,
+   "standin": "sketch_area",
+   "beats": [
+    "problem"
+   ],
+   "formats": [
+    "4:5",
+    "9:16",
+    "1:1",
+    "16:9"
+   ],
+   "by_hook": [],
+   "seconds_needed": 4.2,
+   "spec": {
+    "live_video": {
+     "action": []
+    }
+   }
+  },
+  {
+   "id": "CAFE",
+   "route": "live_video",
+   "media": "clip",
+   "side": 2048,
+   "what": "a hand lowers the KITE card onto a café card terminal, a cappuccino behind",
+   "key_part": "the card logo and the point where the card meets the terminal",
+   "key_part_box": [
+    0.3,
+    0.3,
+    0.7,
+    0.7
+   ],
+   "must_not": [
+    "faces",
+    "readable brands"
+   ],
+   "cutout": false,
+   "standin": "sketch_area",
+   "beats": [
+    "solution"
+   ],
+   "formats": [
+    "4:5",
+    "9:16",
+    "1:1",
+    "16:9"
+   ],
+   "by_hook": [],
+   "seconds_needed": 3.8,
+   "spec": {
+    "live_video": {
+     "action": []
+    }
+   }
+  }
+ ],
+ "checks": [
+  {
+   "code": "L_KEY_CROP",
+   "where": "solution 9:16 panel",
+   "finding": "panel: the key part of CAFE is outside what 9:16 shows (stand-in)",
+   "severity": "warn",
+   "variants": 72
+  },
+  {
+   "code": "L_MARGIN",
+   "where": "end 9:16 end.sub",
+   "finding": "end.sub is 0.4u from the right safe line (min 3.0u)",
+   "severity": "warn",
+   "variants": 81
+  },
+  {
+   "code": "L_MARGIN",
+   "where": "problem 9:16 problem.answer",
+   "finding": "problem.answer is 2.9u from the right safe line (min 3.0u)",
+   "severity": "warn",
+   "variants": 18
+  }
+ ]
+}

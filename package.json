@@ -1,0 +1,25 @@
+{
+  "name": "forma-creative-studio",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server.mjs",
+    "claude:login": "node claude-auth.mjs",
+    "test": "node --test test/*.test.mjs",
+    "cloud:migrate": "node --env-file=.env scripts/migrate-to-cloud.mjs",
+    "cloud:pull": "node --env-file=.env scripts/pull-from-cloud.mjs"
+  },
+  "engines": {
+    "node": ">=22.9"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.3.325",
+    "@aws-sdk/client-s3": "^3.1169.0",
+    "@supabase/supabase-js": "^2.119.0",
+    "express": "5.3.0",
+    "gsap": "3.15.1",
+    "lottie-web": "5.13.0",
+    "three": "0.187.0",
+    "zod": "4.6.7"
+  }
+}

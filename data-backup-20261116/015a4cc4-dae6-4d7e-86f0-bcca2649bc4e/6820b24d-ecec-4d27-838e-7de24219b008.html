@@ -1,0 +1,85 @@
+<!doctype html><html lang="ru"><head><script>(function runtime(list, duration) {
+  const params = new URLSearchParams(location.search);
+  const fmt = list.find(f => f.id === params.get('f')) || list[0];
+  const short = Math.min(fmt.w, fmt.h), long = Math.max(fmt.w, fmt.h);
+  const ratio = fmt.w / fmt.h;
+  const orientation = ratio > 1.05 ? 'landscape' : ratio < .95 ? 'portrait' : 'square';
+  const safe = {top:Math.round(fmt.safe.top*fmt.h), bottom:Math.round(fmt.safe.bottom*fmt.h), left:Math.round(fmt.safe.left*fmt.w), right:Math.round(fmt.safe.right*fmt.w)};
+  const root = document.documentElement;
+  root.dataset.format = fmt.id;
+  root.dataset.orientation = orientation;
+  const vars = {'--w':fmt.w+'px','--h':fmt.h+'px','--s':short/100+'px','--l':long/100+'px',
+    '--safe-top':safe.top+'px','--safe-bottom':safe.bottom+'px','--safe-left':safe.left+'px','--safe-right':safe.right+'px'};
+  for (const [k,v] of Object.entries(vars)) root.style.setProperty(k,v);
+  const setups = [];
+  window.FORMA = {
+    format:fmt.id, label:fmt.label, width:fmt.w, height:fmt.h, short, long, ratio, orientation, safe,
+    formats:list.map(f => f.id), duration, playing:false,
+    // Register async setup (measuring text, building timelines, loading textures). Runs after fonts and images load.
+    setup(fn) { setups.push(fn); },
+    _setups:setups,
+    // Shrink an element's font-size until its content fits its own box. Returns the chosen px size.
+    fit(el, {max=short*.2, min=short*.03, step=1} = {}) {
+      if (!el) return 0;
+      const fits = () => el.scrollWidth <= el.clientWidth + 1 && el.scrollHeight <= el.clientHeight + 1;
+      let lo = min, hi = max, best = min;
+      el.style.fontSize = hi + 'px';
+      if (fits()) return hi;
+      while (hi - lo > step) {
+        const mid = (lo + hi) / 2;
+        el.style.fontSize = mid + 'px';
+        if (fits()) { best = mid; lo = mid; } else hi = mid;
+      }
+      el.style.fontSize = best + 'px';
+      return best;
+    },
+    // Keep a muted <video> in step with timeline time t. offset = timeline second where the clip starts.
+    syncVideo(video, t, offset = 0) {
+      if (!video) return;
+      video.muted = true; video.playsInline = true;
+      const target = Math.max(0, Math.min((video.duration || Infinity) - .05, t - offset));
+      if (window.FORMA.playing && t >= offset) {
+        if (video.paused) video.play().catch(() => {});
+        if (Math.abs(video.currentTime - target) > .25) video.currentTime = target;
+      } else {
+        if (!video.paused) video.pause();
+        if (Math.abs(video.currentTime - target) > .04) video.currentTime = target;
+      }
+    },
+    // Deterministic pseudo-random generator for particles, jitter, etc.
+    random(seed = 1) { let s = seed >>> 0 || 1; return () => ((s = Math.imul(s ^ s >>> 15, 1 | s), s ^= s + Math.imul(s ^ s >>> 7, 61 | s), (s ^ s >>> 14) >>> 0) / 4294967296); },
+  };
+})([{"id":"1x1","label":"1:1","name":"Post","w":1080,"h":1080,"safe":{"top":0.05,"bottom":0.05,"left":0.05,"right":0.05}},{"id":"4x5","label":"4:5","name":"Feed","w":1080,"h":1350,"safe":{"top":0.05,"bottom":0.06,"left":0.05,"right":0.05}},{"id":"9x16","label":"9:16","name":"Reels / Stories","w":1080,"h":1920,"safe":{"top":0.13,"bottom":0.2,"left":0.06,"right":0.12}},{"id":"16x9","label":"16:9","name":"Pre-roll / YouTube","w":1920,"h":1080,"safe":{"top":0.06,"bottom":0.1,"left":0.05,"right":0.05}}],8)</script><script type="importmap">{"imports":{"three":"/lib/three/build/three.module.js","three/addons/":"/lib/three/examples/jsm/"}}</script><script src="/lib/gsap.js"></script><script src="/lib/lottie.js"></script><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>
+*{box-sizing:border-box}body{margin:0;background:#17211c;color:#dcff76;font-family:Arial,sans-serif;height:100vh;overflow:hidden;background-image:radial-gradient(ellipse at 45% 45%,#3d5543,transparent 65%)}header,footer{position:absolute;left:6%;right:6%;display:flex;align-items:center;justify-content:space-between;font:2.1vw monospace;letter-spacing:.07em}header{top:6%}footer{bottom:5%;border-top:1px solid #a7be865c;padding-top:2.2%}b{font:900 3.6vw Arial;letter-spacing:-.09em}canvas,#photo{position:absolute;width:100%;height:100%;object-fit:cover}h1{position:absolute;bottom:10%;left:5%;margin:0;font:700 14vw/.84 Arial;letter-spacing:-.095em;max-width:90%;overflow-wrap:anywhere}#photo{opacity:.65}small{position:absolute;top:17%;left:6%;font:2vw monospace;max-width:65%}
+</style></head><body><canvas></canvas><header><b>F/M</b><span>DESIGN IN MOTION</span></header><small></small><h1>Форма<br>в движении</h1><footer><span>FORMA STUDIO</span><span>● &nbsp; MOTION STUDY</span></footer><script>
+const input={"scenario":"Theme: You already count every small spend, so KITE pays some of it back: 5% on groceries, transport and coffee, cent by cent.\nScenes: 4 · 8 s\n\n1. HOOK (0.0–2.4 s): \"€1.80 for milk.\" then \"+9¢ back.\" Someone buys an ordinary carton of milk, and a little money comes straight back before they've left the checkout.\n\n2. PROOF (2.4–4.6 s): \"Tram €3.20 · +16¢\" then \"Flat white €3.60 · +18¢\". The day goes on with the ride home and the morning coffee, and each small spend pays back as it happens.\n\n3. TALLY (4.6–5.6 s): \"Today: 43¢ back.\" The three everyday spends add up to one real number the person didn't have to chase.\n\n4. OFFER + CTA (5.6–8 s): \"Free card. 3 minutes / no fee · no minimum\" · CTA \"GET THE CARD\". Fully resolved by 6.8 s, then holds with the brand and CTA readable until 8 s.","style":"Pocket Collage\n\nPhotographed cut-out objects from the day (a milk carton, a tram ticket, a flat white seen from above) slap onto the flat orange field one after another, while a flat cream tote pocket at the bottom slowly releases the real KITE card a little more with every cent.\n\nMEDIUM: a top-down photo collage. Real studio photographs of everyday props are shot overhead in soft, even window light (5600K warmed to the LUT) and cut out with hard edges. They sit directly on the flat #FF5A1F field with no drop shadows, no outlines and no paper texture, as the guide requires. Props carry no brands and no readable print: the milk carton is plain white with a muted grey-blue band, the tram ticket is off-white with abstract printed bars, and the flat white is in a white ceramic cup on a saucer with a rosetta in the crema. HERO: one oversized prop per beat, cropped boldly so it bleeds off an edge (the cup fills the right half in PROOF). ACCENT DEVICE: the brand tab reinterpreted as its own metaphor. A flat cream tote with a stitched pocket mouth (a 5 px orange rule) sits at the lower left, and the KITE card pokes out of it. The card follows the reference exactly: a vertical matte orange card with rounded corners, a light-gold chip centred in the upper third, the contactless icon to the right and the cream KITE mark at the bottom (hidden in the pocket until the end). The cream tote gives the orange card the contrast it needs against the field. RECURRING ELEMENT: the card in the pocket. It rises about 20 px with each cent earned, so by TALLY the chip is fully clear. COMPOSITION (1:1): the corner wordmark sits at 108/68. Copy plaques run along the top-left margin (cream plaques, orange text, Schibsted Grotesk 800 at 62–83 px, radius 0). Props occupy the right and centre, and the pocket is anchored bottom-left. In 9:16 the pocket sits above the bottom safe zone; in 16:9 the props line up left to right like the day's timeline. MOTION MECHANISM: stop-motion placement. Each prop drops onto the field with one back.out(1.6) settle, or 'drop' on the brand in curve (0.25 s). It is rotated at most ±4° and held on 12-fps stepped frames for a handmade cadence, while the type stays at 24 fps with the brand curves. The previous prop is shoved off the nearest edge (a move, 0.16 s, out curve), so it reads as a table being cleared, not a slide swap. Constant life comes from a 10 px drift of the hero prop along one axis; no scaling. HOOK 0.00–2.40: frame 0 shows the milk carton large and bleeding off the right edge, the pocket with the card's top edge just showing, and '€1.80 for milk.' on its plaque. At 1.10 the '+9¢ back.' plaque draws in from the left (0.20 s), the text types on by word and the card nudges up 20 px. PROOF 2.40–4.60: the carton is shoved up and out the top-right (it still peeks in the keyframe). The tram ticket drops in tilted −4° at 2.50, and 'Tram €3.20 · +16¢' draws in at 2.65 as the card rises again. At 3.45 the flat white lands as the beat's single weighted settle, overlapping the ticket. 'Flat white €3.60 · +18¢' draws in below at 3.55 and the card rises a third time, showing the full chip and contactless. TALLY 4.60–5.60: the three props slide together into a tidy row along the top (move, 0.25 s), and the 'Today: 43¢ back.' plaque draws in with the 43 counting up in tabular figures. The card reaches its highest point. OFFER + CTA 5.60–8.00: the props and tote exit downward (0.16 s, out curve) and the immutable end frame takes over. The 47u wordmark drops 5u (0.15 s), the sub-line types on from 5.60 at 0.125 s per word, and the 'GET THE CARD' plaque and official store badges rise 8u at 6.55 and settle by 6.75. Hold until 8.00.\nUse this selected reference keyframe as the visual target for the animation:\n\u003csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1080 1080'>\u003cdefs>\u003cpath id='k' d='M0 70.31L0 0L20.02 0L20.02 25.73L44.73 0L68.56 0L43.31 25.93L71.39 70.31L48.73 70.31L29.98 39.21L20.02 49.56L20.02 70.31L0 70.31ZM75.83 70.31L75.83 53.46L85.89 53.46L85.89 16.84L75.83 16.84L75.83 0L115.97 0L115.97 16.84L105.91 16.84L105.91 53.46L115.97 53.46L115.97 70.31L75.83 70.31ZM147.95 70.31L147.95 17.09L123.34 17.09L123.34 0L192.68 0L192.68 17.09L167.97 17.09L167.97 70.31L147.95 70.31ZM200.78 70.31L200.78 0L252.98 0L252.98 17.09L220.8 17.09L220.8 25.63L247.32 25.63L247.32 41.75L220.8 41.75L220.8 53.22L253.67 53.22L253.67 70.31L200.78 70.31Z'/>\u003c/defs>\u003crect width='1080' height='1080' fill='#FF5A1F'/>\u003cg transform='rotate(4 950 40)'>\u003cpath d='M870 -60H1040V150H870Z' fill='#F4F2EC'/>\u003crect x='870' y='60' width='170' height='50' fill='#8197A6'/>\u003cpath d='M870 150L955 190L1040 150Z' fill='#E6E2D8'/>\u003c/g>\u003cg transform='rotate(-4 330 470)'>\u003crect x='150' y='390' width='360' height='160' rx='6' fill='#FBF8F0'/>\u003cpath d='M200 398V542' stroke='#4A4540' stroke-width='3' stroke-dasharray='4 8'/>\u003crect x='225' y='425' width='150' height='14' fill='#4A4540'/>\u003crect x='225' y='455' width='210' height='10' fill='#4A4540'/>\u003crect x='225' y='480' width='120' height='10' fill='#4A4540'/>\u003crect x='410' y='466' width='70' height='60' fill='#4A4540'/>\u003c/g>\u003cpath d='M170 700C170 590 290 590 290 700M420 700C420 590 540 590 540 700' fill='none' stroke='#F7EED3' stroke-width='26'/>\u003crect x='108' y='700' width='492' height='420' rx='18' fill='#F7EED3'/>\u003crect x='204' y='760' width='300' height='476' rx='26' fill='#FF5A1F'/>\u003crect x='319' y='806' width='70' height='54' rx='10' fill='#E3CB91'/>\u003cpath d='M319 833H389M354 806V860' stroke='#C4A866' stroke-width='2'/>\u003cpath d='M420 822a14 14 0 0 1 0 22M430 814a26 26 0 0 1 0 38' fill='none' stroke='#F7EED3' stroke-width='5' stroke-linecap='round'/>\u003crect x='140' y='880' width='428' height='240' rx='14' fill='#F7EED3'/>\u003crect x='140' y='880' width='428' height='5' fill='#FF5A1F'/>\u003cg transform='rotate(3 800 640)'>\u003crect x='980' y='690' width='120' height='54' rx='27' fill='#FAF7F1' transform='rotate(28 1000 717)'/>\u003ccircle cx='800' cy='640' r='240' fill='#EFE8DC'/>\u003crect x='600' y='780' width='170' height='22' rx='11' fill='#CFC8BC' transform='rotate(-35 685 791)'/>\u003ccircle cx='800' cy='640' r='150' fill='#FAF7F1'/>\u003ccircle cx='800' cy='640' r='122' fill='#A8744A'/>\u003ccircle cx='800' cy='640' r='100' fill='#C6956A'/>\u003cpath d='M800 612C780 580 738 600 760 638L800 682L840 638C862 600 820 580 800 612Z' fill='#F4E7D1'/>\u003c/g>\u003cuse href='#k' x='108' y='68' fill='#F7EED3'/>\u003cg font-family='Schibsted Grotesk,Arial,sans-serif' font-weight='800' font-size='62' fill='#FF5A1F'>\u003crect x='106' y='190' width='613' height='67' fill='#F7EED3'/>\u003ctext x='108' y='240' textLength='600' lengthAdjust='spacingAndGlyphs'>Tram €3.20 · +16¢\u003c/text>\u003crect x='106' y='261' width='843' height='67' fill='#F7EED3'/>\u003ctext x='108' y='311' textLength='830' lengthAdjust='spacingAndGlyphs'>Flat white €3.60 · +18¢\u003c/text>\u003c/g>\u003c/svg>","image":null};if(input){document.querySelector('h1').textContent=input.scenario.slice(0,70);document.querySelector('h1').style.fontSize='9vw';document.querySelector('small').textContent=input.style.slice(0,100);if(input.image){let img=new Image();img.id='photo';img.src=input.image;document.body.prepend(img)}}
+const c=document.querySelector('canvas'),ctx=c.getContext('2d');function draw(t){let s=c.clientWidth,d=Math.min(devicePixelRatio,2);if(c.width!==Math.round(s*d))c.width=c.height=Math.round(s*d);ctx.setTransform(c.width,0,0,c.height,0,0);ctx.clearRect(0,0,1,1);const rings=[];for(let i=0;i<96;i++){let a=i/96*2*Math.PI,pts=[];for(let j=0;j<=60;j++){let b=j/60*2*Math.PI,r=.27+.105*Math.cos(b),x=r*Math.cos(a),y=r*Math.sin(a),z=.105*Math.sin(b),k=.70+.24*Math.sin(a*2+t*.00045),v=y*Math.cos(k)-z*Math.sin(k),w=y*Math.sin(k)+z*Math.cos(k);pts.push([.54+x*.87-v*.58,.44+x*.48+v*.92,w]);}rings.push(pts)}rings.sort((a,b)=>a[0][2]-b[0][2]);for(let pts of rings){ctx.beginPath();pts.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.fillStyle='#283625';ctx.fill();ctx.strokeStyle='hsl(77 90% '+(54+pts[0][2]*95)+'%)';ctx.lineWidth=.0028;ctx.stroke()}requestAnimationFrame(draw)}requestAnimationFrame(draw);
+</script><script>(function controller() {
+  const F = window.FORMA, D = F.duration, params = new URLSearchParams(location.search);
+  let t = Math.max(0, Math.min(D, Number(params.get('t')) || 0)), playing = !params.has('paused'), last = null, started = false;
+  const send = () => { try { parent.postMessage({type:'forma:time', t, duration:D, playing, timeline:typeof window.renderFrame === 'function', format:F.format}, '*'); } catch {} };
+  const draw = () => { try { window.renderFrame?.(t); } catch (e) { console.error(e); } send(); };
+  function tick(now) {
+    if (!playing) return;
+    if (last !== null) t = Math.min(D, t + (now - last) / 1000);
+    last = now;
+    draw();
+    if (t >= D) { playing = F.playing = false; send(); return; }
+    requestAnimationFrame(tick);
+  }
+  function play() { if (!started) return; if (t >= D) t = 0; playing = F.playing = true; last = null; requestAnimationFrame(tick); }
+  function pause() { playing = F.playing = false; draw(); }
+  addEventListener('message', e => {
+    if (e.source !== parent || !e.data) return;
+    const m = e.data;
+    if (m.type === 'forma:play') play();
+    if (m.type === 'forma:pause') pause();
+    if (m.type === 'forma:seek') { t = Math.max(0, Math.min(D, Number(m.t) || 0)); if (!playing) draw(); }
+    if (m.type === 'forma:hello') send();
+  });
+  const loaded = document.readyState === 'complete' ? Promise.resolve() : new Promise(r => addEventListener('load', r, {once:true}));
+  Promise.all([loaded, document.fonts.ready])
+    .then(async () => { for (const fn of F._setups) await fn(); })
+    .catch(e => console.error(e))
+    .then(() => { started = true; F.playing = playing; draw(); if (playing) play(); });
+})()</script></body></html>

@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><script type="importmap">{"imports":{"three":"/lib/three/build/three.module.js","three/addons/":"/lib/three/examples/jsm/"}}</script><script src="/lib/gsap.js"></script><script src="/lib/lottie.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1080, initial-scale=1">
+<title>Toggle Concepts — The frame changes. The idea holds.</title>
+<style>
+@font-face {
+  font-family: "Inter Tight";
+  src: url("assets/Toggle_Concepts_Brand_Pack/fonts/InterTight-Medium.ttf") format("truetype");
+  font-weight: 500;
+  font-display: block;
+}
+@font-face {
+  font-family: "Inter Tight";
+  src: url("assets/Toggle_Concepts_Brand_Pack/fonts/InterTight-SemiBold.ttf") format("truetype");
+  font-weight: 600;
+  font-display: block;
+}
+@font-face {
+  font-family: "Inter Tight";
+  src: url("assets/Toggle_Concepts_Brand_Pack/fonts/InterTight-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-display: block;
+}
+* { box-sizing: border-box; }
+html, body {
+  width: 1080px;
+  height: 1080px;
+  margin: 0;
+  overflow: hidden;
+  background: #FFFFFF;
+}
+body {
+  font-family: "Inter Tight", Arial, sans-serif;
+  color: #0C2B3F;
+  -webkit-font-smoothing: antialiased;
+}
+.artboard, .layer {
+  position: absolute;
+  inset: 0;
+  width: 1080px;
+  height: 1080px;
+  overflow: hidden;
+}
+.logo {
+  position: absolute;
+  left: 108px;
+  top: 108px;
+  width: 368px;
+  height: auto;
+  display: block;
+}
+.headline {
+  position: absolute;
+  left: 108px;
+  top: 198px;
+  margin: 0;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+}
+.opening {
+  font-size: 76px;
+  line-height: 0.98;
+}
+.promise {
+  font-size: 64px;
+  line-height: 1.02;
+}
+.promise span, .opening span { display: block; }
+#final {
+  background: #0C2B3F;
+  color: #FFFFFF;
+  clip-path: inset(100% 0 0 0);
+}
+.ring {
+  position: absolute;
+  left: 332px;
+  top: 656px;
+  width: 416px;
+  height: auto;
+  transform: translateY(-50%);
+  display: block;
+  z-index: 5;
+}
+.offer {
+  position: absolute;
+  left: 108px;
+  top: 788px;
+  margin: 0;
+  font-size: 36px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.015em;
+}
+.cta {
+  position: absolute;
+  left: 108px;
+  top: 856px;
+  width: 480px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #FFFFFF;
+  color: #0C2B3F;
+  text-decoration: none;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.destination {
+  position: absolute;
+  left: 108px;
+  top: 960px;
+  margin: 0;
+  font-size: 28px;
+  font-weight: 500;
+  line-height: 1;
+}
+</style>
+</head>
+<body>
+<!--
+Square adaptation of the supplied 1080 × 1350 choreography.
+The ring and format stage are uniformly scaled to 80%, preserving asset
+proportions and format aspect ratios. The ring remains fixed at (540,656).
+Typography and the offer stack are recomposed for the square viewport.
+
+Exact beats
+0.00–0.80  Contracting portrait boundary, precise braking.
+0.80–0.92  Anticipation hold.
+0.92–1.44  Portrait becomes square.
+1.44–1.60  Square hold.
+1.60–2.20  Square becomes landscape.
+2.20–2.40  Three-format proof hold.
+2.40–3.20  Boundary opens into navy, hard-masking the final promise.
+3.20–3.48  Lower edge reveals the complete offer.
+3.48–3.76  Lower edge reveals the complete CTA.
+3.76–4.00  Lower edge reveals the destination and fills the artboard.
+4.00–6.00  Complete, motionless final hold.
+-->
+<main class="artboard" aria-label="Toggle Concepts. More formats. Still you. Pay for concepts. Every version is included. 20% off your first month. Start a test month at concepts.toggle.studio.">
+  <div class="layer">
+    <img class="logo" src="assets/Toggle_Concepts_Brand_Pack/logo/toggle-concepts-lockup-navy.svg" alt="Toggle Concepts">
+    <h1 class="headline opening"><span>More formats.</span><span>Still you.</span></h1>
+  </div>
+
+  <svg class="layer" viewBox="0 0 1080 1080" fill="none" aria-hidden="true">
+    <rect id="portrait" x="309.6" y="368" width="460.8" height="576" rx="16" stroke="#0C2B3F" stroke-width="3" opacity="0"/>
+    <rect id="square" x="252" y="368" width="576" height="576" rx="16" stroke="#0C2B3F" stroke-width="3" opacity="0"/>
+    <rect id="contour" x="252" y="368" width="576" height="576" rx="16" stroke="#0C2B3F" stroke-width="3"/>
+  </svg>
+
+  <div id="final" class="layer">
+    <img class="logo" src="assets/Toggle_Concepts_Brand_Pack/logo/toggle-concepts-lockup-white.svg" alt="">
+    <p class="headline promise"><span>Pay for concepts.</span><span>Every version is included.</span></p>
+    <p class="offer">20% off your first month</p>
+    <a class="cta" href="https://concepts.toggle.studio" tabindex="-1">START A TEST MONTH</a>
+    <p class="destination">concepts.toggle.studio</p>
+  </div>
+
+  <img class="ring" src="assets/Toggle_Concepts_Brand_Pack/logo/png/toggle-ring-gloss.png" alt="" fetchpriority="high">
+</main>
+<script>
+(function () {
+  "use strict";
+
+  const contour = document.getElementById("contour");
+  const portrait = document.getElementById("portrait");
+  const square = document.getElementById("square");
+  const finalLayer = document.getElementById("final");
+
+  const clamp = value => Math.max(0, Math.min(1, value));
+  const progress = (time, start, end) => clamp((time - start) / (end - start));
+  const mix = (start, end, amount) => start + (end - start) * amount;
+  const power4Out = value => 1 - Math.pow(1 - value, 5);
+  const smooth = value => value * value * (3 - 2 * value);
+
+  // Brief acceleration followed by a long, controlled power4-out brake.
+  function release(value) {
+    const p = clamp(value);
+    const launch = 0.16;
+    const distance = 0.087;
+    if (p < launch) {
+      return distance * Math.pow(p / launch, 2);
+    }
+    return distance + (1 - distance) *
+      power4Out((p - launch) / (1 - launch));
+  }
+
+  function setContour(left, top, width, height, radius) {
+    contour.setAttribute("x", left);
+    contour.setAttribute("y", top);
+    contour.setAttribute("width", width);
+    contour.setAttribute("height", height);
+    contour.setAttribute("rx", radius);
+  }
+
+  window.renderFrame = function (seconds) {
+    const numericTime = Number(seconds);
+    const t = Math.max(0, Math.min(6, Number.isFinite(numericTime) ? numericTime : 0));
+
+    let width = 460.8;
+    let height = 576;
+
+    if (t < 0.8) {
+      // The first frame is sampled after the contraction has already begun.
+      const p = power4Out((t + 0.14) / 0.94);
+      width = mix(684, 460.8, p);
+    } else if (t < 1.6) {
+      width = mix(460.8, 576, release(progress(t, 0.92, 1.44)));
+    } else {
+      const p = release(progress(t, 1.6, 2.2));
+      width = mix(576, 691.2, p);
+      height = mix(576, 388.8, p);
+    }
+
+    portrait.setAttribute("opacity", t >= 0.92 ? "0.18" : "0");
+    square.setAttribute("opacity", t >= 1.6 ? "0.18" : "0");
+
+    let left = 540 - width / 2;
+    let top = 656 - height / 2;
+    let right = 540 + width / 2;
+    let bottom = 656 + height / 2;
+    let radius = 16;
+
+    if (t >= 2.4) {
+      const opening = release(progress(t, 2.4, 3.2));
+      left = mix(194.4, -160, opening);
+      right = mix(885.6, 1240, opening);
+      top = mix(461.6, -64, opening);
+      bottom = mix(850.4, 760, opening);
+      radius = mix(16, 0, opening);
+
+      if (t >= 3.2 && t < 3.48) {
+        bottom = mix(760, 828, smooth(progress(t, 3.2, 3.48)));
+      } else if (t >= 3.48 && t < 3.76) {
+        bottom = mix(828, 932, smooth(progress(t, 3.48, 3.76)));
+      } else if (t >= 3.76) {
+        bottom = mix(932, 1120, smooth(progress(t, 3.76, 4)));
+      }
+
+      // A navy stroke grows inward from the continuing contour.
+      // This gives the solid field a spatial onset without an opacity fade.
+      const fillDepth = 230 * smooth(progress(t, 2.4, 2.56));
+      const outer = `inset(${top}px ${1080 - right}px ${1080 - bottom}px ${left}px round ${radius}px)`;
+      finalLayer.style.clipPath = outer;
+
+      if (t < 2.56) {
+        const innerLeft = left + fillDepth;
+        const innerRight = right - fillDepth;
+        const innerTop = top + fillDepth;
+        const innerBottom = bottom - fillDepth;
+        const holeWidth = Math.max(0, innerRight - innerLeft);
+        const holeHeight = Math.max(0, innerBottom - innerTop);
+        finalLayer.style.maskImage =
+          `linear-gradient(#000,#000), linear-gradient(#000,#000)`;
+        finalLayer.style.maskSize = `100% 100%, ${holeWidth}px ${holeHeight}px`;
+        finalLayer.style.maskPosition = `0 0, ${innerLeft}px ${innerTop}px`;
+        finalLayer.style.maskRepeat = "no-repeat";
+        finalLayer.style.maskComposite = "exclude";
+      } else {
+        finalLayer.style.maskImage = "none";
+      }
+    } else {
+      finalLayer.style.clipPath = "inset(100% 0 0 0)";
+      finalLayer.style.maskImage = "none";
+    }
+
+    setContour(left, top, right - left, bottom - top, radius);
+    contour.setAttribute("opacity", t >= 4 ? "0" : "1");
+
+    if (t >= 4) {
+      finalLayer.style.clipPath = "inset(0)";
+      finalLayer.style.maskImage = "none";
+    }
+  };
+
+  window.renderFrame(0);
+})();
+</script>
+<script>document.fonts.ready.then(()=>{(function playShortFilm(draw, requestFrame = requestAnimationFrame) {
+  let start;
+  function frame(now) {
+    start ??= now;
+    const t = Math.min(6, (now - start) / 1000);
+    draw(t);
+    if (t < 6) requestFrame(frame);
+  }
+  requestFrame(frame);
+})(window.renderFrame)})</script></body>
+</html>

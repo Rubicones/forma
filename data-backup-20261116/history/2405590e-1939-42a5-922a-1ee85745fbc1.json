@@ -1,0 +1,78 @@
+{
+ "id": "2405590e-1939-42a5-922a-1ee85745fbc1",
+ "createdAt": "2026-11-14T23:32:19.639Z",
+ "status": "ok",
+ "log": [
+  {
+   "at": 0,
+   "level": "info",
+   "msg": "Импортировано из data/ (журнал до появления истории не сохранялся)"
+  }
+ ],
+ "type": "creative",
+ "imported": "files",
+ "project": "cb462cf6-836c-4681-a794-36391ce8e1ac",
+ "mode": null,
+ "input": {
+  "scenario": "",
+  "style": "",
+  "formats": [
+   "1x1"
+  ],
+  "duration": 6,
+  "files": [
+   "Toggle_Concepts_Brand_Pack/.DS_Store",
+   "Toggle_Concepts_Brand_Pack/README.md",
+   "Toggle_Concepts_Brand_Pack/Toggle_Concepts_Brandbook.pdf",
+   "Toggle_Concepts_Brand_Pack/brandbook.md",
+   "Toggle_Concepts_Brand_Pack/tokens.json",
+   "Toggle_Concepts_Brand_Pack/logo/.DS_Store",
+   "Toggle_Concepts_Brand_Pack/logo/toggle-app-icon.svg",
+   "Toggle_Concepts_Brand_Pack/logo/toggle-concepts-lockup-black.svg",
+   "Toggle_Concepts_Brand_Pack/logo/toggle-concepts-lockup-navy.svg",
+   "Toggle_Concepts_Brand_Pack/logo/toggle-concepts-lockup-white.svg",
+   "Toggle_Concepts_Brand_Pack/logo/toggle-concepts-stacked-black.svg",
+   "Toggle_Concepts_Brand_Pack/logo/toggle-concepts-stacked-navy.svg",
+   "Toggle_Concepts_Brand_Pack/logo/toggle-concepts-stacked-white.svg",
+   "Toggle_Concepts_Brand_Pack/logo/toggle-symbol-black.svg",
+   "Toggle_Concepts_Brand_Pack/logo/toggle-symbol-navy.svg",
+   "Toggle_Concepts_Brand_Pack/logo/toggle-symbol-white.svg",
+   "Toggle_Concepts_Brand_Pack/logo/toggle-wordmark-black.svg",
+   "Toggle_Concepts_Brand_Pack/logo/toggle-wordmark-navy.svg",
+   "Toggle_Concepts_Brand_Pack/logo/toggle-wordmark-white.svg",
+   "Toggle_Concepts_Brand_Pack/logo/png/toggle-app-icon.png",
+   "Toggle_Concepts_Brand_Pack/logo/png/toggle-concepts-lockup-black.png",
+   "Toggle_Concepts_Brand_Pack/logo/png/toggle-concepts-lockup-navy.png",
+   "Toggle_Concepts_Brand_Pack/logo/png/toggle-concepts-lockup-white.png",
+   "Toggle_Concepts_Brand_Pack/logo/png/toggle-concepts-stacked-black.png",
+   "Toggle_Concepts_Brand_Pack/logo/png/toggle-concepts-stacked-navy.png",
+   "Toggle_Concepts_Brand_Pack/logo/png/toggle-concepts-stacked-white.png",
+   "Toggle_Concepts_Brand_Pack/logo/png/toggle-ring-gloss.png",
+   "Toggle_Concepts_Brand_Pack/logo/png/toggle-symbol-black.png",
+   "Toggle_Concepts_Brand_Pack/logo/png/toggle-symbol-navy.png",
+   "Toggle_Concepts_Brand_Pack/logo/png/toggle-symbol-white.png",
+   "Toggle_Concepts_Brand_Pack/logo/png/toggle-wordmark-black.png",
+   "Toggle_Concepts_Brand_Pack/logo/png/toggle-wordmark-navy.png",
+   "Toggle_Concepts_Brand_Pack/logo/png/toggle-wordmark-white.png",
+   "Toggle_Concepts_Brand_Pack/img/founder.png",
+   "Toggle_Concepts_Brand_Pack/img/site_full.png",
+   "Toggle_Concepts_Brand_Pack/img/site_top.png",
+   "Toggle_Concepts_Brand_Pack/fonts/InterTight-Bold.ttf",
+   "Toggle_Concepts_Brand_Pack/fonts/InterTight-Medium.ttf",
+   "Toggle_Concepts_Brand_Pack/fonts/InterTight-Regular.ttf",
+   "Toggle_Concepts_Brand_Pack/fonts/InterTight-SemiBold.ttf",
+   "Toggle_Concepts_Brand_Pack/fonts/OFL.txt",
+   "Toggle_Concepts_Brand_Pack/brief/brief.json",
+   "Toggle_Concepts_Brand_Pack/brief/brief_filled.md"
+  ]
+ },
+ "output": {
+  "revision": "57393f98-6fd4-4a25-aaab-9c905888f4be",
+  "path": "/p/cb462cf6-836c-4681-a794-36391ce8e1ac/57393f98-6fd4-4a25-aaab-9c905888f4be.html",
+  "formats": [
+   "1x1"
+  ],
+  "duration": 6
+ },
+ "media": []
+}

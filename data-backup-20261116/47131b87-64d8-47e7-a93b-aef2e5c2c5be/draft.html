@@ -1,0 +1,374 @@
+<html>
+<head><script>(function runtimeV2(resolveFn, data) {
+  const params = new URLSearchParams(location.search);
+  const state = resolveFn(params, data);
+  const short = state.short, long = state.long, safe = state.safe;
+  const root = document.documentElement;
+  root.lang = state.lang;
+  root.dir = state.dir;
+  root.dataset.format = state.format;
+  root.dataset.orientation = state.orientation;
+  root.dataset.kind = state.kind;
+  root.dataset.stage = state.stage;
+  root.dataset.lang = state.lang;
+  const vars = {
+    '--w': state.width + 'px',
+    '--h': state.height + 'px',
+    '--s': short / 100 + 'px',
+    '--l': long / 100 + 'px',
+    '--safe-top': safe.top + 'px',
+    '--safe-bottom': safe.bottom + 'px',
+    '--safe-left': safe.left + 'px',
+    '--safe-right': safe.right + 'px',
+  };
+  for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
+  const setups = [];
+  window.FORMA = {
+    ...state,
+    playing: false,
+    setup(fn) { setups.push(fn); },
+    _setups: setups,
+    fit(el, {max = short * .2, min = short * .03, step = 1} = {}) {
+      if (!el) return 0;
+      const fits = () => el.scrollWidth <= el.clientWidth + 1 && el.scrollHeight <= el.clientHeight + 1;
+      let lo = min, hi = max, best = min;
+      el.style.fontSize = hi + 'px';
+      if (fits()) return hi;
+      while (hi - lo > step) {
+        const mid = (lo + hi) / 2;
+        el.style.fontSize = mid + 'px';
+        if (fits()) { best = mid; lo = mid; } else hi = mid;
+      }
+      el.style.fontSize = best + 'px';
+      return best;
+    },
+    fitGroup(elements, {max = short * .2, min = short * .03, step = 1} = {}) {
+      const list = Array.from(elements || []).filter(Boolean);
+      if (!list.length) return 0;
+      const fitsAll = size => {
+        for (const el of list) el.style.fontSize = size + 'px';
+        return list.every(el => el.scrollWidth <= el.clientWidth + 1 && el.scrollHeight <= el.clientHeight + 1);
+      };
+      let lo = min, hi = max, best = min;
+      if (fitsAll(hi)) return hi;
+      while (hi - lo > step) {
+        const mid = (lo + hi) / 2;
+        if (fitsAll(mid)) { best = mid; lo = mid; } else hi = mid;
+      }
+      for (const el of list) el.style.fontSize = best + 'px';
+      return best;
+    },
+    syncVideo(video, t, offset = 0) {
+      if (!video) return;
+      video.muted = true; video.playsInline = true;
+      const target = Math.max(0, Math.min((video.duration || Infinity) - .05, t - offset));
+      if (window.FORMA.playing && t >= offset) {
+        if (video.paused) video.play().catch(() => {});
+        if (Math.abs(video.currentTime - target) > .25) video.currentTime = target;
+      } else {
+        if (!video.paused) video.pause();
+        if (Math.abs(video.currentTime - target) > .04) video.currentTime = target;
+      }
+    },
+    random(seed = 1) {
+      let s = seed >>> 0 || 1;
+      return () => ((s = Math.imul(s ^ s >>> 15, 1 | s), s ^= s + Math.imul(s ^ s >>> 7, 61 | s), (s ^ s >>> 14) >>> 0) / 4294967296);
+    },
+  };
+})(function resolveRuntime(params, data = {}) {
+  const q = typeof params === 'string'
+    ? new URLSearchParams(params)
+    : params && typeof params.get === 'function'
+      ? params
+      : {get: k => (params && Object.prototype.hasOwnProperty.call(params, k) ? String(params[k]) : null)};
+
+  const fallbackFormats = {
+    '1x1':   {id:'1x1',   label:'1:1',    name:'Post',            w:1080, h:1080, safe:{top:.05,  bottom:.05,  left:.05, right:.05}},
+    '4x5':   {id:'4x5',   label:'4:5',    name:'Feed',            w:1080, h:1350, safe:{top:.05,  bottom:.06,  left:.05, right:.05}},
+    '9x16':  {id:'9x16',  label:'9:16',   name:'Reels / Stories', w:1080, h:1920, safe:{top:.13,  bottom:.20,  left:.06, right:.12}},
+    '16x9':  {id:'16x9',  label:'16:9',   name:'Pre-roll / YouTube', w:1920, h:1080, safe:{top:.06, bottom:.10, left:.05, right:.05}},
+    '5x4':   {id:'5x4',   label:'5:4',    name:'Landscape post',  w:1350, h:1080, safe:{top:.05,  bottom:.05,  left:.05, right:.05}},
+    '191x1': {id:'191x1', label:'1.91:1', name:'Link / Display',  w:1200, h:628,  safe:{top:.06,  bottom:.06,  left:.04, right:.04}},
+  };
+
+  const rawFormats = Array.isArray(data.formats) && data.formats.length ? data.formats : [fallbackFormats['1x1']];
+  const list = rawFormats.map(f => (typeof f === 'string' ? fallbackFormats[f] || fallbackFormats['1x1'] : f));
+  const reqF = q.get('f');
+  const fmt = list.find(f => f.id === reqF) || list[0];
+  const short = Math.min(fmt.w, fmt.h), long = Math.max(fmt.w, fmt.h);
+  const ratio = fmt.w / fmt.h;
+  const orientation = ratio > 1.05 ? 'landscape' : ratio < .95 ? 'portrait' : 'square';
+  const safe = {
+    top: Math.round(fmt.safe.top * fmt.h),
+    bottom: Math.round(fmt.safe.bottom * fmt.h),
+    left: Math.round(fmt.safe.left * fmt.w),
+    right: Math.round(fmt.safe.right * fmt.w),
+  };
+
+  const sc = data.scenario || null;
+  const stage = data.stage || 'final';
+  const kind = data.kind || sc?.kind || 'multi';
+
+  const rawLangs = Array.isArray(data.langs) && data.langs.length
+    ? data.langs
+    : Array.isArray(sc?.languages) && sc.languages.length
+      ? sc.languages
+      : ['en'];
+  const langs = rawLangs.map(l => (typeof l === 'string' ? l : l.code));
+  const reqL = q.get('l');
+  const lang = langs.includes(reqL) ? reqL : langs[0];
+  const dir = /^(ar|he|fa|ur)(-|$)/i.test(lang) ? 'rtl' : 'ltr';
+
+  const rawLines = sc?.lines || {};
+  const neverHide = {hook: true, offer: true, cta: true};
+  const isHidden = key => {
+    const ln = rawLines[key];
+    if (!ln) return true;
+    if (neverHide[ln.role]) return false;
+    return Array.isArray(ln.hideIn) && ln.hideIn.includes(fmt.id);
+  };
+
+  const copy = {};
+  const lines = {};
+  for (const [key, ln] of Object.entries(rawLines)) {
+    lines[key] = {role: ln.role, scene: ln.scene};
+    if (!isHidden(key)) {
+      copy[key] = ln.text?.[lang] ?? ln.text?.[langs[0]] ?? '';
+    }
+  }
+
+  const scenes = (sc?.scenes || []).map(s => ({
+    id: s.id,
+    beat: s.beat,
+    lines: (s.lines || []).filter(k => !isHidden(k)),
+  }));
+
+  let scene = null;
+  if (stage === 'preview') {
+    const reqScene = q.get('scene');
+    scene = scenes.some(s => s.id === reqScene) ? reqScene : (scenes[0]?.id || null);
+  } else {
+    const reqScene = q.get('scene');
+    if (reqScene && scenes.some(s => s.id === reqScene)) scene = reqScene;
+  }
+
+  const cutKeys = sc?.cuts ? Object.keys(sc.cuts).map(Number).filter(n => !Number.isNaN(n)) : [];
+  const lengths = (Array.isArray(data.lengths) && data.lengths.length ? data.lengths : cutKeys).map(Number);
+
+  let length = 0;
+  let cut = null;
+  let loop = null;
+
+  if (stage !== 'preview' && kind !== 'poster') {
+    const availLengths = lengths.length ? lengths : [Number(data.duration) || (kind === 'single' ? 6 : 8)];
+    const reqD = Number(q.get('d'));
+    length = availLengths.includes(reqD) ? reqD : availLengths[0];
+
+    if (kind === 'single') {
+      const repeats = Math.max(1, Math.round(length / 4));
+      const period = length / repeats;
+      loop = {period, repeats};
+    } else if (kind === 'multi') {
+      const rawCut = sc?.cuts?.[String(length)] || sc?.cuts?.[String(availLengths[0])] || null;
+      if (rawCut && Array.isArray(rawCut.scenes)) {
+        cut = {
+          length,
+          scenes: rawCut.scenes.map(w => ({
+            id: w.id,
+            start: w.start,
+            end: w.end,
+            lines: (w.lines || []).filter(k => !isHidden(k)),
+          })),
+        };
+      }
+    }
+  }
+
+  return {
+    format: fmt.id,
+    label: fmt.label,
+    width: fmt.w,
+    height: fmt.h,
+    short,
+    long,
+    ratio,
+    orientation,
+    safe,
+    formats: list.map(f => f.id),
+    kind,
+    stage,
+    lang,
+    langs,
+    dir,
+    copy,
+    lines,
+    scenes,
+    cut,
+    loop,
+    length,
+    duration: length,
+    scene,
+  };
+},{"stage":"final","kind":"multi","formats":[{"id":"1x1","label":"1:1","name":"Post","w":1080,"h":1080,"safe":{"top":0.05,"bottom":0.05,"left":0.05,"right":0.05}},{"id":"4x5","label":"4:5","name":"Feed","w":1080,"h":1350,"safe":{"top":0.05,"bottom":0.06,"left":0.05,"right":0.05}},{"id":"9x16","label":"9:16","name":"Reels / Stories","w":1080,"h":1920,"safe":{"top":0.13,"bottom":0.2,"left":0.06,"right":0.12}},{"id":"16x9","label":"16:9","name":"Pre-roll / YouTube","w":1920,"h":1080,"safe":{"top":0.06,"bottom":0.1,"left":0.05,"right":0.05}}],"langs":["ru","en","es"],"lengths":[6,12],"scenario":{"version":2,"kind":"multi","theme":"Для тестов нужны сотни креативов, а бренд при этом расползается. Тестируйте сколько нужно и оставайтесь собой.","idea":"Креатив №400 узнаётся с первого взгляда, как и первый: из одного концепта движок собирает все версии, а эксперты проверяют каждый файл.","languages":["ru","en","es"],"lines":{"h1":{"role":"hook","scene":"s1","maxChars":14,"hideIn":[],"text":{"ru":"Креатив №400.","en":"Ad #400.","es":"Anuncio 400."}},"h1b":{"role":"hook","scene":"s1","maxChars":18,"hideIn":[],"text":{"ru":"Всё ещё вы.","en":"Still you.","es":"Sigues siendo tú."}},"p1":{"role":"proof","scene":"s2","maxChars":28,"hideIn":[],"text":{"ru":"Один концепт. Все версии.","en":"One concept. Every version.","es":"Un concepto. Cada versión."}},"o1":{"role":"offer","scene":"s3","maxChars":30,"hideIn":[],"text":{"ru":"Скидка 20% на первый месяц","en":"20% off your first month","es":"20% de descuento el primer mes"}},"cta":{"role":"cta","scene":"s3","maxChars":20,"hideIn":[],"text":{"ru":"Начать пробный месяц","en":"Start a test month","es":"Prueba un mes"}}},"scenes":[{"id":"s1","beat":"HOOK","story":"Появляется креатив номер 400, и это всё тот же бренд, что и в первом: ничего не поплыло.","lines":["h1","h1b"]},{"id":"s2","beat":"PROOF","story":"Из одного концепта движок собирает каждую версию: форматы, языки, хуки. Эксперт Toggle одобряет каждый файл.","lines":["p1"]},{"id":"s3","beat":"OFFER + CTA","story":"Появляются бренд Toggle Concepts, скидка на первый месяц и приглашение начать пробный месяц.","lines":["o1","cta"]}],"cuts":{"6":{"scenes":[{"id":"s1","start":0,"end":3,"lines":["h1","h1b"]},{"id":"s3","start":3,"end":6,"lines":["cta"]}],"note":"Выпали PROOF и строка оффера. Хук (2,97 с) и оффер с CTA (5,51 с) вместе не помещаются в 6 с. Оффер дословно закреплён в EN и CTA сократить нельзя, поэтому финал держится только на CTA (2,94 с). Хук и CTA те же, что в 12 с."},"12":{"scenes":[{"id":"s1","start":0,"end":3.6,"lines":["h1","h1b"]},{"id":"s2","start":3.6,"end":6.2,"lines":["p1"]},{"id":"s3","start":6.2,"end":12,"lines":["o1","cta"]}],"note":"Полная история: хук → доказательство → оффер + CTA. Отдельная сцена «эксперты проверяют каждый файл» не влезает по времени чтения (нужно 12,4 с при 12), поэтому проверку экспертом показываем действием в s2, без текста."}},"notes":"Хук взят из брифа (hook-ad-400, «Ad #400. Still your brand.») и сокращён до «Still you». Так он отвечает финальному чувству из брифа: «тестируем сколько хотим и всё равно выглядим собой». Число 400 из одобренного клиентом хука, других цифр нет. Оффер в EN дословно: «20% off your first month». CTA основной: «Start a test month». В демо движка показываем только вымышленный бренд KITE и никогда не выдаём его за клиента. В ES обращение на «tú», в RU на «вы»: на равных, без крика, без восклицательных знаков. Вариант B (основатель) можно собрать, заменив s2 на реплику основателя из фильма. Хук и финал при этом не меняются, тайминг 12 с сохраняется, если реплика в субтитрах укладывается в 2,6 с."}})</script><script type="importmap">{"imports":{"three":"/lib/three/build/three.module.js","three/addons/":"/lib/three/examples/jsm/"}}</script><script src="/lib/gsap.js"></script><script src="/lib/lottie.js"></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Toggle Concepts · Stack of 400</title>
+<style>
+@font-face{font-family:"Inter Tight";src:url("assets/Toggle_Concepts_Brand_Pack/fonts/InterTight-Medium.ttf") format("truetype");font-weight:500;font-style:normal}
+@font-face{font-family:"Inter Tight";src:url("assets/Toggle_Concepts_Brand_Pack/fonts/InterTight-SemiBold.ttf") format("truetype");font-weight:600;font-style:normal}
+@font-face{font-family:"Inter Tight";src:url("assets/Toggle_Concepts_Brand_Pack/fonts/InterTight-Bold.ttf") format("truetype");font-weight:700;font-style:normal}
+:root{--navy:#0C2B3F;--sky:#B4E4FA;--white:#FFFFFF;--muted:#5A6B78;--line:#DDE3E8;--mist:#BFD3E0}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100vw;height:100vh;overflow:hidden;background:var(--sky)}
+#stage{position:absolute;inset:0;overflow:hidden;background:var(--sky);
+  font-family:"Inter Tight","Helvetica Neue",Helvetica,Arial,sans-serif;color:var(--navy);
+  -webkit-font-smoothing:antialiased;text-rendering:geometricPrecision}
+#stage.fallback{font-family:"Helvetica Neue",Helvetica,Arial,"Segoe UI",Roboto,sans-serif}
+.abs{position:absolute}
+
+/* LOGO */
+.logo{position:absolute;display:block;width:auto;z-index:20}
+
+/* HERO (local coordinates, scaled per format) */
+#hero{position:absolute;width:830px;height:10px;transform-origin:0 0;z-index:2}
+#drift{position:absolute;left:0;top:0;width:830px;height:10px}
+#ground{position:absolute;left:14px;width:802px;height:22px;border-radius:50%;background:rgba(12,43,63,.24);filter:blur(7px);display:none}
+#edge{position:absolute;left:0;width:830px;overflow:hidden;border-top:1px solid var(--line);
+  background:#EEF3F6 url("assets/generated/fore-edge-macro.jpg") 0 0/830px auto repeat}
+#edge::before{content:"";position:absolute;inset:0;background:rgba(255,255,255,.34)}
+#edge .estripe{position:absolute;left:338px;top:0;width:64px;height:100%;background:var(--navy);mix-blend-mode:multiply}
+#edge .shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(12,43,63,0) 0,rgba(12,43,63,.10) 100%)}
+#sheet{position:absolute;left:0;width:830px;overflow:hidden;background:#FAFCFD}
+#sheet .tex{position:absolute;inset:0;background:url("assets/generated/sheet-texture.jpg") 50% 50%/120% auto no-repeat}
+#sheet .tex::after{content:"";position:absolute;inset:0;background:rgba(255,255,255,.5)}
+#sheet .band{position:absolute;left:338px;top:0;width:64px;height:100%;background:var(--navy);z-index:3}
+#print{position:absolute;left:0;top:0;width:830px;height:700px;z-index:2}
+.folio{position:absolute;left:40px;top:30px;font-weight:600;font-size:28px;line-height:1;letter-spacing:-.01em;font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+.slug{position:absolute;left:112px;top:38px;font-weight:500;font-size:12px;line-height:1;letter-spacing:.06em;color:var(--muted);white-space:nowrap;text-transform:uppercase}
+.proof{position:absolute;left:40px;top:102px;width:610px;height:540px;background:#E7F3F9}
+.crop{position:absolute;width:22px;height:22px;border:0 solid var(--muted)}
+.crop.tl{left:6px;top:68px;border-right-width:1px;border-bottom-width:1px}
+.crop.tr{left:662px;top:68px;border-left-width:1px;border-bottom-width:1px}
+#frame{position:absolute;left:28px;top:28px;background:#FFFFFF;border:1px solid var(--mist);overflow:hidden}
+#frame .kite{position:absolute;left:24px;top:22px;font-weight:700;font-size:22px;line-height:1;letter-spacing:.04em}
+#frame .b{position:absolute;left:24px;height:22px;background:var(--navy)}
+#frame .b2{background:#8FA3B1}
+#frame .pl{position:absolute;left:24px;height:30px;border-radius:15px;background:var(--navy)}
+
+/* fan */
+.fs{position:absolute;left:310px;top:-30px;width:210px;height:270px;background:#FBFDFE;border:1px solid var(--line);transform-origin:50% 220%;overflow:hidden}
+.fs .pf{position:absolute;left:18px;top:46px;background:#E3F1F8}
+.fs .pf i{position:absolute;left:10px;display:block;background:var(--navy)}
+.fs .bd{position:absolute;left:40%;width:8%;top:0;bottom:0;background:var(--navy)}
+.fs .lb{position:absolute;left:44px;top:17px;font-weight:500;font-size:11px;line-height:1;letter-spacing:.05em;color:var(--muted);white-space:nowrap}
+.fs svg{position:absolute;left:12px;top:9px;overflow:visible}
+
+/* ring */
+#rshadow{position:absolute;left:195px;top:267px;width:350px;height:15px;border-radius:50%;background:rgba(12,43,63,.24);filter:blur(4px);transform-origin:50% 50%}
+#ringwrap{position:absolute;left:180px;top:137px;width:380px}
+#ringwrap img{display:block;width:380px;height:auto}
+
+/* TYPE */
+.type{position:absolute;z-index:10}
+.hl{position:absolute;left:0;top:0;width:100%;font-weight:600;line-height:.96;letter-spacing:-.035em;text-align:start;
+  font-kerning:normal;hyphens:none;overflow-wrap:normal;word-break:normal;text-wrap:balance}
+.hl .ln{display:block;overflow:hidden;padding:.12em 0 .14em;margin:-.12em 0 -.14em;margin-inline-start:-.04em;padding-inline-end:.1em}
+.hl .li{display:inline-block;white-space:nowrap;will-change:transform}
+.hl .flow{display:block;margin-inline-start:-.04em;text-wrap:balance}
+.hl .w{white-space:nowrap}
+#g3{position:absolute;left:0;top:0;width:100%}
+#g3 .hl{position:relative}
+.cta{display:none;align-items:center;border-radius:999px;background:var(--navy);color:var(--white);
+  font-weight:700;letter-spacing:.02em;text-transform:uppercase;white-space:nowrap;width:max-content;line-height:1}
+.cta.on{display:flex}
+.cta .ci{display:flex;align-items:center}
+.cta svg{flex:none;display:block}
+</style>
+</head>
+<body>
+<div id="stage">
+
+  <div id="hero"><div id="drift">
+    <div id="ground"></div>
+    <div id="edge"><div class="estripe"></div><div class="shade"></div></div>
+    <div id="sheet">
+      <div class="tex"></div>
+      <div id="print">
+        <div class="crop tl"></div><div class="crop tr"></div>
+        <div class="folio" id="folio">001</div>
+        <div class="slug" id="slug"></div>
+        <div class="proof"><div id="frame"><div class="kite">KITE</div><div class="b b1"></div><div class="b b2"></div><div class="pl"></div></div></div>
+      </div>
+      <div class="band"></div>
+    </div>
+    <div id="fan"></div>
+    <div id="rshadow"></div>
+    <div id="ringwrap"><img src="assets/Toggle_Concepts_Brand_Pack/logo/png/toggle-ring-gloss.png" alt=""></div>
+  </div></div>
+
+  <img class="logo" id="wm" src="assets/Toggle_Concepts_Brand_Pack/logo/toggle-wordmark-navy.svg" alt="Toggle">
+  <img class="logo" id="lk" src="assets/Toggle_Concepts_Brand_Pack/logo/toggle-concepts-lockup-navy.svg" alt="Toggle Concepts">
+
+  <div class="type" id="type">
+    <div class="hl" id="hl-s1"></div>
+    <div class="hl" id="hl-s2"></div>
+    <div id="g3">
+      <div class="hl" id="hl-s3"></div>
+      <div class="cta" id="cta"><span class="ci" id="ci"><span id="ctaT"></span><svg id="arrow" viewBox="0 0 30 22" aria-hidden="true"><path d="M1 11h27M17 1l11 10-11 10" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span></div>
+    </div>
+  </div>
+</div>
+
+<script>(function controllerV2() {
+  const F = window.FORMA, isStatic = F.stage === 'preview' || F.kind === 'poster';
+  if (isStatic) {
+    const send = () => {
+      try {
+        parent.postMessage({type:'forma:time', t:0, duration:0, playing:false, timeline:false, static:true, format:F.format, lang:F.lang, scene:F.scene}, '*');
+      } catch {}
+    };
+    const draw = () => { try { window.renderFrame?.(0); } catch (e) { console.error(e); } send(); };
+    addEventListener('message', e => {
+      if (e.source !== parent || !e.data) return;
+      if (e.data.type === 'forma:hello') send();
+    });
+    const loaded = document.readyState === 'complete' ? Promise.resolve() : new Promise(r => addEventListener('load', r, {once:true}));
+    Promise.all([loaded, document.fonts.ready])
+      .then(async () => { for (const fn of F._setups) await fn(); })
+      .catch(e => console.error(e))
+      .then(() => { F.playing = false; draw(); });
+    return;
+  }
+
+  const D = F.length, params = new URLSearchParams(location.search);
+  let t = Math.max(0, Math.min(D, Number(params.get('t')) || 0)), playing = !params.has('paused'), last = null, started = false;
+  const send = () => {
+    try {
+      parent.postMessage({type:'forma:time', t, duration:D, playing, timeline:typeof window.renderFrame === 'function', format:F.format, lang:F.lang, length:D}, '*');
+    } catch {}
+  };
+  const draw = () => { try { window.renderFrame?.(t); } catch (e) { console.error(e); } send(); };
+  function tick(now) {
+    if (!playing) return;
+    if (last !== null) t = Math.min(D, t + (now - last) / 1000);
+    last = now;
+    draw();
+    if (t >= D) { playing = F.playing = false; send(); return; }
+    requestAnimationFrame(tick);
+  }
+  function play() { if (!started) return; if (t >= D) t = 0; playing = F.playing = true; last = null; requestAnimationFrame(tick); }
+  function pause() { playing = F.playing = false; draw(); }
+  addEventListener('message', e => {
+    if (e.source !== parent || !e.data) return;
+    const m = e.data;
+    if (m.type === 'forma:play') play();
+    if (m.type === 'forma:pause') pause();
+    if (m.type === 'forma:seek') { t = Math.max(0, Math.min(D, Number(m.t) || 0)); if (!playing) draw(); }
+    if (m.type === 'forma:hello') send();
+  });
+  const loaded = document.readyState === 'complete' ? Promise.resolve() : new Promise(r => addEventListener('load', r, {once:true}));
+  Promise.all([loaded, document.fonts.ready])
+    .then(async () => { for (const fn of F._setups) await fn(); })
+    .catch(e => console.error(e))
+    .then(() => { started = true; F.playing = playing; draw(); if (playing) play(); });
+})()</script></body></html>

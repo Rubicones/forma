@@ -1,0 +1,213 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Forma Final Fixture</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background: #1c2d22;
+    color: #f5f5f0;
+    font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  .stage-wrap {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    padding: var(--safe-top, 48px) var(--safe-right, 48px) var(--safe-bottom, 48px) var(--safe-left, 48px);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  html[data-orientation="landscape"] .stage-wrap {
+    flex-direction: row;
+    align-items: center;
+    gap: calc(var(--s, 10px) * 4);
+  }
+  .header-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .logo {
+    background: #dfff88;
+    color: #1c2d22;
+    font-weight: 800;
+    padding: 0.35em 0.8em;
+    border-radius: 999px;
+    font-size: calc(var(--s, 10px) * 2.4);
+  }
+  .scenes-layer {
+    position: relative;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: calc(var(--s, 10px) * 2);
+  }
+  .scene-card {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--s, 10px) * 1.5);
+  }
+  .line-item {
+    width: 100%;
+    height: calc(var(--s, 10px) * 10);
+    display: flex;
+    align-items: center;
+    font-weight: 800;
+    line-height: 0.98;
+    text-wrap: balance;
+  }
+  .hero-dial {
+    width: calc(var(--s, 10px) * 34);
+    height: calc(var(--s, 10px) * 22);
+    border-radius: calc(var(--s, 10px) * 2.4);
+    background: #25362a;
+    border: 2px solid #dfff88;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    align-self: flex-start;
+  }
+  .hero-bar {
+    width: 70%;
+    height: calc(var(--s, 10px) * 2.5);
+    border-radius: 999px;
+    background: #dfff88;
+    transform-origin: 50% 50%;
+  }
+  .cta-button {
+    align-self: flex-start;
+    background: #dfff88;
+    color: #1c2d22;
+    font-weight: 800;
+    padding: 0.65em 1.3em;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+  <div class="stage-wrap">
+    <div class="header-bar">
+      <div class="logo">FORMA</div>
+    </div>
+    <div class="scenes-layer" id="scenesLayer"></div>
+    <div class="hero-dial" id="heroDial"><div class="hero-bar" id="heroBar"></div></div>
+    <div class="cta-button" id="ctaBtn" hidden></div>
+  </div>
+  <script>
+    window.FORMA.setup(() => {
+      const F = window.FORMA;
+      const layer = document.getElementById('scenesLayer');
+      const heroBar = document.getElementById('heroBar');
+      const ctaBtn = document.getElementById('ctaBtn');
+      layer.replaceChildren();
+
+      const hookEls = [];
+      const subEls = [];
+      const sceneMap = {};
+
+      const activeScenes = F.kind === 'multi' && F.cut
+        ? F.cut.scenes
+        : F.scenes.map(s => ({id: s.id, start: 0, end: F.length || 0, lines: s.lines}));
+
+      for (const win of activeScenes) {
+        const card = document.createElement('div');
+        card.className = 'scene-card';
+        card.dataset.sceneId = win.id;
+        const lineNodes = [];
+        for (const lk of win.lines) {
+          if (!(lk in F.copy)) continue;
+          const role = F.lines[lk]?.role || 'sub';
+          if (role === 'cta') {
+            ctaBtn.textContent = F.copy[lk];
+            ctaBtn.hidden = false;
+          }
+          const el = document.createElement('div');
+          el.className = 'line-item role-' + role;
+          el.dataset.lineKey = lk;
+          el.textContent = F.copy[lk];
+          card.appendChild(el);
+          lineNodes.push(el);
+          if (role === 'hook') hookEls.push(el);
+          else subEls.push(el);
+        }
+        layer.appendChild(card);
+        sceneMap[win.id] = {card, win, lineNodes};
+      }
+
+      if (hookEls.length) F.fitGroup(hookEls, {max: F.short * 0.085, min: F.short * 0.032});
+      if (subEls.length) F.fitGroup(subEls, {max: F.short * 0.052, min: F.short * 0.024});
+
+      if (F.kind === 'poster') {
+        window.__formaState = {kind: 'poster', static: true, visibleLines: Object.keys(F.copy)};
+        window.renderFrame = function () { return window.__formaState; };
+        return;
+      }
+
+      if (F.kind === 'single') {
+        const period = F.loop?.period || 3;
+        const dirSign = F.dir === 'rtl' ? -1 : 1;
+        window.renderFrame = function (t) {
+          const localT = ((t % period) + period) % period;
+          const phase = (localT / period) * Math.PI * 2;
+          // Whole-cycle sine oscillation: value at localT === 0 and localT === period are identical (0)
+          const rawSin = Math.abs(phase) < 1e-9 || Math.abs(phase - Math.PI * 2) < 1e-9 ? 0 : Math.sin(phase);
+          const rawCos = Math.abs(phase) < 1e-9 || Math.abs(phase - Math.PI * 2) < 1e-9 ? 1 : Math.cos(phase);
+          const shiftX = Number((rawSin * 16 * dirSign).toFixed(4));
+          const scaleX = Number((0.75 + 0.25 * rawCos).toFixed(4));
+          const transform = `translateX(${shiftX}px) scaleX(${scaleX})`;
+          if (heroBar) heroBar.style.transform = transform;
+          window.__formaState = {kind: 'single', localT, period, shiftX, scaleX, transform};
+          return window.__formaState;
+        };
+        window.renderFrame(0);
+        return;
+      }
+
+      // Multi-scene cut-driven timeline
+      const cutScenes = F.cut ? F.cut.scenes : [];
+      window.renderFrame = function (t) {
+        const time = Math.max(0, Math.min(F.length, Number(t) || 0));
+        let activeWin = cutScenes.find((w, idx) =>
+          time >= w.start && (time < w.end || (idx === cutScenes.length - 1 && time <= w.end))
+        ) || cutScenes[0] || null;
+
+        const visibleScenes = [];
+        const visibleLines = [];
+        for (const [id, info] of Object.entries(sceneMap)) {
+          const isCurrent = activeWin && activeWin.id === id;
+          info.card.style.display = isCurrent ? 'flex' : 'none';
+          if (isCurrent) {
+            visibleScenes.push(id);
+            const dur = Math.max(0.25, Math.min(0.6, (info.win.end - info.win.start) * 0.35));
+            const local = Math.max(0, time - info.win.start);
+            const progress = Math.min(1, local / dur);
+            const yPct = Number(((1 - progress) * 100).toFixed(2));
+            for (const ln of info.lineNodes) {
+              ln.style.transform = `translateY(${yPct}%)`;
+              visibleLines.push(ln.dataset.lineKey);
+            }
+          }
+        }
+        window.__formaState = {
+          kind: 'multi',
+          t: time,
+          length: F.length,
+          activeScene: activeWin ? activeWin.id : null,
+          visibleScenes,
+          visibleLines,
+          cutScenes: cutScenes.map(w => w.id),
+        };
+        return window.__formaState;
+      };
+      window.renderFrame(0);
+    });
+  </script>
+</body>
+</html>

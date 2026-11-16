@@ -1,0 +1,160 @@
+{
+ "id": "b05b8608-47c1-4ee3-b112-b792eb284fb8",
+ "createdAt": "2026-11-16T01:01:08.374Z",
+ "status": "ok",
+ "log": [
+  {
+   "i": 0,
+   "at": 301,
+   "level": "step",
+   "msg": "Шаг 2 · Сборка превью (1x1, ru) · codex"
+  },
+  {
+   "i": 1,
+   "at": 301,
+   "level": "step",
+   "msg": "Запуск Codex CLI · gpt-6-astra · effort high"
+  },
+  {
+   "i": 2,
+   "at": 1815,
+   "level": "step",
+   "msg": "Codex: сессия начата"
+  },
+  {
+   "i": 3,
+   "at": 1864,
+   "level": "info",
+   "msg": "Codex: модель работает"
+  },
+  {
+   "i": 4,
+   "at": 6821,
+   "level": "step",
+   "msg": "Codex ответил · 0.1k симв."
+  },
+  {
+   "i": 5,
+   "at": 8134,
+   "level": "step",
+   "msg": "Codex выполняет: /bin/zsh -lc 'cat sonicdesk/brandbook.md sonicdesk/palette.md sonicdesk/README.md sonicdesk/landing-and-ads.md sonicdesk/source/tokens.json sonicdesk/logos/app…"
+  },
+  {
+   "i": 6,
+   "at": 8134,
+   "level": "warn",
+   "msg": "Команда завершена · код 127",
+   "detail": "zsh:1: command not found: cat"
+  },
+  {
+   "i": 7,
+   "at": 13494,
+   "level": "step",
+   "msg": "Codex выполняет: /bin/zsh -lc '/bin/cat sonicdesk/brandbook.md sonicdesk/palette.md sonicdesk/README.md sonicdesk/landing-and-ads.md sonicdesk/source/tokens.json sonicdesk/logo…"
+  },
+  {
+   "i": 8,
+   "at": 13501,
+   "level": "info",
+   "msg": "Команда завершена · код 0",
+   "detail": "# sonicdesk. — brand book sonicdesk. is a workspace where a band keeps its songs: every take lossless, every version kept, comments on the exact bars. The interface is built like studio gear — black canvas, square corners, hairlines, mono labels, and one lime light that says what is happening now. Everything here mirrors the product's own UI kit (`/uikit`); when a component and a rule disagree, the rule wins. ## Principles 1. **One lime per screen.** `lime` marks the action to take or the state you are in — the play button, the current section, the playhead, the chord sounding now. It never colours data: BPM, keys, file types and counts stay `foreground` or `muted-foreground`. When two things are lime, neither is. 2. **One filled button.** `primary` (lime fill, `primary-foreground` text) …"
+  },
+  {
+   "i": 9,
+   "at": 69308,
+   "level": "step",
+   "msg": "Codex ответил · 0.3k симв."
+  },
+  {
+   "i": 10,
+   "at": 140022,
+   "level": "step",
+   "msg": "Codex ответил · 14.5k симв."
+  },
+  {
+   "i": 11,
+   "at": 140055,
+   "level": "done",
+   "msg": "Codex закончил · токены: вход 123113 (кэш 84224), выход 6105 · по API ≈ $0.778",
+   "cost": {
+    "kind": "llm",
+    "usd": 0.778364,
+    "usage": {
+     "input_tokens": 123113,
+     "cached_input_tokens": 84224,
+     "output_tokens": 6105
+    }
+   }
+  }
+ ],
+ "type": "preview",
+ "campaign": "7daba4bd-03ee-4d9d-aa84-d7dfa3ae41f1",
+ "stage": "preview",
+ "kind": "multi",
+ "project": "42757a02-ee94-47df-9f59-4ab70c132933",
+ "mode": "codex",
+ "model": "gpt-6-astra",
+ "effort": "high",
+ "durationMs": 140614,
+ "input": {
+  "scenarioId": "9cfdc683-2580-4ec9-ba3b-bf6c6f7bcf91",
+  "styleId": "3fa4e7a9-a089-4e04-a1c1-43988256efb4",
+  "styleIndex": 0,
+  "style": "Контрольная точка\n\nДве версии припева занимают весь монтажный стол, а одна неподвижная отметка заставляет сравнивать ровно один и тот же момент.\n\nМЕДИУМ: строгая интерфейсная графика; герой — увеличенная поверхность A/B-сравнения sonicdesk., уходящая за правую границу. SVG показывает паузу между прослушиваниями в сцене PROOF: обе версии стоят на одинаковой позиции, волны ещё не окрашены воспроизведением.\nСИСТЕМА: фон #070707, текст #e8e8e8, подписи #9e9e9e, линии #242424, единственный промоакцент #dfff00. Внутри продукта — #000000, #0d0d0d, #141414; #907bff используется исключительно для стороны B. Квадратные панели, реальные линии 1–2 px, закругления только у waveform pills. Интерфейс собрать в HTML/CSS по брендбуку и компонентам ui-01; старое название Trackbase из референсов не переносить. A/B и позиции — демонстрационные данные, не дополнительные обещания.\nМАРКИ: в SVG непосредственно включена геометрия supplied app-icon.svg без изменений. Иконка всегда слева сверху; вокруг неё оставить 40 px свободного пространства — рабочее правило кампании, поскольку числовая охранная зона в брендбуке отсутствует. В финальной сцене строку бренда представить supplied wordmark.svg, а не набранным текстом; геометрию не менять.\nТИПОГРАФИКА: Archivo 800, 112 px, интерлиньяж 108 px, трекинг −3%; CTA Archivo 700, 64 px; служебные отметки JetBrains Mono 400, 24 px. Регистр и пунктуация утверждённого текста сохраняются. Поставленные файлы обозначены latin: кириллическое покрытие не подтверждено; в SVG явно задан Arial как резервный шрифт для RU, финальный кириллический комплект требует проверки до рендера. EN использует supplied Archivo.\nКОМПОЗИЦИЯ: 1:1 — поля 64 px, заголовок над двумя широкими дорожками; левый столбец A/B фиксирован, правая часть таймлайна обрезана. 4:5 — увеличить высоту дорожек и воздух над ними. 9:16 — сохранить две дорожки друг над другом, разместить основной контент между y=240 и y=1580. 16:9 — текст в левых пяти колонках, таймлайн в правых семи; продукт обрезан справа. Во всех форматах одна сетка 40 px с внутренними делениями 16 px.\nСЦЕНЫ: s1 — «Какой припев?» возникает целиком; в 12-секундной версии ««Мой лучше». «Нет, мой».» появляется двумя последовательными репликами на общей базовой линии. Два прямоугольных поля спорят встречным горизонтальным движением и защёлкиваются в строки сравнения. s2 — «Обе версии. Такт за тактом.»; сначала звучит короткий участок A, затем тот же участок B с возвратом к той же позиции. Волны неподвижны, меняются положение курсора и контур выбранной стороны; без автоматического выбора победителя. Акцентный приём — один лаймовый элемент: в данном ключевом кадре это supplied иконка; сравнение читается нейтральным курсором и контуром. s3 — таймлайн сжимается по вертикали, освобождая место для wordmark.svg и «Сравни версии»; лаймовый акцент сохраняется в иконке, CTA — крупный текст на нейтральной прямоугольной плашке. Последняя секунда полностью неподвижна.\nМОНТАЖ: 12 с — s1 0–4, s2 4–7.5, s3 7.5–12; 8 с — s1 0–1.6 без реплик, s2 1.6–4.5, s3 4.5–8; 4 с — вопрос 0–1.3, прямое защёлкивание в CTA 1.3–4, без proof и отдельной строки бренда. Постоянная иконка остаётся. Движение на внутренних музыкальных долях, easing cubic-bezier(0.16,1,0.3,1), без изменения утверждённых границ сцен. Английская версия использует строго Which chorus? / “Mine’s better.” “No, mine.” / Both versions. Bar for bar. / sonicdesk. / Compare versions, с теми же сокращениями. Звук демонстрирует различие записанных версий при сопоставимой громкости; никаких оценочных сигналов победы. Reduced motion — жёсткие смены состояний.",
+  "referenceSvg": "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1080 1080'><rect width='1080' height='1080' fill='#070707'/><svg x='64' y='56' width='80' height='80' viewBox='0 0 100 100' fill='none'><rect width='100' height='100' fill='#0D0D0D'/><rect x='22' y='37' width='57' height='26' rx='12' fill='#DFFF00'/></svg><path d='M64 168H1016' stroke='#242424'/><text fill='#e8e8e8' font-family='Archivo,Arial,sans-serif' font-size='112' font-weight='800' letter-spacing='-3.4'><tspan x='64' y='280'>Обе версии.</tspan><tspan x='64' y='388'>Такт за тактом.</tspan></text><rect x='64' y='468' width='1110' height='498' fill='#000000' stroke='#242424' stroke-width='2'/><rect x='64' y='468' width='168' height='498' fill='#0d0d0d'/><path d='M64 540H1080M64 750H1080M232 468V966M466 540V966M700 540V966M934 540V966' fill='none' stroke='#242424' stroke-width='2'/><g font-family='JetBrains Mono,monospace' font-size='24' fill='#9e9e9e'><text x='96' y='514'>A/B</text><text x='260' y='514'>41</text><text x='483' y='514'>42</text><text x='717' y='514'>43</text><text x='951' y='514'>44</text></g><g font-family='Archivo,Arial,sans-serif' font-size='96' font-weight='700' fill='#e8e8e8'><text x='110' y='682'>A</text><text x='110' y='891'>B</text></g><g fill='none' stroke='#e8e8e8' stroke-opacity='.25' stroke-width='17' stroke-linecap='round'><path d='M272 626V664M296 605V685M320 585V705M344 617V673M368 633V657M392 596V694M416 570V720M440 603V687M464 625V665M488 611V679M512 593V697M536 624V666M560 636V654M584 612V678M608 583V707M632 600V690M656 630V660M680 621V669M704 594V696M728 606V684M752 630V660M776 617V673M800 582V708M824 600V690M848 624V666M872 632V658M896 610V680M920 590V700M944 604V686M968 628V662M992 615V675M1016 591V699M1040 612V678M1064 631V659'/></g><g fill='none' stroke='#907bff' stroke-opacity='.45' stroke-width='17' stroke-linecap='round'><path d='M272 836V874M296 815V895M320 795V915M344 827V883M368 843V867M392 806V904M416 780V930M440 813V897M464 835V875M488 810V900M512 787V923M536 800V910M560 819V891M584 836V874M608 803V907M632 790V920M656 815V895M680 831V879M704 804V906M728 816V894M752 840V870M776 827V883M800 792V918M824 810V900M848 834V876M872 842V868M896 820V890M920 800V910M944 814V896M968 838V872M992 825V885M1016 801V909M1040 822V888M1064 841V869'/></g><path d='M466 526V950' stroke='#e8e8e8' stroke-width='2'/><path d='M458 526H474L466 538Z' fill='#e8e8e8'/><path d='M88 568H208V728H88Z' fill='none' stroke='#e8e8e8' stroke-opacity='.5' stroke-width='2'/><text x='64' y='1020' font-family='JetBrains Mono,monospace' font-size='24' fill='#9e9e9e'>41.1</text><path d='M172 1011H1016' stroke='#242424'/></svg>",
+  "formats": [
+   "1x1"
+  ],
+  "langs": [
+   "ru"
+  ],
+  "files": [
+   "sonicdesk/.DS_Store",
+   "sonicdesk/README.md",
+   "sonicdesk/brandbook.md",
+   "sonicdesk/landing-and-ads.md",
+   "sonicdesk/palette.md",
+   "sonicdesk/source/tokens.json",
+   "sonicdesk/source/tokens.md",
+   "sonicdesk/references/ui-01.png",
+   "sonicdesk/references/ui-02.png",
+   "sonicdesk/references/ui-03.png",
+   "sonicdesk/references/ui-04.png",
+   "sonicdesk/references/ui-05.png",
+   "sonicdesk/references/ui-06.png",
+   "sonicdesk/references/ui-07.png",
+   "sonicdesk/references/ui-08.png",
+   "sonicdesk/references/ui-09.png",
+   "sonicdesk/references/ui-10.png",
+   "sonicdesk/references/ui-11.png",
+   "sonicdesk/logos/app-icon.svg",
+   "sonicdesk/logos/wordmark.svg",
+   "sonicdesk/fonts/OFL-Archivo.txt",
+   "sonicdesk/fonts/OFL-JetBrainsMono.txt",
+   "sonicdesk/fonts/archivo-latin-400-normal.woff2",
+   "sonicdesk/fonts/archivo-latin-700-normal.woff2",
+   "sonicdesk/fonts/archivo-latin-800-normal.woff2",
+   "sonicdesk/fonts/jetbrains-mono-latin-400-normal.woff2",
+   "sonicdesk/fonts/jetbrains-mono-latin-500-normal.woff2",
+   "sonicdesk/fonts/jetbrains-mono-latin-700-normal.woff2"
+  ]
+ },
+ "output": {
+  "revision": "1b20eddc-3245-49a2-86d0-bcef6a592a53",
+  "path": "/p/42757a02-ee94-47df-9f59-4ab70c132933/1b20eddc-3245-49a2-86d0-bcef6a592a53.html",
+  "format": "1x1",
+  "lang": "ru",
+  "scenes": [
+   "s1",
+   "s2",
+   "s3"
+  ]
+ },
+ "cost": {
+  "llm": 0.778364,
+  "image": 0,
+  "video": 0,
+  "total": 0.778364,
+  "unknown": false
+ }
+}

@@ -1,0 +1,1978 @@
+{
+ "schema": "ad/engine-config@1",
+ "meta": {
+  "scenario_id": "SL01",
+  "brand": "KITE",
+  "title": "Get paid for buying milk",
+  "version": 1,
+  "kit_version": 1,
+  "platforms_version": 1,
+  "made_by": "fixture",
+  "notes": "KITE rebuilt by hand in the new frame model from the reference config (M1 fixture)."
+ },
+ "render": {
+  "fps": 24,
+  "keyframe_s": 2
+ },
+ "naming": {
+  "template": "{brand}_{scenario}_{hook}_{cta}_{lang}_{format}_{length}s_v{version}",
+  "version": 1
+ },
+ "master_format": "4:5",
+ "formats": [
+  {
+   "id": "4:5",
+   "profile": "feed_4x5",
+   "w": 1080,
+   "h": 1350,
+   "safe": {
+    "top": 0,
+    "right": 0,
+    "bottom": 0,
+    "left": 0
+   },
+   "bitrate_mbps": 8,
+   "token": "4x5"
+  },
+  {
+   "id": "9:16",
+   "profile": "reels_9x16",
+   "w": 1080,
+   "h": 1920,
+   "safe": {
+    "top": 250,
+    "right": 120,
+    "bottom": 440,
+    "left": 64
+   },
+   "bitrate_mbps": 10,
+   "token": "9x16"
+  },
+  {
+   "id": "1:1",
+   "profile": "feed_1x1",
+   "w": 1080,
+   "h": 1080,
+   "safe": {
+    "top": 0,
+    "right": 0,
+    "bottom": 0,
+    "left": 0
+   },
+   "bitrate_mbps": 7,
+   "token": "1x1"
+  },
+  {
+   "id": "16:9",
+   "profile": "youtube_16x9",
+   "w": 1920,
+   "h": 1080,
+   "safe": {
+    "top": 0,
+    "right": 0,
+    "bottom": 0,
+    "left": 0
+   },
+   "bitrate_mbps": 10,
+   "token": "16x9"
+  }
+ ],
+ "variant_sets": {
+  "hooks": [
+   "H1",
+   "H2",
+   "H3"
+  ],
+  "ctas": [
+   "C1",
+   "C2",
+   "C3"
+  ],
+  "languages": [
+   "EN",
+   "DE",
+   "ES",
+   "FR"
+  ],
+  "formats": [
+   "4:5",
+   "9:16",
+   "1:1",
+   "16:9"
+  ],
+  "lengths": [
+   "6",
+   "12",
+   "15"
+  ]
+ },
+ "kit": {
+  "schema": "ad/kit@1",
+  "brand": "KITE",
+  "version": 1,
+  "colors": {
+   "field": {
+    "hex": "#FF5A1F",
+    "roles": [
+     "field",
+     "object",
+     "treatment text"
+    ]
+   },
+   "ink": {
+    "hex": "#F7EED3",
+    "roles": [
+     "text",
+     "treatment fill",
+     "logo"
+    ]
+   },
+   "black": {
+    "hex": "#000000",
+    "roles": [
+     "badge"
+    ]
+   },
+   "white": {
+    "hex": "#FFFFFF",
+    "roles": [
+     "badge text"
+    ]
+   }
+  },
+  "sketch_palette": [
+   "field",
+   "ink"
+  ],
+  "object_palette": [
+   "field"
+  ],
+  "fonts": {
+   "brand": {
+    "family": "Schibsted Grotesk",
+    "fallback": "Arial, sans-serif",
+    "measure": "fonts/SchibstedGrotesk.ttf",
+    "files": [
+     {
+      "weight": [
+       400,
+       900
+      ],
+      "file": "fonts/SchibstedGrotesk.ttf"
+     }
+    ],
+    "coverage": [
+     "EN",
+     "DE",
+     "ES",
+     "FR"
+    ]
+   }
+  },
+  "logos": {
+   "wordmark": {
+    "file": "logos/wordmark.svg",
+    "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 253.66 70.31\"><path fill=\"currentColor\" d=\"M0 70.31L0 0L20.02 0L20.02 25.73L44.73 0L68.56 0L43.31 25.93L71.39 70.31L48.73 70.31L29.98 39.21L20.02 49.56L20.02 70.31L0 70.31ZM75.83 70.31L75.83 53.46L85.89 53.46L85.89 16.84L75.83 16.84L75.83 0L115.97 0L115.97 16.84L105.91 16.84L105.91 53.46L115.97 53.46L115.97 70.31L75.83 70.31ZM147.95 70.31L147.95 17.09L123.34 17.09L123.34 0L192.68 0L192.68 17.09L167.97 17.09L167.97 70.31L147.95 70.31ZM200.78 70.31L200.78 0L252.98 0L252.98 17.09L220.8 17.09L220.8 25.63L247.32 25.63L247.32 41.75L220.8 41.75L220.8 53.22L253.67 53.22L253.67 70.31L200.78 70.31Z\"/></svg>"
+   }
+  },
+  "logo_rules": {
+   "default": "wordmark",
+   "width_u": [
+    22,
+    26
+   ],
+   "end_width_u": 47.2,
+   "colors": [
+    "ink"
+   ],
+   "never": [
+    "outline",
+    "stretch",
+    "recolour outside the list"
+   ],
+   "clear_space_u": 3
+  },
+  "styles": {
+   "headline": {
+    "font": "brand",
+    "size": 83,
+    "weight": 800,
+    "pitch": 1.14,
+    "line_box": 1.08,
+    "baseline": 0.8,
+    "tracking": 0,
+    "case": "none",
+    "treatment": "plaque"
+   },
+   "answer": {
+    "font": "brand",
+    "size": 83,
+    "weight": 800,
+    "pitch": 1.14,
+    "line_box": 1.08,
+    "baseline": 0.8,
+    "tracking": 0,
+    "case": "none",
+    "treatment": "plain"
+   },
+   "list": {
+    "font": "brand",
+    "size": 64,
+    "weight": 800,
+    "pitch": 1.25,
+    "line_box": 1.08,
+    "baseline": 0.8,
+    "tracking": 0,
+    "case": "none",
+    "treatment": "plaque"
+   },
+   "end_sub": {
+    "font": "brand",
+    "size": 71,
+    "weight": 700,
+    "pitch": 1.25,
+    "line_box": 1.08,
+    "baseline": 0.8,
+    "tracking": 0,
+    "case": "none",
+    "treatment": "plain"
+   },
+   "cta": {
+    "font": "brand",
+    "size": 64,
+    "weight": 800,
+    "pitch": 1.14,
+    "line_box": 1.08,
+    "baseline": 0.8,
+    "tracking": 0,
+    "case": "upper",
+    "treatment": "plaque"
+   },
+   "badge": {
+    "font": "brand",
+    "size": 30,
+    "weight": 700,
+    "pitch": 1.1,
+    "tracking": 0,
+    "case": "none",
+    "treatment": "plain"
+   }
+  },
+  "treatments": {
+   "plain": {
+    "kind": "plain"
+   },
+   "plaque": {
+    "kind": "plaque",
+    "pad": [
+     0,
+     0.15,
+     0,
+     0.03
+    ],
+    "height": 1.08,
+    "fill": "ink",
+    "on": "field"
+   }
+  },
+  "marks": {
+   "tab": {
+    "kind": "tongue",
+    "size_u": [
+     44.4,
+     4.4
+    ],
+    "fills": [
+     "field"
+    ],
+    "radius_u": 1.48,
+    "placement": "on the media panel edge, poking into the panel"
+   },
+   "badge_ios": {
+    "kind": "shape",
+    "shape": {
+     "view_box": [
+      277,
+      89
+     ],
+     "paths": [
+      {
+       "d": "M14 0H263A14 14 0 0 1 277 14V75A14 14 0 0 1 263 89H14A14 14 0 0 1 0 75V14A14 14 0 0 1 14 0Z",
+       "fill": "currentColor"
+      }
+     ]
+    },
+    "size_u": [
+     25.6,
+     8.2
+    ],
+    "fills": [
+     "black"
+    ],
+    "text": {
+     "fixed": "App Store",
+     "style": "badge",
+     "color": "white",
+     "box": [
+      0.08,
+      0.15,
+      0.92,
+      0.85
+     ]
+    },
+    "placement": "end frame, under the CTA"
+   },
+   "badge_android": {
+    "kind": "shape",
+    "shape": {
+     "view_box": [
+      277,
+      89
+     ],
+     "paths": [
+      {
+       "d": "M14 0H263A14 14 0 0 1 277 14V75A14 14 0 0 1 263 89H14A14 14 0 0 1 0 75V14A14 14 0 0 1 14 0Z",
+       "fill": "currentColor"
+      }
+     ]
+    },
+    "size_u": [
+     25.6,
+     8.2
+    ],
+    "fills": [
+     "black"
+    ],
+    "text": {
+     "fixed": "Google Play",
+     "style": "badge",
+     "color": "white",
+     "box": [
+      0.08,
+      0.15,
+      0.92,
+      0.85
+     ]
+    },
+    "placement": "end frame, under the CTA"
+   }
+  },
+  "graphics": {},
+  "paints": {
+   "field": {
+    "kind": "flat",
+    "color": "field"
+   }
+  },
+  "ui_kit": {
+   "frame": "#111111",
+   "screen": "#FFFFFF",
+   "text": "#111111",
+   "muted": "#6B6B6B",
+   "accent": "field",
+   "positive": "#1E9E5A",
+   "surface": "#F2F2F2",
+   "line": "#E0E0E0",
+   "field_style": "filled",
+   "radius": 24,
+   "font": "brand"
+  },
+  "layout": {
+   "margin_side_u": 10,
+   "margin_top_u": 6.3,
+   "gap_region_u": 3.5,
+   "min_text_scale": 0.85,
+   "region_floor_u": 25
+  },
+  "contrast": {
+   "flat": 4.5,
+   "media": 3,
+   "exceptions": [
+    [
+     "ink",
+     "field"
+    ],
+    [
+     "field",
+     "ink"
+    ]
+   ]
+  },
+  "motion": {
+   "curves": {
+    "out": [
+     0.55,
+     0,
+     1,
+     0.45
+    ],
+    "in": [
+     0.22,
+     1,
+     0.36,
+     1
+    ]
+   },
+   "allowed": [
+    "fade",
+    "rise",
+    "drop",
+    "move",
+    "pop",
+    "type_on",
+    "clip",
+    "edge",
+    "edge_mark",
+    "draw"
+   ],
+   "forbidden": [
+    "dissolve",
+    "blur",
+    "zoom",
+    "spin",
+    "sway",
+    "glitch"
+   ],
+   "never": [
+    "corner logo",
+    "plaques after they appear",
+    "store badges after they settle"
+   ],
+   "character": "Straight wipes and a hard text swap; nothing floats."
+  },
+  "markets": {
+   "EN": {
+    "locale": "en-GB",
+    "currency": "EUR"
+   },
+   "DE": {
+    "locale": "de-DE",
+    "currency": "EUR"
+   },
+   "ES": {
+    "locale": "es-ES",
+    "currency": "EUR"
+   },
+   "FR": {
+    "locale": "fr-FR",
+    "currency": "EUR"
+   }
+  },
+  "reading": {
+   "per_word_s": 0.25,
+   "base_s": 0.5
+  },
+  "object_lock": {
+   "card": "The KITE card: a matte orange (#FF5A1F, saturated, not salmon) payment card with rounded corners, vertical design. A light-gold chip in the upper third, centred; a small contactless icon to the right of the chip; a large cream KITE wordmark along the bottom short edge. No card network logo, no numbers, no name."
+  },
+  "object_check": {
+   "card": {
+    "hue_deg": [
+     12,
+     22
+    ],
+    "saturation_min": 0.55
+   }
+  },
+  "look": {
+   "still": "Documentary everyday scenes, natural soft warm light, shallow depth of field, hand-held feel.",
+   "live_video": "Natural footage, locked-off or gently breathing camera, 24 fps."
+  },
+  "voice": {
+   "tone": "plain, friendly, direct",
+   "say": [
+    "get paid",
+    "back"
+   ],
+   "never": [
+    "free money",
+    "guaranteed"
+   ]
+  },
+  "legal": {
+   "claims": [
+    "5% back on groceries, transport and coffee"
+   ],
+   "mandatory": []
+  },
+  "sketch_reading": {
+   "snap_u": 0.5,
+   "question_u": 2,
+   "ai": {
+    "snap_u": 1.5,
+    "question_u": 4,
+    "color_tolerance": 28
+   }
+  }
+ },
+ "copy": {
+  "hook.headline": {
+   "H1": {
+    "EN": [
+     "Get paid",
+     "for buying milk"
+    ],
+    "DE": [
+     "Geld zurück",
+     "für jede Milch"
+    ],
+    "ES": [
+     "Cobra por",
+     "comprar leche"
+    ],
+    "FR": [
+     "Payé pour",
+     "acheter du lait"
+    ]
+   },
+   "H2": {
+    "EN": [
+     "Breakfast that",
+     "pays you back"
+    ],
+    "DE": [
+     "Frühstück, das",
+     "dich bezahlt"
+    ],
+    "ES": [
+     "Un desayuno",
+     "que te paga"
+    ],
+    "FR": [
+     "Le petit-déj",
+     "qui te paie"
+    ]
+   },
+   "H3": {
+    "EN": [
+     "5% back",
+     "on every shop"
+    ],
+    "DE": [
+     "5 % zurück",
+     "bei jedem Einkauf"
+    ],
+    "ES": [
+     "5 % de vuelta",
+     "en cada compra"
+    ],
+    "FR": [
+     "5 % remboursés",
+     "à chaque course"
+    ]
+   }
+  },
+  "end.cta": {
+   "C1": {
+    "EN": [
+     "GET IT NOW"
+    ],
+    "DE": [
+     "JETZT HOLEN"
+    ],
+    "ES": [
+     "CONSÍGUELA YA"
+    ],
+    "FR": [
+     "OBTIENS-LA"
+    ]
+   },
+   "C2": {
+    "EN": [
+     "GET THE CARD"
+    ],
+    "DE": [
+     "KARTE HOLEN"
+    ],
+    "ES": [
+     "PIDE TU TARJETA"
+    ],
+    "FR": [
+     "PRENDS TA CARTE"
+    ]
+   },
+   "C3": {
+    "EN": [
+     "GET KITE"
+    ],
+    "DE": [
+     "KITE HOLEN"
+    ],
+    "ES": [
+     "CONSIGUE KITE"
+    ],
+    "FR": [
+     "PRENDS KITE"
+    ]
+   }
+  },
+  "problem.headline": {
+   "*": {
+    "EN": [
+     "Your card doesn’t",
+     "pay you on food"
+    ],
+    "DE": [
+     "Deine Karte zahlt",
+     "dir nichts fürs Essen"
+    ],
+    "ES": [
+     "Tu tarjeta no te paga",
+     "por la comida"
+    ],
+    "FR": [
+     "Ta carte ne te paie",
+     "pas tes courses"
+    ]
+   }
+  },
+  "problem.answer": {
+   "*": {
+    "EN": [
+     "KITE does"
+    ],
+    "DE": [
+     "KITE schon"
+    ],
+    "ES": [
+     "KITE sí"
+    ],
+    "FR": [
+     "KITE, si"
+    ]
+   }
+  },
+  "solution.answer": {
+   "*": {
+    "EN": [
+     "KITE pays",
+     "5% back"
+    ],
+    "DE": [
+     "KITE zahlt",
+     "5 % zurück"
+    ],
+    "ES": [
+     "KITE paga",
+     "el 5 %"
+    ],
+    "FR": [
+     "KITE rend",
+     "5 %"
+    ]
+   }
+  },
+  "solution.list": {
+   "*": {
+    "EN": [
+     "Groceries",
+     "Transport",
+     "Coffee"
+    ],
+    "DE": [
+     "Lebensmittel",
+     "Nahverkehr",
+     "Kaffee"
+    ],
+    "ES": [
+     "Súper",
+     "Transporte",
+     "Café"
+    ],
+    "FR": [
+     "Courses",
+     "Transport",
+     "Café"
+    ]
+   }
+  },
+  "end.sub": {
+   "*": {
+    "EN": [
+     "Free card. 3 minutes",
+     "no fee · no minimum"
+    ],
+    "DE": [
+     "Gratis-Karte. 3 Minuten",
+     "0 € Gebühr · kein Minimum"
+    ],
+    "ES": [
+     "Tarjeta gratis. 3 minutos",
+     "sin comisión · sin mínimo"
+    ],
+    "FR": [
+     "Carte gratuite. 3 minutes",
+     "sans frais · sans minimum"
+    ]
+   }
+  }
+ },
+ "slot_axis": {
+  "hook.headline": "hook",
+  "end.cta": "cta"
+ },
+ "ui_strings": {},
+ "ui": {},
+ "parts": {
+  "SUPERMARKET": {
+   "id": "SUPERMARKET",
+   "route": "live_video",
+   "status": "approved",
+   "media": "clip",
+   "file": "media/supermarket.mp4",
+   "side": 1400,
+   "fps": 24,
+   "clip_in": 0.6,
+   "usable": [
+    0.6,
+    3.9
+   ],
+   "duration_s": 5,
+   "key_part_box": [
+    0.3,
+    0.3,
+    0.7,
+    0.7
+   ],
+   "standin": {
+    "kind": "sketch_area",
+    "file": "inputs/sketches/P0_hook_supermarket__scene_area.png",
+    "crop": {
+     "x": 0,
+     "y": 0,
+     "w": 1080,
+     "h": 1080
+    }
+   },
+   "what": "supermarket scene"
+  },
+  "TABLE": {
+   "id": "TABLE",
+   "route": "live_video",
+   "status": "approved",
+   "media": "clip",
+   "file": "media/table.mp4",
+   "side": 1400,
+   "fps": 24,
+   "clip_in": 0,
+   "usable": [
+    0,
+    5
+   ],
+   "duration_s": 5,
+   "key_part_box": [
+    0.3,
+    0.3,
+    0.7,
+    0.7
+   ],
+   "standin": {
+    "kind": "procedural",
+    "color": "#9a8f86",
+    "label": "TABLE"
+   },
+   "what": "table scene"
+  },
+  "TRAM": {
+   "id": "TRAM",
+   "route": "live_video",
+   "status": "approved",
+   "media": "clip",
+   "file": "media/tram.mp4",
+   "side": 1400,
+   "fps": 24,
+   "clip_in": 0,
+   "usable": [
+    0,
+    5
+   ],
+   "duration_s": 5,
+   "key_part_box": [
+    0.3,
+    0.3,
+    0.7,
+    0.7
+   ],
+   "standin": {
+    "kind": "sketch_area",
+    "file": "inputs/sketches/P1_problem_tram__scene_area.png",
+    "crop": {
+     "x": 0,
+     "y": 0,
+     "w": 1080,
+     "h": 1080
+    }
+   },
+   "what": "tram scene"
+  },
+  "CAFE": {
+   "id": "CAFE",
+   "route": "live_video",
+   "status": "approved",
+   "media": "clip",
+   "file": "media/cafe.mp4",
+   "side": 1400,
+   "fps": 24,
+   "clip_in": 0.3,
+   "usable": [
+    0.3,
+    4.1
+   ],
+   "duration_s": 5,
+   "key_part_box": [
+    0.3,
+    0.3,
+    0.7,
+    0.7
+   ],
+   "standin": {
+    "kind": "sketch_area",
+    "file": "inputs/sketches/P2_solution_cafe__scene_area.png",
+    "crop": {
+     "x": 0,
+     "y": 0,
+     "w": 1080,
+     "h": 1080
+    }
+   },
+   "what": "cafe scene"
+  }
+ },
+ "lengths": {
+  "6": [
+   {
+    "beat": "hook",
+    "dur": 3
+   },
+   {
+    "beat": "end",
+    "dur": 3
+   }
+  ],
+  "12": [
+   {
+    "beat": "hook",
+    "dur": 2.9
+   },
+   {
+    "beat": "problem",
+    "dur": 3.2
+   },
+   {
+    "beat": "solution",
+    "dur": 3.1
+   },
+   {
+    "beat": "end",
+    "dur": 2.8
+   }
+  ],
+  "15": [
+   {
+    "beat": "hook",
+    "dur": 3.3
+   },
+   {
+    "beat": "problem",
+    "dur": 4.2
+   },
+   {
+    "beat": "solution",
+    "dur": 3.8
+   },
+   {
+    "beat": "end",
+    "dur": 3.7
+   }
+  ]
+ },
+ "beats": [
+  {
+   "id": "hook",
+   "role": "hook",
+   "sketch": "inputs/sketches/P0_hook_supermarket.png",
+   "regions": [
+    {
+     "id": "field",
+     "area": {
+      "kind": "full"
+     },
+     "paint": "field"
+    },
+    {
+     "id": "panel",
+     "area": {
+      "kind": "edge",
+      "per": {
+       "4:5": {
+        "side": "bottom",
+        "depth": 810
+       },
+       "9:16": {
+        "side": "bottom",
+        "depth": 1160
+       },
+       "1:1": {
+        "side": "bottom",
+        "depth": 648
+       },
+       "16:9": {
+        "side": "right",
+        "depth": 1114
+       }
+      }
+     },
+     "paint": {
+      "kind": "media",
+      "part": "SUPERMARKET",
+      "part_by_hook": {
+       "H1": "SUPERMARKET",
+       "H2": "TABLE",
+       "H3": "SUPERMARKET"
+      }
+     },
+     "edge_mark": {
+      "mark": "tab",
+      "fill": "field",
+      "per": {
+       "4:5": {
+        "at": 547,
+        "length": 480,
+        "depth": 48,
+        "radius": 16
+       },
+       "9:16": {
+        "at": 547,
+        "length": 413,
+        "depth": 48,
+        "radius": 16
+       },
+       "1:1": {
+        "at": 547,
+        "length": 480,
+        "depth": 48,
+        "radius": 16
+       },
+       "16:9": {
+        "at": 547,
+        "length": 480,
+        "depth": 48,
+        "radius": 16
+       }
+      }
+     }
+    }
+   ],
+   "layers": [
+    {
+     "id": "hook.headline",
+     "kind": "text",
+     "slot": "hook.headline",
+     "style": "headline",
+     "color": "ink",
+     "behaviour": "flow",
+     "route": "text",
+     "per": {
+      "4:5": {
+       "box": {
+        "x": 108,
+        "y": 317.7,
+        "w": 864,
+        "h": 184.3
+       },
+       "align": "left",
+       "v_anchor": "bottom"
+      },
+      "9:16": {
+       "box": {
+        "x": 108,
+        "y": 537.7,
+        "w": 852,
+        "h": 184.3
+       },
+       "align": "left",
+       "v_anchor": "bottom"
+      },
+      "1:1": {
+       "box": {
+        "x": 108,
+        "y": 209.7,
+        "w": 864,
+        "h": 184.3
+       },
+       "align": "left",
+       "v_anchor": "bottom"
+      },
+      "16:9": {
+       "box": {
+        "x": 108,
+        "y": 454,
+        "w": 660,
+        "h": 184.3
+       },
+       "align": "left",
+       "v_anchor": "top"
+      }
+     }
+    },
+    {
+     "id": "logo",
+     "kind": "logo",
+     "logo": "wordmark",
+     "color": "ink",
+     "route": "logo",
+     "behaviour": "fixed",
+     "per": {
+      "4:5": {
+       "box": {
+        "x": 119.8,
+        "y": 68,
+        "w": 254,
+        "h": 67.9
+       },
+       "v_anchor": "top"
+      },
+      "9:16": {
+       "box": {
+        "x": 119.8,
+        "y": 280,
+        "w": 254,
+        "h": 67.9
+       },
+       "v_anchor": "top"
+      },
+      "1:1": {
+       "box": {
+        "x": 119.8,
+        "y": 68,
+        "w": 254,
+        "h": 67.9
+       },
+       "v_anchor": "top"
+      },
+      "16:9": {
+       "box": {
+        "x": 119.8,
+        "y": 68,
+        "w": 254,
+        "h": 67.9
+       },
+       "v_anchor": "top"
+      }
+     }
+    }
+   ],
+   "groups": [],
+   "cues": [
+    {
+     "type": "edge",
+     "region": "panel",
+     "from": "rest",
+     "to": "out",
+     "t": "end-0.16",
+     "dur": 0.16,
+     "curve": "out"
+    },
+    {
+     "type": "edge_mark",
+     "region": "panel",
+     "hide": "end-0.16"
+    }
+   ],
+   "never": [
+    "logo"
+   ]
+  },
+  {
+   "id": "problem",
+   "role": "problem",
+   "sketch": "inputs/sketches/P1_problem_tram.png",
+   "regions": [
+    {
+     "id": "field",
+     "area": {
+      "kind": "full"
+     },
+     "paint": "field"
+    },
+    {
+     "id": "panel",
+     "area": {
+      "kind": "edge",
+      "per": {
+       "4:5": {
+        "side": "top",
+        "depth": 826
+       },
+       "9:16": {
+        "side": "bottom",
+        "depth": 1030
+       },
+       "1:1": {
+        "side": "top",
+        "depth": 556
+       },
+       "16:9": {
+        "side": "left",
+        "depth": 998
+       }
+      }
+     },
+     "paint": {
+      "kind": "media",
+      "part": "TRAM"
+     },
+     "edge_mark": {
+      "mark": "tab",
+      "fill": "field",
+      "per": {
+       "4:5": {
+        "at": 30,
+        "length": 478,
+        "depth": 54,
+        "radius": 16
+       },
+       "9:16": {
+        "at": 64,
+        "length": 478,
+        "depth": 54,
+        "radius": 16
+       },
+       "1:1": {
+        "at": 30,
+        "length": 478,
+        "depth": 54,
+        "radius": 16
+       },
+       "16:9": {
+        "at": 30,
+        "length": 478,
+        "depth": 54,
+        "radius": 16
+       }
+      }
+     }
+    }
+   ],
+   "layers": [
+    {
+     "id": "problem.headline",
+     "kind": "text",
+     "slot": "problem.headline",
+     "style": "headline",
+     "color": "ink",
+     "behaviour": "flow",
+     "route": "text",
+     "per": {
+      "4:5": {
+       "box": {
+        "x": 108,
+        "y": 864,
+        "w": 864,
+        "h": 184.3
+       },
+       "align": "left",
+       "v_anchor": "top"
+      },
+      "9:16": {
+       "box": {
+        "x": 108,
+        "y": 430,
+        "w": 852,
+        "h": 184.3
+       },
+       "align": "left",
+       "v_anchor": "top"
+      },
+      "1:1": {
+       "box": {
+        "x": 108,
+        "y": 594,
+        "w": 864,
+        "h": 184.3
+       },
+       "align": "left",
+       "v_anchor": "top"
+      },
+      "16:9": {
+       "box": {
+        "x": 1036,
+        "y": 324,
+        "w": 776,
+        "h": 184.3
+       },
+       "align": "left",
+       "v_anchor": "top"
+      }
+     }
+    },
+    {
+     "id": "problem.answer",
+     "kind": "text",
+     "slot": "problem.answer",
+     "style": "answer",
+     "color": "ink",
+     "behaviour": "flow",
+     "route": "text",
+     "per": {
+      "4:5": {
+       "box": {
+        "x": 108,
+        "y": 1180.4,
+        "w": 896,
+        "h": 89.6
+       },
+       "align": "right",
+       "v_anchor": "bottom"
+      },
+      "9:16": {
+       "box": {
+        "x": 108,
+        "y": 762.4,
+        "w": 852,
+        "h": 89.6
+       },
+       "align": "right",
+       "v_anchor": "bottom"
+      },
+      "1:1": {
+       "box": {
+        "x": 108,
+        "y": 910.4,
+        "w": 896,
+        "h": 89.6
+       },
+       "align": "right",
+       "v_anchor": "bottom"
+      },
+      "16:9": {
+       "box": {
+        "x": 1036,
+        "y": 910.4,
+        "w": 808,
+        "h": 89.6
+       },
+       "align": "right",
+       "v_anchor": "bottom"
+      }
+     }
+    },
+    {
+     "id": "logo",
+     "kind": "logo",
+     "logo": "wordmark",
+     "color": "ink",
+     "route": "logo",
+     "behaviour": "fixed",
+     "per": {
+      "4:5": {
+       "box": {
+        "x": 119.8,
+        "y": 68,
+        "w": 254,
+        "h": 67.9
+       },
+       "v_anchor": "top"
+      },
+      "9:16": {
+       "box": {
+        "x": 119.8,
+        "y": 280,
+        "w": 254,
+        "h": 67.9
+       },
+       "v_anchor": "top"
+      },
+      "1:1": {
+       "box": {
+        "x": 119.8,
+        "y": 68,
+        "w": 254,
+        "h": 67.9
+       },
+       "v_anchor": "top"
+      },
+      "16:9": {
+       "box": {
+        "x": 119.8,
+        "y": 68,
+        "w": 254,
+        "h": 67.9
+       },
+       "v_anchor": "top"
+      }
+     }
+    }
+   ],
+   "groups": [],
+   "cues": [
+    {
+     "type": "edge",
+     "region": "panel",
+     "from": "rest",
+     "to": "out",
+     "t": "end-0.16",
+     "dur": 0.16,
+     "curve": "out"
+    },
+    {
+     "type": "edge",
+     "region": "panel",
+     "from": "out",
+     "to": "rest",
+     "t": 0.04,
+     "dur": 0.25,
+     "curve": "in",
+     "ride": [
+      "problem.headline",
+      "problem.answer"
+     ],
+     "formats": [
+      "4:5",
+      "1:1",
+      "16:9"
+     ]
+    },
+    {
+     "type": "edge",
+     "region": "panel",
+     "from": "out",
+     "to": "rest",
+     "t": 0.04,
+     "dur": 0.25,
+     "curve": "in",
+     "formats": [
+      "9:16"
+     ]
+    },
+    {
+     "type": "edge_mark",
+     "region": "panel",
+     "show": 0.34,
+     "hide": "end-0.16"
+    },
+    {
+     "type": "fade",
+     "target": "problem.headline",
+     "t": 0.04,
+     "dur": 0.041666666666666664,
+     "curve": "linear",
+     "formats": [
+      "4:5",
+      "1:1",
+      "16:9"
+     ]
+    },
+    {
+     "type": "fade",
+     "target": "problem.answer",
+     "t": 0.04,
+     "dur": 0.041666666666666664,
+     "curve": "linear",
+     "formats": [
+      "4:5",
+      "1:1",
+      "16:9"
+     ]
+    },
+    {
+     "type": "type_on",
+     "target": "problem.answer",
+     "t": 0.49,
+     "step": 0.125
+    }
+   ],
+   "never": [
+    "logo"
+   ]
+  },
+  {
+   "id": "solution",
+   "role": "solution",
+   "sketch": "inputs/sketches/P2_solution_cafe.png",
+   "regions": [
+    {
+     "id": "field",
+     "area": {
+      "kind": "full"
+     },
+     "paint": "field"
+    },
+    {
+     "id": "panel",
+     "area": {
+      "kind": "edge",
+      "per": {
+       "4:5": {
+        "side": "left",
+        "depth": 575
+       },
+       "9:16": {
+        "side": "bottom",
+        "depth": 1070
+       },
+       "1:1": {
+        "side": "left",
+        "depth": 575
+       },
+       "16:9": {
+        "side": "left",
+        "depth": 1018
+       }
+      }
+     },
+     "paint": {
+      "kind": "media",
+      "part": "CAFE"
+     },
+     "edge_mark": {
+      "mark": "tab",
+      "fill": "field",
+      "per": {
+       "4:5": {
+        "at": 976,
+        "length": 324,
+        "depth": 35,
+        "radius": 16
+       },
+       "9:16": {
+        "at": 636,
+        "length": 324,
+        "depth": 35,
+        "radius": 16
+       },
+       "1:1": {
+        "at": 706,
+        "length": 324,
+        "depth": 35,
+        "radius": 16
+       },
+       "16:9": {
+        "at": 706,
+        "length": 324,
+        "depth": 35,
+        "radius": 16
+       }
+      }
+     }
+    }
+   ],
+   "layers": [
+    {
+     "id": "solution.answer",
+     "kind": "text",
+     "slot": "solution.answer",
+     "style": "answer",
+     "color": "ink",
+     "behaviour": "flow",
+     "route": "text",
+     "per": {
+      "4:5": {
+       "box": {
+        "x": 613,
+        "y": 378,
+        "w": 429,
+        "h": 184.3
+       },
+       "align": "right",
+       "v_anchor": "top"
+      },
+      "9:16": {
+       "box": {
+        "x": 108,
+        "y": 420,
+        "w": 852,
+        "h": 89.6
+       },
+       "align": "left",
+       "v_anchor": "top",
+       "join_lines": true
+      },
+      "1:1": {
+       "box": {
+        "x": 613,
+        "y": 252,
+        "w": 429,
+        "h": 184.3
+       },
+       "align": "right",
+       "v_anchor": "top"
+      },
+      "16:9": {
+       "box": {
+        "x": 1056,
+        "y": 252,
+        "w": 756,
+        "h": 184.3
+       },
+       "align": "left",
+       "v_anchor": "top"
+      }
+     }
+    },
+    {
+     "id": "solution.list",
+     "kind": "text",
+     "slot": "solution.list",
+     "style": "list",
+     "color": "ink",
+     "behaviour": "flow",
+     "route": "text",
+     "per": {
+      "4:5": {
+       "box": {
+        "x": 613,
+        "y": 642,
+        "w": 429,
+        "h": 229.1
+       },
+       "align": "left",
+       "v_anchor": "top"
+      },
+      "9:16": {
+       "box": {
+        "x": 108,
+        "y": 575,
+        "w": 852,
+        "h": 229.1
+       },
+       "align": "left",
+       "v_anchor": "top"
+      },
+      "1:1": {
+       "box": {
+        "x": 613,
+        "y": 516,
+        "w": 429,
+        "h": 229.1
+       },
+       "align": "left",
+       "v_anchor": "top"
+      },
+      "16:9": {
+       "box": {
+        "x": 1056,
+        "y": 516,
+        "w": 756,
+        "h": 229.1
+       },
+       "align": "left",
+       "v_anchor": "top"
+      }
+     }
+    },
+    {
+     "id": "logo",
+     "kind": "logo",
+     "logo": "wordmark",
+     "color": "ink",
+     "route": "logo",
+     "behaviour": "fixed",
+     "per": {
+      "4:5": {
+       "box": {
+        "x": 119.8,
+        "y": 68,
+        "w": 254,
+        "h": 67.9
+       },
+       "v_anchor": "top"
+      },
+      "9:16": {
+       "box": {
+        "x": 119.8,
+        "y": 280,
+        "w": 254,
+        "h": 67.9
+       },
+       "v_anchor": "top"
+      },
+      "1:1": {
+       "box": {
+        "x": 119.8,
+        "y": 68,
+        "w": 254,
+        "h": 67.9
+       },
+       "v_anchor": "top"
+      },
+      "16:9": {
+       "box": {
+        "x": 119.8,
+        "y": 68,
+        "w": 254,
+        "h": 67.9
+       },
+       "v_anchor": "top"
+      }
+     }
+    }
+   ],
+   "groups": [],
+   "cues": [
+    {
+     "type": "edge",
+     "region": "panel",
+     "from": "rest",
+     "to": "out",
+     "t": "end-0.16",
+     "dur": 0.16,
+     "curve": "out"
+    },
+    {
+     "type": "edge",
+     "region": "panel",
+     "from": "out",
+     "to": "rest",
+     "t": 0.04,
+     "dur": 0.25,
+     "curve": "in",
+     "ride": [
+      "solution.answer",
+      "solution.list"
+     ],
+     "formats": [
+      "4:5",
+      "1:1",
+      "16:9"
+     ]
+    },
+    {
+     "type": "edge",
+     "region": "panel",
+     "from": "out",
+     "to": "rest",
+     "t": 0.04,
+     "dur": 0.25,
+     "curve": "in",
+     "formats": [
+      "9:16"
+     ]
+    },
+    {
+     "type": "edge_mark",
+     "region": "panel",
+     "show": 0.34,
+     "hide": "end-0.16"
+    },
+    {
+     "type": "fade",
+     "target": "solution.answer",
+     "t": 0.04,
+     "dur": 0.041666666666666664,
+     "curve": "linear",
+     "formats": [
+      "4:5",
+      "1:1",
+      "16:9"
+     ]
+    },
+    {
+     "type": "fade",
+     "target": "solution.list",
+     "t": 0.04,
+     "dur": 0.041666666666666664,
+     "curve": "linear",
+     "formats": [
+      "4:5",
+      "1:1",
+      "16:9"
+     ]
+    }
+   ],
+   "never": [
+    "logo"
+   ]
+  },
+  {
+   "id": "end",
+   "role": "end",
+   "sketch": "inputs/sketches/P3_end.png",
+   "regions": [
+    {
+     "id": "field",
+     "area": {
+      "kind": "full"
+     },
+     "paint": "field"
+    }
+   ],
+   "groups": [],
+   "layers": [
+    {
+     "id": "end.logo",
+     "kind": "logo",
+     "logo": "wordmark",
+     "color": "ink",
+     "route": "logo",
+     "behaviour": "flow",
+     "per": {
+      "4:5": {
+       "box": {
+        "x": 308.7,
+        "y": 451.6,
+        "w": 510,
+        "h": 136.4
+       },
+       "v_anchor": "top"
+      },
+      "9:16": {
+       "box": {
+        "x": 308.7,
+        "y": 646.4,
+        "w": 510,
+        "h": 136.4
+       },
+       "v_anchor": "top"
+      },
+      "1:1": {
+       "box": {
+        "x": 308.7,
+        "y": 327.4,
+        "w": 510,
+        "h": 136.4
+       },
+       "v_anchor": "top"
+      },
+      "16:9": {
+       "box": {
+        "x": 728.7,
+        "y": 327.4,
+        "w": 510,
+        "h": 136.4
+       },
+       "v_anchor": "top"
+      }
+     }
+    },
+    {
+     "id": "end.sub",
+     "kind": "text",
+     "slot": "end.sub",
+     "style": "end_sub",
+     "color": "ink",
+     "behaviour": "flow",
+     "route": "text",
+     "per": {
+      "4:5": {
+       "box": {
+        "x": 108,
+        "y": 625,
+        "w": 864,
+        "h": 165.4
+       },
+       "align": "center",
+       "v_anchor": "top"
+      },
+      "9:16": {
+       "box": {
+        "x": 120,
+        "y": 819.8,
+        "w": 840,
+        "h": 165.4
+       },
+       "align": "center",
+       "v_anchor": "top"
+      },
+      "1:1": {
+       "box": {
+        "x": 108,
+        "y": 500.8,
+        "w": 864,
+        "h": 165.4
+       },
+       "align": "center",
+       "v_anchor": "top"
+      },
+      "16:9": {
+       "box": {
+        "x": 410,
+        "y": 500.8,
+        "w": 1100,
+        "h": 165.4
+       },
+       "align": "center",
+       "v_anchor": "top"
+      }
+     }
+    },
+    {
+     "id": "end.cta",
+     "kind": "text",
+     "slot": "end.cta",
+     "style": "cta",
+     "color": "ink",
+     "behaviour": "flow",
+     "route": "text",
+     "per": {
+      "4:5": {
+       "box": {
+        "x": 108,
+        "y": 1010.7,
+        "w": 864,
+        "h": 69.1
+       },
+       "align": "center",
+       "v_anchor": "top"
+      },
+      "9:16": {
+       "box": {
+        "x": 120,
+        "y": 1273.5,
+        "w": 840,
+        "h": 69.1
+       },
+       "align": "center",
+       "v_anchor": "top"
+      },
+      "1:1": {
+       "box": {
+        "x": 108,
+        "y": 740.7,
+        "w": 864,
+        "h": 69.1
+       },
+       "align": "center",
+       "v_anchor": "top"
+      },
+      "16:9": {
+       "box": {
+        "x": 410,
+        "y": 740.7,
+        "w": 1100,
+        "h": 69.1
+       },
+       "align": "center",
+       "v_anchor": "top"
+      }
+     }
+    },
+    {
+     "id": "end.badge_ios",
+     "kind": "mark",
+     "mark": "badge_ios",
+     "route": "mark",
+     "behaviour": "flow",
+     "per": {
+      "4:5": {
+       "box": {
+        "x": 253,
+        "y": 1125.2,
+        "w": 280,
+        "h": 92
+       }
+      },
+      "9:16": {
+       "box": {
+        "x": 253,
+        "y": 1388,
+        "w": 280,
+        "h": 92
+       }
+      },
+      "1:1": {
+       "box": {
+        "x": 253,
+        "y": 855.2,
+        "w": 280,
+        "h": 92
+       }
+      },
+      "16:9": {
+       "box": {
+        "x": 673,
+        "y": 855.2,
+        "w": 280,
+        "h": 92
+       }
+      }
+     }
+    },
+    {
+     "id": "end.badge_android",
+     "kind": "mark",
+     "mark": "badge_android",
+     "route": "mark",
+     "behaviour": "flow",
+     "per": {
+      "4:5": {
+       "box": {
+        "x": 547,
+        "y": 1125.2,
+        "w": 280,
+        "h": 92
+       }
+      },
+      "9:16": {
+       "box": {
+        "x": 547,
+        "y": 1388,
+        "w": 280,
+        "h": 92
+       }
+      },
+      "1:1": {
+       "box": {
+        "x": 547,
+        "y": 855.2,
+        "w": 280,
+        "h": 92
+       }
+      },
+      "16:9": {
+       "box": {
+        "x": 967,
+        "y": 855.2,
+        "w": 280,
+        "h": 92
+       }
+      }
+     }
+    }
+   ],
+   "cues": [
+    {
+     "type": "drop",
+     "target": "end.logo",
+     "t": 0,
+     "dur": 0.15,
+     "from_u": 5,
+     "curve": "in"
+    },
+    {
+     "type": "type_on",
+     "target": "end.sub",
+     "t": 0.05,
+     "step": 0.125
+    },
+    {
+     "type": "rise",
+     "target": "end.cta",
+     "t": "after:end.sub+0.1",
+     "dur": 0.25,
+     "from_u": 8,
+     "curve": "in"
+    },
+    {
+     "type": "rise",
+     "target": "end.badge_ios",
+     "t": "after:end.sub+0.1",
+     "dur": 0.25,
+     "from_u": 8,
+     "curve": "in"
+    },
+    {
+     "type": "rise",
+     "target": "end.badge_android",
+     "t": "after:end.sub+0.1",
+     "dur": 0.25,
+     "from_u": 8,
+     "curve": "in"
+    }
+   ],
+   "never": [
+    "end.logo"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "kind": "single",
+  "theme": "Splitting bills without the argument",
+  "idea": "A hypnotic balance dial cycles and settles while all copy stays readable.",
+  "languages": ["en", "ru"],
+  "lines": {
+    "h1":  { "role": "hook",  "scene": "loop", "maxChars": 24, "hideIn": [],        "text": { "en": "“I paid last.”", "ru": "«Платил уже я.»" } },
+    "o1":  { "role": "offer", "scene": "loop", "maxChars": 30, "hideIn": [],        "text": { "en": "Free 3 months",   "ru": "3 месяца даром" } },
+    "cta": { "role": "cta",   "scene": "loop", "maxChars": 20, "hideIn": [],        "text": { "en": "Start budget",    "ru": "Начать бюджет" } }
+  },
+  "scenes": [
+    { "id": "loop", "beat": "LOOP", "story": "The split bar oscillates smoothly in a continuous loop while the copy stays still.", "lines": ["h1", "o1", "cta"] }
+  ],
+  "notes": "Seamless single-scene loop."
+}

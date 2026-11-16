@@ -1,0 +1,1126 @@
+{
+  "schemaVersion": "1.0",
+  "product": "Toggle Concepts: a creative department by subscription, from Toggle, the motion design studio. Senior creatives own each ad concept: the idea, the branding and the art direction. Our engine builds every version of it in formats, sizes, languages, hooks and calls to action. Experts check every file before delivery. Clients pay per concept; every version is included. Plans: Starter (2 concepts a month), Growth (4), Scale (6).",
+  "objective": "Sign-ups: the viewer starts a test month by booking the first call on concepts.toggle.studio.",
+  "audience": "Main: marketing, performance and brand leads at growing digital brands that run paid ads every month (apps, e-commerce, fintech, gaming); they need many fresh ad versions to keep tests running and struggle to keep the look consistent. Second: creative and performance agencies that need extra production capacity, white-label, inside their own pipeline.",
+  "markets": "United Kingdom, European Union (English-language campaigns), United States",
+  "ownerName": "Roman",
+  "ownerEmail": "kholodenko.r@gmail.com",
+  "offer": "20% off your first month",
+  "cta": "Start a test month",
+  "destination": "https://concepts.toggle.studio",
+  "deadline": "",
+  "timeZone": "Europe/Belgrade",
+  "immutables": "The names Toggle and Toggle Concepts and their logos exactly as supplied. The glossy orange ring always upright, never tilted, spun, recolored or carrying text. The offer \"20% off your first month\" word for word. Only real Toggle work, real screens and the real team: no invented interfaces, numbers or testimonials.",
+  "synthesis": "Allowed: backgrounds and environments; abstract shapes and light. Not allowed: synthetic people, interfaces or work samples.",
+  "variationNotes": "Hooks: hook-30-versions: one ad turns into 30 versions in three seconds, open on the engine swapping formats, languages and hooks | hook-ad-400: \"Ad #400. Still your brand.\", a wall of versions that all look like one brand | hook-5-days: \"Brief today. First files in 5 days.\", a five-day bar filling up, ending on finished files | hook-pay-concepts: \"Pay for concepts. Every version is included.\", one idea card multiplying into a grid of ads | hook-studio-1, hook-studio-2: written by the studio. Sequences: beats-engine: one concept, the engine builds every version (formats, languages, hooks), experts check, end card with the offer | beats-founder: the founder says in one line why Toggle made Concepts (founder film), then the engine demo, end card. Calls to action: Start a test month (main, full matrix) / Get 20% off your first month / See how it works (9:16 and 4:5, 15 s, two best hooks after review). Notes: build from real material (engine demo and landing on concepts.toggle.studio, founder film, Toggle reel). The engine demo shows a fictional brand (KITE); never present it as a client. Ring upright, once per frame. Inter Tight and brand book colors only. Captions always on.",
+  "rights": "unknown",
+  "rightsNotes": "",
+  "showPrice": false,
+  "price": "",
+  "currency": "USD",
+  "priceSource": "",
+  "priceConfirmed": false,
+  "facts": [
+    {
+      "id": "df4626cd-ae75-4ddf-bf51-a4db9ea56bd6",
+      "claim": "15+ years of motion and art direction.",
+      "status": "confirmed",
+      "source": "toggle.studio, vimeo.com/wearetoggle"
+    },
+    {
+      "id": "574fc01f-6396-467a-ad96-2da27be9b6bf",
+      "claim": "First files within 5 days of the first call.",
+      "status": "confirmed",
+      "source": "concepts.toggle.studio"
+    }
+  ],
+  "sourceAssetIds": [],
+  "locales": [
+    "en-US"
+  ],
+  "hooks": [
+    "hook-30-versions",
+    "hook-ad-400",
+    "hook-5-days",
+    "hook-pay-concepts",
+    "hook-studio-1",
+    "hook-studio-2"
+  ],
+  "beatSequences": [
+    "beats-engine",
+    "beats-founder"
+  ],
+  "offers": [
+    "offer-20-off"
+  ],
+  "durationsSeconds": [
+    6,
+    15
+  ],
+  "placementIds": [
+    "vertical",
+    "portrait",
+    "square",
+    "wide"
+  ],
+  "referenceLocale": "en-US",
+  "referencePlacement": "portrait",
+  "finalConceptCount": 1,
+  "runCapMicroUsd": 5000000,
+  "entries": [
+    {
+      "id": "784d374e-c20f-4416-b300-eb50afe0d5dc",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-30-versions",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 6,
+      "placementId": "vertical",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "800d16c0-0232-4be8-990f-e13d9c69904f",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-30-versions",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 6,
+      "placementId": "portrait",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "d9842bc7-257b-4fbb-a118-77b92246e842",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-30-versions",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 6,
+      "placementId": "square",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "59a85bcd-96e3-4dc6-9639-37f8d3137eb1",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-30-versions",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 6,
+      "placementId": "wide",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "5b11e09d-35d9-4303-b6fe-77cdf11197f2",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-30-versions",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 15,
+      "placementId": "vertical",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "b03dab3a-5bb7-4165-9c7b-0b129ff310d6",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-30-versions",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 15,
+      "placementId": "portrait",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "94d3e4f4-1765-4844-96c6-b346ec4b8e59",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-30-versions",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 15,
+      "placementId": "square",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "7b199e67-b3f2-4832-959a-d70e61303e1c",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-30-versions",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 15,
+      "placementId": "wide",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "569c943f-45b3-429a-87d9-1dc140480f55",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-30-versions",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 6,
+      "placementId": "vertical",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "89c47ee5-f8c0-4e6c-ae6e-fb42828a8717",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-30-versions",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 6,
+      "placementId": "portrait",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "38c62018-4fe3-4aac-b80f-86c96fb2e39a",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-30-versions",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 6,
+      "placementId": "square",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "4c5d5827-b460-4ffe-bd5c-e50c50ed0cf8",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-30-versions",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 6,
+      "placementId": "wide",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "3c3fde8d-d200-4100-959c-8d2aea897633",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-30-versions",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 15,
+      "placementId": "vertical",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "a4692874-1345-4d82-9d6a-740d161f9b15",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-30-versions",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 15,
+      "placementId": "portrait",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "5b0f454a-ef49-41b3-b893-6b2d8711641e",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-30-versions",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 15,
+      "placementId": "square",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "878d78f8-b7d6-4326-80fe-ea00ca0e1280",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-30-versions",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 15,
+      "placementId": "wide",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "b75c8806-641b-40cf-95b7-57434e290a72",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-ad-400",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 6,
+      "placementId": "vertical",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "3a6a82cb-ec7a-4960-9d3b-ad07592a2f1d",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-ad-400",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 6,
+      "placementId": "portrait",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "40874b92-aa25-40bb-8755-6f57f55f2b51",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-ad-400",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 6,
+      "placementId": "square",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "98deb82d-4d09-4d31-bac0-659369d30cd4",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-ad-400",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 6,
+      "placementId": "wide",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "65b55eae-fa94-44cb-80a5-c8c031bb6fd5",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-ad-400",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 15,
+      "placementId": "vertical",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "ae239d14-27b5-4e60-96ff-1dc29743471e",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-ad-400",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 15,
+      "placementId": "portrait",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "71d8a08b-f91d-4d66-b9f4-4137d441953e",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-ad-400",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 15,
+      "placementId": "square",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "d74f3e89-6054-405d-8f7d-8d3e2303e870",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-ad-400",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 15,
+      "placementId": "wide",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "09b8ee3f-baa1-4420-a8f9-2412e5132ac0",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-ad-400",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 6,
+      "placementId": "vertical",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "4683998d-31d6-43c1-8a18-206aed9a9f03",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-ad-400",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 6,
+      "placementId": "portrait",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "1a302b66-3ebc-4aca-8e47-3aaf5bbb6322",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-ad-400",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 6,
+      "placementId": "square",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "afd796cb-0e09-48cd-800b-ff1b120079f4",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-ad-400",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 6,
+      "placementId": "wide",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "b33bafa2-aa21-48ea-a259-77bba3ef0ce9",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-ad-400",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 15,
+      "placementId": "vertical",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "98eb9d60-8b14-4ecd-be0f-358eb4045a86",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-ad-400",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 15,
+      "placementId": "portrait",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "e9e36254-ec1e-45f4-b006-fb7b337fe4bd",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-ad-400",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 15,
+      "placementId": "square",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "9ecd4c2f-0896-4431-8d3f-50095bb6f931",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-ad-400",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 15,
+      "placementId": "wide",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "ece59627-e4c0-4c71-bee2-300e7ffd6bcd",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-5-days",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 6,
+      "placementId": "vertical",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "794a240f-d5ab-4247-8c9d-8ba981cd7719",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-5-days",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 6,
+      "placementId": "portrait",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "82ab5fc9-05fc-4ee2-b687-12eb32aefee9",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-5-days",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 6,
+      "placementId": "square",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "e19eecd5-630f-44fe-89ec-08f413ebcc43",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-5-days",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 6,
+      "placementId": "wide",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "718524d7-d1b2-44b1-a092-b5997a8795c5",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-5-days",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 15,
+      "placementId": "vertical",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "6c377911-d405-4546-8692-f91bda847f63",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-5-days",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 15,
+      "placementId": "portrait",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "b3079bef-0cf4-4409-8352-2df2ccad875c",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-5-days",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 15,
+      "placementId": "square",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "0943b5d7-356b-4d3e-a2a1-5e93ff367ef9",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-5-days",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 15,
+      "placementId": "wide",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "2af08e3e-0095-4ba0-a23a-2f0772f0f245",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-5-days",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 6,
+      "placementId": "vertical",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "b941b1ee-8fdf-486d-9b38-02bfe2ac4ca9",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-5-days",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 6,
+      "placementId": "portrait",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "825f8406-d8dc-4328-8de8-f96419f17264",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-5-days",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 6,
+      "placementId": "square",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "d52303a5-503b-419d-82f9-b43e36a548e6",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-5-days",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 6,
+      "placementId": "wide",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "7452106c-85a2-443c-94b0-83e68526823e",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-5-days",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 15,
+      "placementId": "vertical",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "da66f3fc-e385-4ffb-9643-dc3cbb0868af",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-5-days",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 15,
+      "placementId": "portrait",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "f59ab94d-4551-4347-a2ae-e4ea9f7770e6",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-5-days",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 15,
+      "placementId": "square",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "9d49f4a6-6fdd-4b9b-bf3c-6c76b86dfc2c",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-5-days",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 15,
+      "placementId": "wide",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "69d0628e-5a63-4927-9090-126457728498",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-pay-concepts",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 6,
+      "placementId": "vertical",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "27b8f3a4-adb0-4744-9d9d-cb5331df3f3f",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-pay-concepts",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 6,
+      "placementId": "portrait",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "bf5e8d7c-1bb9-4423-973b-1fbb73b2174f",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-pay-concepts",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 6,
+      "placementId": "square",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "592abd23-a24e-4af5-98d2-8ecd36035716",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-pay-concepts",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 6,
+      "placementId": "wide",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "d62116cf-a0fd-4a60-ae99-877b05a15954",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-pay-concepts",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 15,
+      "placementId": "vertical",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "77319cff-e06d-479b-82f3-f3e52b183c9b",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-pay-concepts",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 15,
+      "placementId": "portrait",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "01a47d10-9307-4b00-a979-2dda410492e8",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-pay-concepts",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 15,
+      "placementId": "square",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "04b2be94-9f25-4a36-a9a5-9169f0f82590",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-pay-concepts",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 15,
+      "placementId": "wide",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "098bf795-4e82-48fd-882b-8f5fc2a9caba",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-pay-concepts",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 6,
+      "placementId": "vertical",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "3fd175ea-25b4-4b3b-aa62-332a2b2c110f",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-pay-concepts",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 6,
+      "placementId": "portrait",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "343f5c5f-722a-4333-9433-30cc93a768e8",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-pay-concepts",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 6,
+      "placementId": "square",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "0e767a05-0a66-4c30-bb7a-956f68a480ed",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-pay-concepts",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 6,
+      "placementId": "wide",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "023f2a5f-3c0c-448a-bfaf-73e6f57db656",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-pay-concepts",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 15,
+      "placementId": "vertical",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "8915dc4a-6b15-4b78-abf3-076067318069",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-pay-concepts",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 15,
+      "placementId": "portrait",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "9d07ccb9-927b-4bc5-b977-0f952596ad17",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-pay-concepts",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 15,
+      "placementId": "square",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "cc3b55c2-08fd-46b9-9fd0-1629a1752a99",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-pay-concepts",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 15,
+      "placementId": "wide",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "e7ce9e54-cec7-45b9-8f3c-4946c736aced",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-studio-1",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 6,
+      "placementId": "vertical",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "1de01f4d-bb9c-4eca-8328-caf51856d48e",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-studio-1",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 6,
+      "placementId": "portrait",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "02bc65c4-e5ff-464e-8e91-d334cdf77f19",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-studio-1",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 6,
+      "placementId": "square",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "f0925bef-e31d-4237-a211-8466e58c4a13",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-studio-1",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 6,
+      "placementId": "wide",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "63ef1d61-8c10-4f14-9b5f-0860828aa04e",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-studio-1",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 15,
+      "placementId": "vertical",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "affed51b-c8c8-4400-abe3-ccdd19aa1c0c",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-studio-1",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 15,
+      "placementId": "portrait",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "890b3a2b-f175-42b9-9147-bac8887d21f8",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-studio-1",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 15,
+      "placementId": "square",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "cd58c991-2552-4cd1-9631-7b0ae3933adc",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-studio-1",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 15,
+      "placementId": "wide",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "427596a3-adc7-4a57-a341-d7620c2f4d25",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-studio-1",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 6,
+      "placementId": "vertical",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "f72837a9-64bc-496d-b20b-65fddf7b03e0",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-studio-1",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 6,
+      "placementId": "portrait",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "60186770-890e-40f3-9696-d67899e4a585",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-studio-1",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 6,
+      "placementId": "square",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "93b53558-75b2-4a8f-a03a-a2e95b8210c8",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-studio-1",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 6,
+      "placementId": "wide",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "ed85fd2c-a83b-4a17-9a73-449939074d85",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-studio-1",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 15,
+      "placementId": "vertical",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "607751e1-0338-4152-85a0-83d1ce84bf44",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-studio-1",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 15,
+      "placementId": "portrait",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "2a144576-c0f8-4a6f-bcc5-d5e757751034",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-studio-1",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 15,
+      "placementId": "square",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "f7808b18-70ae-496a-8468-727a4d7a52f4",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-studio-1",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 15,
+      "placementId": "wide",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "754125a0-9b00-40e7-bab6-ef285f901d82",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-studio-2",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 6,
+      "placementId": "vertical",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "e24ec253-1783-42e9-a074-65c43c08629b",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-studio-2",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 6,
+      "placementId": "portrait",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "54eaf164-26dc-45ba-96e9-dea1fb4ca40a",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-studio-2",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 6,
+      "placementId": "square",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "3fe1da9d-a273-48ec-8ca6-ec184fd7024c",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-studio-2",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 6,
+      "placementId": "wide",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "eb10893e-f33a-44e1-b9a8-a36f680e8929",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-studio-2",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 15,
+      "placementId": "vertical",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "03af299c-7ac2-4635-80aa-ac09a25deee1",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-studio-2",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 15,
+      "placementId": "portrait",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "704ff91f-add0-473f-801d-6bd175991ef6",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-studio-2",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 15,
+      "placementId": "square",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "c0d987f8-eec9-49f4-819f-75d328c494fd",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-studio-2",
+      "beatSequence": "beats-engine",
+      "durationSeconds": 15,
+      "placementId": "wide",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "cb226170-92eb-487c-b5f6-a9bb79b21e36",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-studio-2",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 6,
+      "placementId": "vertical",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "0ef032e0-53d4-431f-9564-d640a0192a34",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-studio-2",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 6,
+      "placementId": "portrait",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "1a23b771-ea0d-4181-a866-7ab9859be82a",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-studio-2",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 6,
+      "placementId": "square",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "fe39fe2b-afb0-49e0-8e21-1190ea099798",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-studio-2",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 6,
+      "placementId": "wide",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "a4f1fcbc-47b6-48d7-8240-9dcdbebe6443",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-studio-2",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 15,
+      "placementId": "vertical",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "3aa18f82-2410-4196-89a6-88de5658c086",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-studio-2",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 15,
+      "placementId": "portrait",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "d28da6d9-2269-4b4e-bf2e-0734e9ccbce4",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-studio-2",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 15,
+      "placementId": "square",
+      "offer": "offer-20-off"
+    },
+    {
+      "id": "6c5edc4d-0c71-42ab-a3fa-0d0003c6de00",
+      "conceptSlot": 1,
+      "locale": "en-US",
+      "hook": "hook-studio-2",
+      "beatSequence": "beats-founder",
+      "durationSeconds": 15,
+      "placementId": "wide",
+      "offer": "offer-20-off"
+    }
+  ],
+  "goal": "sign-ups",
+  "benefit": "Test as many ads as you need without losing your look or quality.",
+  "proof": "15+ years of motion and art direction at Toggle. First files within 5 days of the first call.",
+  "difference": "People own the idea and the art direction, our engine builds every version, and experts check every file. Freelancers give craft without volume; AI tools give volume without craft. We give both.",
+  "audienceTension": "They need dozens of new ads every month to keep tests running. Freelancers and AI tools break the brand, and the in-house team cannot keep up.",
+  "audienceAwareness": "knows-category",
+  "platforms": [
+    "meta",
+    "youtube",
+    "other"
+  ],
+  "feel": {
+    "feelings": [
+      "calm-confidence",
+      "craft",
+      "clarity"
+    ],
+    "character": {
+      "temperature": 4,
+      "volume": 2,
+      "texture": 3,
+      "tone": 2,
+      "novelty": 3,
+      "price": 4
+    },
+    "stretch": "fresh",
+    "medium": "mix",
+    "light": [
+      "soft-daylight",
+      "dark-studio"
+    ],
+    "world": [
+      "motion-graphics",
+      "typography-led",
+      "real-life"
+    ],
+    "energy": "gentle",
+    "colour": "brand-natural",
+    "typeRole": [
+      "balanced"
+    ],
+    "productRole": [
+      "result"
+    ],
+    "people": "yes",
+    "peopleNote": "The Toggle team, filmed for real. No actors, no stock or synthetic people.",
+    "textAmount": "minimal",
+    "humour": "light",
+    "endFeeling": "Relief: we can test as much as we want and still look like ourselves.",
+    "avoid": [
+      "stock",
+      "ai-look",
+      "shouty",
+      "corporate",
+      "cluttered",
+      "pompous"
+    ],
+    "avoidNote": "Robots, sparkles, brains or \"AI magic\" imagery; a tilted or spinning ring; invented numbers or testimonials; neon or rainbow gradients.",
+    "likes": [
+      {
+        "url": "https://vimeo.com/wearetoggle",
+        "aspects": [
+          "composition",
+          "rhythm",
+          "type"
+        ],
+        "note": "Toggle's own motion work."
+      },
+      {
+        "url": "https://concepts.toggle.studio",
+        "aspects": [
+          "colour",
+          "light",
+          "mood"
+        ],
+        "note": "The landing and the founder film."
+      }
+    ],
+    "dislikes": [
+      {
+        "aspects": [
+          "mood",
+          "people",
+          "type"
+        ],
+        "note": "Generic AI ad generator ads: plastic faces, sparkles, shouting."
+      }
+    ]
+  },
+  "synthesisChoices": [
+    "backgrounds",
+    "abstract-light"
+  ]
+}

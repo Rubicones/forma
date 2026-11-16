@@ -1,0 +1,163 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Forma Preview Fixture</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background: #1c2d22;
+    color: #f5f5f0;
+    font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  .frame {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    padding: var(--safe-top, 48px) var(--safe-right, 48px) var(--safe-bottom, 48px) var(--safe-left, 48px);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: calc(var(--s, 10px) * 2.2);
+  }
+  .brand-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .logo-pill {
+    background: #dfff88;
+    color: #1c2d22;
+    font-weight: 800;
+    font-size: calc(var(--s, 10px) * 2.4);
+    padding: 0.35em 0.75em;
+    border-radius: 999px;
+  }
+  .beat-tag {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: calc(var(--s, 10px) * 1.6);
+    color: #dfff88;
+    letter-spacing: 0.06em;
+  }
+  .copy-stack {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--s, 10px) * 1.4);
+  }
+  .line-box {
+    width: 100%;
+    height: calc(var(--s, 10px) * 11);
+    display: flex;
+    align-items: center;
+  }
+  .line-hook {
+    font-weight: 800;
+    line-height: 0.96;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+  .line-sub, .line-proof, .line-offer {
+    font-weight: 600;
+    line-height: 1.08;
+    color: #dfff88;
+  }
+  .placeholder-hatch {
+    flex: 1;
+    min-height: calc(var(--s, 10px) * 22);
+    border-radius: calc(var(--s, 10px) * 2.2);
+    border: 2px solid rgba(223, 255, 136, 0.28);
+    background-color: #25362a;
+    background-image: repeating-linear-gradient(
+      45deg,
+      rgba(245, 245, 240, 0.08) 0px,
+      rgba(245, 245, 240, 0.08) 1px,
+      transparent 1px,
+      transparent 10px
+    );
+    display: flex;
+    align-items: flex-end;
+    padding: calc(var(--s, 10px) * 2);
+  }
+  .placeholder-caption {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+    line-height: 1.4;
+    color: #f5f5f0;
+    background: rgba(28, 45, 34, 0.85);
+    padding: 6px 10px;
+    border-radius: 6px;
+  }
+  .cta-pill {
+    align-self: flex-start;
+    background: #dfff88;
+    color: #1c2d22;
+    font-weight: 800;
+    padding: 0.65em 1.25em;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+</style>
+<script type="application/json" id="forma-motion">
+{
+  "loop": "Split ratio bar oscillates 35% → 65% → 35% with sine.inOut over one period while copy stays locked.",
+  "still": ["logo-pill", "copy-stack", "cta-pill"],
+  "scenes": {
+    "s1": { "in": "Masked line reveal yPercent 105→0", "hold": "Hero card slow 1.03x drift", "out": "Brand lime panel wipe" },
+    "s2": { "in": "Split bar fills to 50/50", "hold": "Receipt rows settle", "out": "Scale match-cut to offer" },
+    "s3": { "in": "Offer sticker draws in scaleX 0→1", "hold": "1.0s still hold on CTA and logo", "out": "Hold" }
+  },
+  "recurring": "Shared receipt split card"
+}
+</script>
+</head>
+<body>
+  <div class="frame" id="stageRoot">
+    <div class="brand-row">
+      <span class="logo-pill">FORMA</span>
+      <span class="beat-tag" id="beatTag"></span>
+    </div>
+    <div class="copy-stack" id="copyStack"></div>
+    <div class="placeholder-hatch" id="heroPlaceholder">
+      <span class="placeholder-caption">PHOTO · hand holding the card at checkout, macro, warm window light</span>
+    </div>
+    <div class="cta-pill" id="ctaBox" hidden></div>
+  </div>
+  <script>
+    window.FORMA.setup(() => {
+      const F = window.FORMA;
+      const activeScene = F.scenes.find(s => s.id === F.scene) || F.scenes[0] || {id: 'default', beat: 'PREVIEW', lines: Object.keys(F.copy)};
+      document.getElementById('beatTag').textContent = activeScene.beat + ' · ' + activeScene.id;
+
+      const stack = document.getElementById('copyStack');
+      const ctaBox = document.getElementById('ctaBox');
+      stack.replaceChildren();
+      ctaBox.hidden = true;
+
+      const hooks = [];
+      const others = [];
+      for (const key of activeScene.lines) {
+        if (!(key in F.copy)) continue;
+        const role = F.lines[key]?.role || 'sub';
+        if (role === 'cta') {
+          ctaBox.textContent = F.copy[key];
+          ctaBox.hidden = false;
+          continue;
+        }
+        const box = document.createElement('div');
+        box.className = 'line-box line-' + role;
+        box.dataset.lineKey = key;
+        box.textContent = F.copy[key];
+        stack.appendChild(box);
+        if (role === 'hook') hooks.push(box);
+        else others.push(box);
+      }
+
+      if (hooks.length) F.fitGroup(hooks, {max: F.short * 0.09, min: F.short * 0.035});
+      if (others.length) F.fitGroup(others, {max: F.short * 0.055, min: F.short * 0.025});
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,70 @@
+{
+ "id": "062bcc04-76df-421c-b212-a5a5ffcc65fd",
+ "createdAt": "2026-11-16T00:31:54.272Z",
+ "status": "error",
+ "log": [
+  {
+   "i": 0,
+   "at": 2,
+   "level": "step",
+   "msg": "Шаг 1 · Сценарий · codex · gpt-6-astra"
+  },
+  {
+   "i": 1,
+   "at": 3,
+   "level": "step",
+   "msg": "Запуск Codex CLI · gpt-6-astra · effort high"
+  },
+  {
+   "i": 2,
+   "at": 11,
+   "level": "error",
+   "msg": "Ошибка: Не найден Codex CLI. Проверьте CODEX_BIN."
+  }
+ ],
+ "type": "scenario",
+ "campaign": "7daba4bd-03ee-4d9d-aa84-d7dfa3ae41f1",
+ "stage": "scenario",
+ "kind": "multi",
+ "project": "42757a02-ee94-47df-9f59-4ab70c132933",
+ "mode": "codex",
+ "model": "gpt-6-astra",
+ "effort": "high",
+ "error": "Не найден Codex CLI. Проверьте CODEX_BIN.",
+ "durationMs": 12,
+ "input": {
+  "setup": {
+   "kind": "multi",
+   "languages": [
+    "ru",
+    "en"
+   ],
+   "lengths": [
+    4,
+    8,
+    12
+   ],
+   "formats": [
+    "1x1",
+    "4x5",
+    "9x16",
+    "16x9"
+   ],
+   "provider": {
+    "mode": "codex",
+    "billing": "api",
+    "model": "gpt-6-astra",
+    "effort": "high"
+   },
+   "stepModels": {}
+  }
+ },
+ "output": null,
+ "cost": {
+  "llm": 0,
+  "image": 0,
+  "video": 0,
+  "total": 0,
+  "unknown": false
+ }
+}

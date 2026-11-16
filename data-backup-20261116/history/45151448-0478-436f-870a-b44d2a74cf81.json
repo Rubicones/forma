@@ -1,0 +1,64 @@
+{
+ "id": "45151448-0478-436f-870a-b44d2a74cf81",
+ "createdAt": "2026-11-15T17:50:38.673Z",
+ "status": "ok",
+ "log": [
+  {
+   "at": 0,
+   "level": "info",
+   "msg": "Импортировано из data/ (журнал до появления истории не сохранялся)"
+  }
+ ],
+ "type": "creative",
+ "imported": "files+browser",
+ "project": "b68f165d-e85b-49f7-a42f-74227e1e377f",
+ "mode": null,
+ "input": {
+  "scenario": "THE FULL STOP — sonicdesk. silent spot, 5.92 s\n\nIdea: Master never moves. A copy of it breaks loose, gets rewritten, and comes back. The lime waveform pill does all four verbs on screen. After the merge it becomes the full stop of the headline, and then the full stop of the wordmark. A version ends in a full stop.\n\nFormat: 1920×1080, sd-bg #070707, 40px master grid and 16px bar grid drawn in grid #1b1b1b. Gutters are 64px (the 32px desktop gutter scaled ×2). Timing is set to 142 BPM: 1 beat = 0.42 s, 1/8 note = 0.21 s. House ease is cubic-bezier(0.16, 1, 0.3, 1). No glow on the pill, no motion blur, no particles, no 3D.\n\nHero shape: one lime pill (#dfff00), the app-icon pill. It starts as a vertical waveform pill, flattens into a span marker, contracts to the 57:26 app-icon shape, and ends as the square wordmark full stop. It is the only lime element until the final frame, where the wordmark's full stop is the only lime.\n\nLayout: a top strip at y 64 with a landing-key in sd-mute and a landing-value in sd-fg. The Master lane sits at y 300–420, and the V13 lane at y 460–580 once it exists. Lane pills are full-round, 12px wide with 4px gaps, in sd-fg at 20%. One headline slot, landing-hero at 180px (Archivo 800, uppercase, leading 0.85), baseline y 900, left on the gutter. The slot works like a mechanical counter: the line rolls up one line in 0.21 s, only on the frame the pill lands. The text never crossfades.\n\n0.00 — OPENING (already moving)\nExtreme close-up of one vertical lime pill, 6× scale, about 55% of frame height, still growing to its peak. The camera is already pulling back fast. Grey pills slide past on both sides.\n\n0.00–0.85 — THE NOW\nThe pull-back eases to 1× and settles exactly on 0.85. The pill turns out to be the one played pill in a still, grey Master lane. The top strip scrambles in: \"MASTER · V12\" with \"142 BPM · 3:47\". The headline slot stays empty.\n\n0.85–1.90 — BRANCH IT\nAnticipation 0.85–1.06: the pill squashes 12% vertically. It drops one lane and lands on 1.06. Master keeps a grey pill where it was, so Master doesn't change. A new lane of pills grows out left and right from the landing point as a grey copy of Master, 4ms stagger. A \"V13\" landing-key appears on the lane. On the impact frame the counter rolls in \"BRANCH IT\" with no full stop.\n\n1.90–2.75 — BREAK IT\nThe pill hits three times on 1/8 notes (1.90, 2.11, 2.32) with squash and stretch: 96 → 64 → 120 → 96px. Each hit sends a height ripple through the V13 pills on either side, across bars 41–48. The bridge gets rewritten while Master above stays completely still. The counter rolls to \"BREAK IT\" on 1.90.\n\n2.75–3.59 — COMPARE IT\nWind-up 2.54–2.75: the pill pulls back 12px. On 2.75 it flattens and stretches right into an 8px lime span marker under bars 41–48. Only the pills in that span go to sd-fg at 100% in both lanes, and everything else stays at 20%. A small \"BARS 41–48\" key appears above the span. The counter rolls to \"COMPARE IT\" on 2.75.\n\n3.59–4.23 — MERGE IT BACK\nAnticipation 3.38–3.59: the V13 lane dips 8px. On 3.59 it lifts into Master, the pills lock together, the V13 label leaves with the lane, and the strip scrambles V12 → V13. The counter rolls to \"MERGE IT BACK\" with an empty slot after BACK. From 3.59 to 3.80 the span marker contracts to the 57:26 app-icon pill. From 3.80 to 4.01 it arcs down and lands in that slot as the line's lime full stop: 3% squash, settled at 4.12. The sentence only closes once the version is merged.\n\n4.23–4.65 — RESOLVE\nThe full stop doesn't move. \"MERGE IT BACK\" slides out left through the gutter mask, one word per 1/8 note. \"sonicdesk\" in Archivo Bold, lowercase with tight tracking, in sd-fg, slides in to meet the stop. At the same time the pill's corners go from round to square and it reshapes into the wordmark's square full stop, about 33px. From 4.44 to 4.65 the CTA outline draws on, lower right: \"+ CREATE MY SPACE\". It is a ghost button (JetBrains Mono uppercase in sd-fg, 1px sd-line outline), so the full stop stays the one lime. Everything settles exactly on 4.65.\n\n4.65–5.92 — FINAL HOLD (1.27 s, static)\nOn screen: the merged Master lane, the \"MASTER · V13\" strip, the \"sonicdesk.\" wordmark with its lime full stop, and the ghost CTA \"+ CREATE MY SPACE\". Nothing moves.\n\nFinal message: Branch it. Break it. Compare it. Merge it back.\nCTA: + Create my space\n\nProduction notes:\n- Thumbnail test: frame 0 (a lime capsule on black) and frame 4.65 (wordmark with its lime stop) must both read at 200px wide.\n- Claims: version branching, keeping versions, comparing bars and applying to Master come from the brand's four-verbs messages, and the meta copy is the brand's own sample. There are no prices, numbers beyond that, endorsements or competitors.\n- The reference screenshots show an older \"TRACKBASE\" mark: an uppercase lime wordmark, rectangular bars, a red accent and made-up stats like \"12K\". Don't use any of it. Where it conflicts, the brandbook rules apply.",
+  "style": "THE COUNTER\n\nA pure flat graphic on the 40px master grid: the lime pill drops, hits, stretches and finally clicks into a giant mechanical-counter headline as its full stop, closing MERGE IT BACK.\n\nMedium: strict 2D vector motion graphics, a front-on orthographic view built straight from the landing system. sd-bg canvas, 40px master grid and 16px bar grid in #1b1b1b, every hairline snapped to whole pixels. Pills are full-round, 12px wide with 4px gaps, sd-fg at 20%. No depth, no blur, no lighting. The idea depends on the punctuation alone.\n\nHero and composition: the lanes run gutter to gutter across the top third (Master at y 300–420, V13 at y 460–580). Below them is one headline slot, landing-hero Archivo 800 at 180px, baseline y 900, left on the 64px gutter. The slot is a hard-edged counter window with a hairline lid. Lines roll up exactly one line in 0.21s on the house ease, with a 2px detent at the stop, and only on a pill-impact frame. In the square cut the headline is 168px and wraps MERGE IT / BACK so the stop lands at the end of a short second line, which gives the strongest thumbnail.\n\nMotion:\n- 0.00: frame 0 is a 6× lime capsule about 55% of the frame high, still growing to its peak. The 2D scale pull-back is already running and grey pills step past on both sides (positions only, no smear).\n- 0.85: the pull-back settles at 1×. The pill is the one played pill in a still grey Master lane. ScrambleText resolves MASTER · V12 / 142 BPM · 3:47 over one beat.\n- 0.85–1.06: anticipation, a 12% vertical squash.\n- 1.06: the pill drops one lane and lands. Master keeps a grey pill in its place. The V13 copy grows outward pill by pill with a 4ms stagger, the V13 key appears, and the counter rolls to BRANCH IT.\n- 1.90, 2.11, 2.32: the pill hits at 96 → 64 → 120 → 96px. Each hit sends a height ripple across bars 41–48 that loses 40% per pill outward. Master stays still. The counter rolls to BREAK IT on 1.90.\n- 2.54–2.75: the pill winds up 12px.\n- 2.75: it flattens into an 8px span marker under bars 41–48. Those bars go to 100% in both lanes, BARS 41–48 appears, and the counter rolls to COMPARE IT.\n- 3.38–3.59: V13 dips 8px.\n- 3.59: V13 lifts and the pills lock exactly over Master's (one frame, 2px overshoot). The strip scrambles V12 → V13. The counter rolls to MERGE IT BACK with an empty slot after BACK.\n- 3.59–3.80: the marker contracts to the 57:26 app-icon pill.\n- 3.80–4.01: it arcs down with ease-in on the descent and lands in the slot with a 3% squash, settling at 4.12.\n- 4.23–4.65: the stop holds. Each word exits left through the gutter mask over a 1/8 note, staggered on 1/16 (4.23, 4.34, 4.44). 'sonicdesk' (Archivo Bold, tight tracking, sd-fg) slides in to meet the stop. From 4.23 to 4.44 the stop's corners go square at about 33px. From 4.44 to 4.65 the ghost CTA outline draws on lower right (1px sd-line, JetBrains Mono uppercase sd-fg: + CREATE MY SPACE).\n- 4.65–5.92: static hold.\n\nThumbnail test: a lime capsule on black at frame 0, and 'sonicdesk.' with its lime stop at 4.65.",
+  "formats": [
+   "1x1"
+  ],
+  "duration": 6,
+  "files": [
+   "sonicdesk/.DS_Store",
+   "sonicdesk/README.md",
+   "sonicdesk/brandbook.md",
+   "sonicdesk/landing-and-ads.md",
+   "sonicdesk/palette.md",
+   "sonicdesk/source/tokens.json",
+   "sonicdesk/source/tokens.md",
+   "sonicdesk/references/ui-01.png",
+   "sonicdesk/references/ui-02.png",
+   "sonicdesk/references/ui-03.png",
+   "sonicdesk/references/ui-04.png",
+   "sonicdesk/references/ui-05.png",
+   "sonicdesk/references/ui-06.png",
+   "sonicdesk/references/ui-07.png",
+   "sonicdesk/references/ui-08.png",
+   "sonicdesk/references/ui-09.png",
+   "sonicdesk/references/ui-10.png",
+   "sonicdesk/references/ui-11.png",
+   "sonicdesk/logos/app-icon.svg",
+   "sonicdesk/logos/wordmark.svg",
+   "sonicdesk/fonts/OFL-Archivo.txt",
+   "sonicdesk/fonts/OFL-JetBrainsMono.txt",
+   "sonicdesk/fonts/archivo-latin-400-normal.woff2",
+   "sonicdesk/fonts/archivo-latin-700-normal.woff2",
+   "sonicdesk/fonts/archivo-latin-800-normal.woff2",
+   "sonicdesk/fonts/jetbrains-mono-latin-400-normal.woff2",
+   "sonicdesk/fonts/jetbrains-mono-latin-500-normal.woff2",
+   "sonicdesk/fonts/jetbrains-mono-latin-700-normal.woff2"
+  ]
+ },
+ "output": {
+  "revision": "fa174866-d89d-4c87-bbdd-750cfcff35c8",
+  "path": "/p/b68f165d-e85b-49f7-a42f-74227e1e377f/fa174866-d89d-4c87-bbdd-750cfcff35c8.html",
+  "formats": [
+   "1x1"
+  ],
+  "duration": 6
+ },
+ "media": [],
+ "caption": "Claude · claude-opus-5-5 · high"
+}

@@ -1,0 +1,737 @@
+{
+ "hook": {
+  "schema": "ad/frame-model@1",
+  "beat": "hook",
+  "sketch": "P0_hook_supermarket.png",
+  "format": "4:5",
+  "w": 1080,
+  "h": 1350,
+  "version": 2,
+  "reviewed": true,
+  "source": "review",
+  "regions": [
+   {
+    "id": "r0",
+    "legend": "field",
+    "kind": "full",
+    "paint": "field",
+    "box": {
+     "x": 0,
+     "y": 0,
+     "w": 1080,
+     "h": 1350
+    },
+    "z": 0,
+    "measured": true
+   },
+   {
+    "id": "r1",
+    "legend": "panel",
+    "kind": "edge",
+    "paint": "content",
+    "side": "bottom",
+    "depth": 808,
+    "box": {
+     "x": 0,
+     "y": 542,
+     "w": 1080,
+     "h": 808
+    },
+    "mark": {
+     "name": "tab",
+     "at": 548,
+     "length": 478,
+     "depth": 47.5,
+     "radius": 16
+    },
+    "z": 1,
+    "measured": true
+   }
+  ],
+  "elements": [
+   {
+    "id": "e0",
+    "kind": "text",
+    "legend": "hook.headline",
+    "box": {
+     "x": 108,
+     "y": 318,
+     "w": 632,
+     "h": 186
+    },
+    "raw": {
+     "x": 106,
+     "y": 318,
+     "w": 632,
+     "h": 186
+    },
+    "z": 2,
+    "measured": true,
+    "color": "ink",
+    "text": {
+     "lines": [
+      {
+       "x": 108,
+       "y": 318,
+       "w": 374,
+       "h": 90
+      },
+      {
+       "x": 108,
+       "y": 414,
+       "w": 632,
+       "h": 90
+      }
+     ],
+     "size": 83.2,
+     "style": "headline",
+     "treatment": "plaque",
+     "color": "ink",
+     "align": "left",
+     "words": "Get paid"
+    }
+   },
+   {
+    "id": "e1",
+    "kind": "logo",
+    "legend": "logo",
+    "box": {
+     "x": 108,
+     "y": 68,
+     "w": 250,
+     "h": 70
+    },
+    "raw": {
+     "x": 110,
+     "y": 68,
+     "w": 250,
+     "h": 70
+    },
+    "z": 3,
+    "measured": true,
+    "color": "field",
+    "logo": "wordmark"
+   }
+  ],
+  "decisions": [
+   {
+    "where": "r1 mark",
+    "rule": "depth 45 px → the kit's 47.5 px"
+   },
+   {
+    "where": "hook.headline",
+    "rule": "left edge to the side margin: measured 106 px, snapped to 108 px (within 16.2 px)"
+   },
+   {
+    "where": "e1",
+    "rule": "left edge to the side margin: measured 110 px, snapped to 108 px (within 16.2 px)"
+   }
+  ],
+  "questions": [
+   {
+    "where": "palette",
+    "rule": "field in the sketch is #F04C22 (RGB distance 21 from the kit's #FF5A1F); the kit colour is used"
+   },
+   {
+    "where": "palette",
+    "rule": "black in the sketch is #0A0C0D (RGB distance 21 from the kit's #000000); the kit colour is used"
+   }
+  ]
+ },
+ "problem": {
+  "schema": "ad/frame-model@1",
+  "beat": "problem",
+  "sketch": "P1_problem_tram.png",
+  "format": "4:5",
+  "w": 1080,
+  "h": 1350,
+  "version": 2,
+  "reviewed": true,
+  "source": "review",
+  "regions": [
+   {
+    "id": "r0",
+    "legend": "field",
+    "kind": "full",
+    "paint": "field",
+    "box": {
+     "x": 0,
+     "y": 0,
+     "w": 1080,
+     "h": 1350
+    },
+    "z": 0,
+    "measured": true
+   },
+   {
+    "id": "r1",
+    "legend": "panel",
+    "kind": "edge",
+    "paint": "content",
+    "side": "top",
+    "depth": 826,
+    "box": {
+     "x": 0,
+     "y": 0,
+     "w": 1080,
+     "h": 826
+    },
+    "mark": {
+     "name": "tab",
+     "at": 30,
+     "length": 478,
+     "depth": 47.5,
+     "radius": 16
+    },
+    "z": 1,
+    "measured": true
+   }
+  ],
+  "elements": [
+   {
+    "id": "e0",
+    "kind": "text",
+    "legend": "problem.headline",
+    "box": {
+     "x": 108,
+     "y": 863.8,
+     "w": 744,
+     "h": 190
+    },
+    "raw": {
+     "x": 102,
+     "y": 862,
+     "w": 744,
+     "h": 190
+    },
+    "z": 2,
+    "measured": true,
+    "color": "ink",
+    "text": {
+     "lines": [
+      {
+       "x": 108,
+       "y": 863.8,
+       "w": 744,
+       "h": 90
+      },
+      {
+       "x": 108,
+       "y": 963.8,
+       "w": 668,
+       "h": 90
+      }
+     ],
+     "size": 83.8,
+     "style": "headline",
+     "treatment": "plaque",
+     "color": "ink",
+     "align": "left",
+     "words": "Your card"
+    }
+   },
+   {
+    "id": "e1",
+    "kind": "text",
+    "legend": "problem.answer",
+    "box": {
+     "x": 572,
+     "y": 1210,
+     "w": 434,
+     "h": 62
+    },
+    "raw": {
+     "x": 572,
+     "y": 1210,
+     "w": 434,
+     "h": 62
+    },
+    "z": 3,
+    "measured": true,
+    "color": "ink",
+    "text": {
+     "lines": [
+      {
+       "x": 572,
+       "y": 1210,
+       "w": 434,
+       "h": 62
+      }
+     ],
+     "size": 85.7,
+     "style": "answer",
+     "treatment": "plain",
+     "color": "ink",
+     "align": "right",
+     "words": "KITE does"
+    }
+   },
+   {
+    "id": "e2",
+    "kind": "logo",
+    "legend": "logo",
+    "box": {
+     "x": 108,
+     "y": 68,
+     "w": 250,
+     "h": 71
+    },
+    "raw": {
+     "x": 110,
+     "y": 67,
+     "w": 250,
+     "h": 71
+    },
+    "z": 4,
+    "measured": true,
+    "color": "ink",
+    "logo": "wordmark"
+   }
+  ],
+  "decisions": [
+   {
+    "where": "r1 mark",
+    "rule": "depth 53 px → the kit's 47.5 px"
+   },
+   {
+    "where": "problem.headline",
+    "rule": "size 83.8 px snapped to the kit's headline 83 px"
+   },
+   {
+    "where": "problem.answer",
+    "rule": "size 85.7 px snapped to the kit's answer 83 px"
+   },
+   {
+    "where": "problem.headline",
+    "rule": "left edge to the side margin: measured 102 px, snapped to 108 px (within 16.2 px)"
+   },
+   {
+    "where": "problem.headline",
+    "rule": "gap to the r1 edge: measured 36 px, snapped to 37.8 px (within 16.2 px)"
+   },
+   {
+    "where": "e2",
+    "rule": "left edge to the side margin: measured 110 px, snapped to 108 px (within 16.2 px)"
+   },
+   {
+    "where": "e2",
+    "rule": "logo top margin: measured 67 px, snapped to 68 px (within 16.2 px)"
+   }
+  ],
+  "questions": [
+   {
+    "where": "palette",
+    "rule": "field in the sketch is #F04C22 (RGB distance 21 from the kit's #FF5A1F); the kit colour is used"
+   },
+   {
+    "where": "palette",
+    "rule": "black in the sketch is #080A0B (RGB distance 17 from the kit's #000000); the kit colour is used"
+   }
+  ]
+ },
+ "solution": {
+  "schema": "ad/frame-model@1",
+  "beat": "solution",
+  "sketch": "P2_solution_cafe.png",
+  "format": "4:5",
+  "w": 1080,
+  "h": 1350,
+  "version": 2,
+  "reviewed": true,
+  "source": "review",
+  "regions": [
+   {
+    "id": "r0",
+    "legend": "field",
+    "kind": "full",
+    "paint": "field",
+    "box": {
+     "x": 0,
+     "y": 0,
+     "w": 1080,
+     "h": 1350
+    },
+    "z": 0,
+    "measured": true
+   },
+   {
+    "id": "r1",
+    "legend": "panel",
+    "kind": "edge",
+    "paint": "content",
+    "side": "left",
+    "depth": 573,
+    "box": {
+     "x": 0,
+     "y": 0,
+     "w": 573,
+     "h": 1350
+    },
+    "mark": {
+     "name": "tab",
+     "at": 978,
+     "length": 320,
+     "depth": 47.5,
+     "radius": 16
+    },
+    "z": 1,
+    "measured": true
+   }
+  ],
+  "elements": [
+   {
+    "id": "e0",
+    "kind": "text",
+    "legend": "solution.answer",
+    "box": {
+     "x": 610.8,
+     "y": 384,
+     "w": 423,
+     "h": 160
+    },
+    "raw": {
+     "x": 618,
+     "y": 384,
+     "w": 423,
+     "h": 160
+    },
+    "z": 2,
+    "measured": true,
+    "color": "ink",
+    "text": {
+     "lines": [
+      {
+       "x": 610.8,
+       "y": 384,
+       "w": 422,
+       "h": 74
+      },
+      {
+       "x": 682.8,
+       "y": 482,
+       "w": 351,
+       "h": 62
+      }
+     ],
+     "size": 83.6,
+     "style": "answer",
+     "treatment": "plain",
+     "color": "ink",
+     "align": "right",
+     "words": "KITE pays"
+    }
+   },
+   {
+    "id": "e1",
+    "kind": "text",
+    "legend": "solution.list",
+    "box": {
+     "x": 610.8,
+     "y": 652,
+     "w": 334,
+     "h": 220
+    },
+    "raw": {
+     "x": 614,
+     "y": 652,
+     "w": 334,
+     "h": 220
+    },
+    "z": 3,
+    "measured": true,
+    "color": "ink",
+    "text": {
+     "lines": [
+      {
+       "x": 611.8,
+       "y": 652,
+       "w": 333,
+       "h": 64
+      },
+      {
+       "x": 611.8,
+       "y": 730,
+       "w": 333,
+       "h": 66
+      },
+      {
+       "x": 610.8,
+       "y": 808,
+       "w": 228,
+       "h": 64
+      }
+     ],
+     "size": 64.9,
+     "style": "list",
+     "treatment": "plaque",
+     "color": "ink",
+     "align": "left",
+     "words": "Groceries"
+    }
+   },
+   {
+    "id": "e2",
+    "kind": "logo",
+    "legend": "logo",
+    "box": {
+     "x": 108,
+     "y": 68,
+     "w": 250,
+     "h": 71
+    },
+    "raw": {
+     "x": 110,
+     "y": 67,
+     "w": 250,
+     "h": 71
+    },
+    "z": 4,
+    "measured": true,
+    "color": "ink",
+    "logo": "wordmark"
+   }
+  ],
+  "decisions": [
+   {
+    "where": "r1 mark",
+    "rule": "depth 34 px → the kit's 47.5 px"
+   },
+   {
+    "where": "r1 mark",
+    "rule": "length 320 px kept (kit size 479.5 px is the default)"
+   },
+   {
+    "where": "solution.answer",
+    "rule": "size 83.6 px snapped to the kit's answer 83 px"
+   },
+   {
+    "where": "solution.list",
+    "rule": "size 64.9 px snapped to the kit's list 64 px"
+   },
+   {
+    "where": "solution.answer",
+    "rule": "gap to the r1 edge: measured 45 px, snapped to 37.8 px (within 16.2 px)"
+   },
+   {
+    "where": "solution.list",
+    "rule": "gap to the r1 edge: measured 41 px, snapped to 37.8 px (within 16.2 px)"
+   },
+   {
+    "where": "e2",
+    "rule": "left edge to the side margin: measured 110 px, snapped to 108 px (within 16.2 px)"
+   },
+   {
+    "where": "e2",
+    "rule": "logo top margin: measured 67 px, snapped to 68 px (within 16.2 px)"
+   }
+  ],
+  "questions": [
+   {
+    "where": "palette",
+    "rule": "field in the sketch is #F04C22 (RGB distance 21 from the kit's #FF5A1F); the kit colour is used"
+   },
+   {
+    "where": "palette",
+    "rule": "black in the sketch is #0C0B0A (RGB distance 19 from the kit's #000000); the kit colour is used"
+   }
+  ]
+ },
+ "end": {
+  "schema": "ad/frame-model@1",
+  "beat": "end",
+  "sketch": "P3_end.png",
+  "format": "4:5",
+  "w": 1080,
+  "h": 1350,
+  "version": 2,
+  "reviewed": true,
+  "source": "review",
+  "regions": [
+   {
+    "id": "r0",
+    "legend": "field",
+    "kind": "full",
+    "paint": "field",
+    "box": {
+     "x": 0,
+     "y": 0,
+     "w": 1080,
+     "h": 1350
+    },
+    "z": 0,
+    "measured": true
+   }
+  ],
+  "elements": [
+   {
+    "id": "e0",
+    "kind": "logo",
+    "legend": "end.logo",
+    "box": {
+     "x": 286.6,
+     "y": 448,
+     "w": 509.8,
+     "h": 144.2
+    },
+    "raw": {
+     "x": 287,
+     "y": 448,
+     "w": 509,
+     "h": 144
+    },
+    "z": 1,
+    "measured": true,
+    "color": "field",
+    "logo": "wordmark"
+   },
+   {
+    "id": "e1",
+    "kind": "text",
+    "legend": "end.sub",
+    "box": {
+     "x": 185,
+     "y": 652,
+     "w": 709,
+     "h": 142
+    },
+    "raw": {
+     "x": 185,
+     "y": 652,
+     "w": 709,
+     "h": 142
+    },
+    "z": 2,
+    "measured": true,
+    "color": "ink",
+    "text": {
+     "lines": [
+      {
+       "x": 185,
+       "y": 652,
+       "w": 709,
+       "h": 56
+      },
+      {
+       "x": 196,
+       "y": 737,
+       "w": 686,
+       "h": 57
+      }
+     ],
+     "size": 72.4,
+     "style": "end_sub",
+     "treatment": "plain",
+     "color": "ink",
+     "align": "center",
+     "words": "Free card."
+    }
+   },
+   {
+    "id": "e2",
+    "kind": "text",
+    "legend": "end.cta",
+    "box": {
+     "x": 341,
+     "y": 1014,
+     "w": 395,
+     "h": 66
+    },
+    "raw": {
+     "x": 341,
+     "y": 1014,
+     "w": 395,
+     "h": 66
+    },
+    "z": 3,
+    "measured": true,
+    "color": "ink",
+    "text": {
+     "lines": [
+      {
+       "x": 341,
+       "y": 1014,
+       "w": 395,
+       "h": 66
+      }
+     ],
+     "size": 61.7,
+     "style": "cta",
+     "treatment": "plaque",
+     "color": "ink",
+     "align": "center",
+     "words": "GET IT"
+    }
+   },
+   {
+    "id": "e3",
+    "kind": "mark",
+    "legend": "end.badge_ios",
+    "box": {
+     "x": 263.3,
+     "y": 1127.2,
+     "w": 276.5,
+     "h": 88.6
+    },
+    "raw": {
+     "x": 253,
+     "y": 1127,
+     "w": 297,
+     "h": 89
+    },
+    "z": 4,
+    "measured": true,
+    "color": "black",
+    "mark": "badge_ios"
+   },
+   {
+    "id": "e4",
+    "kind": "mark",
+    "legend": "end.badge_android",
+    "box": {
+     "x": 536.3,
+     "y": 1127.2,
+     "w": 276.5,
+     "h": 88.6
+    },
+    "raw": {
+     "x": 526,
+     "y": 1127,
+     "w": 297,
+     "h": 89
+    },
+    "z": 5,
+    "measured": true,
+    "color": "black",
+    "mark": "badge_android"
+   }
+  ],
+  "decisions": [
+   {
+    "where": "end.sub",
+    "rule": "size 72.4 px snapped to the kit's end_sub 71 px"
+   },
+   {
+    "where": "end.cta",
+    "rule": "size 61.7 px snapped to the kit's cta 64 px"
+   },
+   {
+    "where": "e0",
+    "rule": "logo width 47.1u → 47.2u (the end-frame width)"
+   },
+   {
+    "where": "e3",
+    "rule": "mark badge_ios 297×89 → the kit's 276.5×88.6"
+   },
+   {
+    "where": "e4",
+    "rule": "mark badge_ios 297×89 → the kit's 276.5×88.6"
+   }
+  ],
+  "questions": [
+   {
+    "where": "palette",
+    "rule": "field in the sketch is #F04C22 (RGB distance 21 from the kit's #FF5A1F); the kit colour is used"
+   }
+  ]
+ }
+}

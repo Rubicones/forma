@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><script type="importmap">{"imports":{"three":"/lib/three/build/three.module.js","three/addons/":"/lib/three/examples/jsm/"}}</script><script src="/lib/gsap.js"></script><script src="/lib/lottie.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1080, initial-scale=1">
+<title>Toggle Concepts — More formats. Still you.</title>
+<style>
+@font-face {
+  font-family: "Inter Tight";
+  src: url("assets/Toggle_Concepts_Brand_Pack/fonts/InterTight-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-display: block;
+}
+@font-face {
+  font-family: "Inter Tight";
+  src: url("assets/Toggle_Concepts_Brand_Pack/fonts/InterTight-Medium.ttf") format("truetype");
+  font-weight: 500;
+  font-display: block;
+}
+@font-face {
+  font-family: "Inter Tight";
+  src: url("assets/Toggle_Concepts_Brand_Pack/fonts/InterTight-SemiBold.ttf") format("truetype");
+  font-weight: 600;
+  font-display: block;
+}
+@font-face {
+  font-family: "Inter Tight";
+  src: url("assets/Toggle_Concepts_Brand_Pack/fonts/InterTight-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-display: block;
+}
+:root {
+  --navy: #0C2B3F;
+  --sky: #B4E4FA;
+  --white: #FFFFFF;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  width: 1080px;
+  height: 1080px;
+  overflow: hidden;
+  background: var(--white);
+}
+body {
+  font-family: "Inter Tight", Arial, sans-serif;
+  color: var(--navy);
+  -webkit-font-smoothing: antialiased;
+}
+button, a { -webkit-tap-highlight-color: transparent; }
+.artboard {
+  position: relative;
+  width: 1080px;
+  height: 1080px;
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--white);
+}
+.scene { position: absolute; inset: 0; }
+.logo {
+  position: absolute;
+  top: 108px;
+  left: 108px;
+  width: 384px;
+  height: auto;
+  display: block;
+}
+.headline {
+  position: absolute;
+  left: 108px;
+  top: 184px;
+  width: 864px;
+  margin: 0;
+  font-size: 64px;
+  font-weight: 600;
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+}
+.headline span { display: block; }
+.opening {
+  font-size: 88px;
+  line-height: .96;
+}
+.engine { opacity: 0; }
+.human { visibility: hidden; }
+.human .headline { line-height: 1.08; }
+.frame-stage {
+  position: absolute;
+  inset: 0;
+  width: 1080px;
+  height: 1080px;
+  overflow: visible;
+}
+.frame-stage rect {
+  fill: none;
+  stroke: var(--navy);
+  stroke-width: 3;
+}
+.ghost { visibility: hidden; opacity: .18; }
+.ring {
+  position: absolute;
+  left: 540px;
+  top: 692px;
+  width: 416px;
+  height: auto;
+  transform: translate(-50%, -50%);
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.portrait {
+  position: absolute;
+  left: 108px;
+  top: 449px;
+  width: 864px;
+  height: 486px;
+  display: block;
+  object-fit: contain;
+}
+.end-card {
+  visibility: hidden;
+  color: var(--white);
+  background: var(--navy);
+}
+.promise-frame {
+  position: absolute;
+  left: 108px;
+  top: 252px;
+  width: 864px;
+  height: 348px;
+  border: 3px solid var(--sky);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  padding: 0 44px;
+}
+.promise {
+  margin: 0;
+  font-size: 64px;
+  line-height: 1.12;
+  letter-spacing: -0.035em;
+  font-weight: 600;
+}
+.promise span { display: block; white-space: nowrap; }
+.promise span + span { color: var(--sky); }
+.offer {
+  position: absolute;
+  left: 108px;
+  top: 652px;
+  margin: 0;
+  font-size: 36px;
+  line-height: 44px;
+  font-weight: 400;
+  letter-spacing: -.015em;
+}
+.cta {
+  position: absolute;
+  left: 108px;
+  top: 732px;
+  width: 500px;
+  height: 96px;
+  border-radius: 999px;
+  background: var(--white);
+  color: var(--navy);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  font-size: 28px;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: .01em;
+}
+.cta svg { width: 28px; height: 28px; flex: none; }
+.destination {
+  position: absolute;
+  left: 108px;
+  top: 880px;
+  font-size: 28px;
+  line-height: 36px;
+  color: var(--white);
+  text-decoration: none;
+  font-weight: 400;
+}
+.sound {
+  position: absolute;
+  top: 104px;
+  right: 108px;
+  z-index: 5;
+  width: 44px;
+  height: 44px;
+  padding: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--navy);
+  cursor: pointer;
+}
+.sound svg { display: block; width: 28px; height: 28px; }
+.sound .waves { display: none; }
+.sound[aria-pressed="true"] .waves { display: inline; }
+.sound[aria-pressed="true"] .mute { display: none; }
+.artboard[data-scene="end"] .sound { color: var(--sky); }
+a:focus-visible, button:focus-visible {
+  outline: 3px solid var(--sky);
+  outline-offset: 8px;
+}
+</style>
+</head>
+<body>
+<main class="artboard" id="artboard" data-scene="opening" aria-label="Toggle Concepts. The frame changes. The idea holds.">
+  <section class="scene concept" id="concept" aria-label="One identity across every format">
+    <img class="logo" src="assets/Toggle_Concepts_Brand_Pack/logo/toggle-concepts-lockup-navy.svg" alt="Toggle Concepts">
+    <h1 class="headline opening" id="opening">
+      <span>More formats.</span>
+      <span>Still you.</span>
+    </h1>
+    <h2 class="headline engine" id="engine" aria-hidden="true">
+      <span>One concept.</span>
+      <span>Our engine builds</span>
+      <span>every version.</span>
+    </h2>
+    <svg class="frame-stage" viewBox="0 0 1080 1080" aria-hidden="true">
+      <rect class="ghost" id="portraitGhost" x="316" y="412" width="448" height="560" rx="16"/>
+      <rect class="ghost" id="squareGhost" x="260" y="412" width="560" height="560" rx="16"/>
+      <rect id="activeFrame" x="316" y="412" width="448" height="560" rx="16"/>
+    </svg>
+    <img class="ring" src="assets/Toggle_Concepts_Brand_Pack/logo/png/toggle-ring-gloss.png" alt="Toggle’s glossy orange ring, unchanged as the surrounding frame changes format">
+  </section>
+
+  <section class="scene human" id="human" aria-hidden="true">
+    <img class="logo" src="assets/Toggle_Concepts_Brand_Pack/logo/toggle-concepts-lockup-navy.svg" alt="Toggle Concepts">
+    <h2 class="headline">
+      <span>Senior creatives lead.</span>
+      <span>Experts check every file.</span>
+    </h2>
+    <img class="portrait" src="assets/Toggle_Concepts_Brand_Pack/img/founder.png" alt="Roman, Co-founder and Creative Director at Toggle, seated in his studio">
+  </section>
+
+  <section class="scene end-card" id="endCard" aria-hidden="true">
+    <img class="logo" src="assets/Toggle_Concepts_Brand_Pack/logo/toggle-concepts-lockup-white.svg" alt="Toggle Concepts">
+    <div class="promise-frame">
+      <h2 class="promise">
+        <span>Pay for concepts.</span>
+        <span>Every version is included.</span>
+      </h2>
+    </div>
+    <p class="offer">20% off your first month</p>
+    <a class="cta" href="https://concepts.toggle.studio" target="_blank" rel="noopener noreferrer" tabindex="-1">
+      <span>START A TEST MONTH</span>
+      <svg viewBox="0 0 28 28" fill="none" aria-hidden="true">
+        <path d="M4 14h19M16 7l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </a>
+    <a class="destination" href="https://concepts.toggle.studio" target="_blank" rel="noopener noreferrer" tabindex="-1">concepts.toggle.studio</a>
+  </section>
+
+  <button class="sound" id="sound" type="button" aria-label="Enable sound" aria-pressed="false" title="Enable sound">
+    <svg viewBox="0 0 28 28" fill="none" aria-hidden="true">
+      <path d="M4 11h5l6-5v16l-6-5H4z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+      <g class="mute" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+        <path d="m20 11 6 6m0-6-6 6"/>
+      </g>
+      <g class="waves" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+        <path d="M19 10a6 6 0 0 1 0 8M22 6a11 11 0 0 1 0 16"/>
+      </g>
+    </svg>
+  </button>
+</main>
+<script>
+(() => {
+  "use strict";
+
+  const $ = id => document.getElementById(id);
+  const artboard = $("artboard");
+  const concept = $("concept");
+  const human = $("human");
+  const endCard = $("endCard");
+  const opening = $("opening");
+  const engine = $("engine");
+  const frame = $("activeFrame");
+  const portraitGhost = $("portraitGhost");
+  const squareGhost = $("squareGhost");
+  const soundButton = $("sound");
+  const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const clamp = n => Math.max(0, Math.min(1, n));
+  const power4out = n => 1 - Math.pow(1 - clamp(n), 5);
+  let elapsed = 0;
+  let previousTime = 0;
+  let currentScene = "";
+  let startTime;
+  let audioContext;
+  let masterGain;
+  let soundEnabled = false;
+  let audioFinished = false;
+  const oscillators = [];
+
+  function showScene(name) {
+    if (currentScene === name) return;
+    currentScene = name;
+    artboard.dataset.scene = name;
+    const conceptVisible = name === "opening" || name === "engine";
+    [
+      [concept, conceptVisible],
+      [human, name === "human"],
+      [endCard, name === "end"]
+    ].forEach(([element, visible]) => {
+      element.style.visibility = visible ? "visible" : "hidden";
+      element.setAttribute("aria-hidden", String(!visible));
+    });
+    endCard.querySelectorAll("a").forEach(link => {
+      link.tabIndex = name === "end" ? 0 : -1;
+    });
+    opening.setAttribute("aria-hidden", String(name !== "opening"));
+    engine.setAttribute("aria-hidden", String(name !== "engine"));
+    setAudioLevel();
+  }
+
+  function setFrame(width, height) {
+    frame.setAttribute("x", (1080 - width) / 2);
+    frame.setAttribute("y", 692 - height / 2);
+    frame.setAttribute("width", width);
+    frame.setAttribute("height", height);
+  }
+
+  function setAudioLevel() {
+    if (!audioContext || !masterGain) return;
+    const level = !soundEnabled || audioFinished ? 0 :
+      currentScene === "human" ? .008 : .022;
+    masterGain.gain.setTargetAtTime(level, audioContext.currentTime, .25);
+  }
+
+  function createAudio() {
+    const Audio = window.AudioContext || window.webkitAudioContext;
+    if (!Audio) return false;
+    audioContext = new Audio();
+    masterGain = audioContext.createGain();
+    masterGain.gain.value = 0;
+    masterGain.connect(audioContext.destination);
+    [130.8128, 196].forEach((frequency, index) => {
+      const oscillator = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      oscillator.type = "sine";
+      oscillator.frequency.value = frequency;
+      gain.gain.value = index === 0 ? .65 : .25;
+      oscillator.connect(gain);
+      gain.connect(masterGain);
+      oscillator.start();
+      oscillators.push(oscillator);
+    });
+    return true;
+  }
+
+  function click() {
+    if (!soundEnabled || !audioContext || audioContext.state !== "running") return;
+    const now = audioContext.currentTime;
+    const oscillator = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(920, now);
+    oscillator.frequency.exponentialRampToValueAtTime(340, now + .045);
+    gain.gain.setValueAtTime(.0001, now);
+    gain.gain.exponentialRampToValueAtTime(.045, now + .004);
+    gain.gain.exponentialRampToValueAtTime(.0001, now + .07);
+    oscillator.connect(gain);
+    gain.connect(audioContext.destination);
+    oscillator.start(now);
+    oscillator.stop(now + .08);
+    oscillator.onended = () => {
+      oscillator.disconnect();
+      gain.disconnect();
+    };
+  }
+
+  soundButton.addEventListener("click", async () => {
+    try {
+      if (!audioContext && !createAudio()) return;
+      soundEnabled = !soundEnabled;
+      if (soundEnabled) await audioContext.resume();
+      soundButton.setAttribute("aria-pressed", String(soundEnabled));
+      const label = soundEnabled ? "Mute sound" : "Enable sound";
+      soundButton.setAttribute("aria-label", label);
+      soundButton.title = label;
+      setAudioLevel();
+    } catch (_) {
+      soundEnabled = false;
+      soundButton.setAttribute("aria-pressed", "false");
+    }
+  });
+
+  function render(time) {
+    if (time >= 10) {
+      showScene("end");
+      return;
+    }
+    if (time >= 7) {
+      showScene("human");
+      return;
+    }
+
+    showScene(time < 3 ? "opening" : "engine");
+
+    opening.style.opacity = reducedMotion
+      ? (time < 3 ? 1 : 0)
+      : 1 - clamp((time - 2.84) / .16);
+    engine.style.opacity = reducedMotion
+      ? (time >= 3 ? 1 : 0)
+      : clamp((time - 3) / .2);
+
+    portraitGhost.style.visibility = time >= 2.4 ? "visible" : "hidden";
+    squareGhost.style.visibility = time >= 5.2 ? "visible" : "hidden";
+
+    if (time < 2.4) {
+      setFrame(448, 560);
+    } else if (time < 5.2) {
+      const progress = reducedMotion ? 1 : power4out((time - 2.4) / .6);
+      setFrame(448 + 112 * progress, 560);
+    } else {
+      const progress = reducedMotion ? 1 : power4out((time - 5.2) / .6);
+      setFrame(560 + 304 * progress, 560 - 74 * progress);
+    }
+  }
+
+  function tick(now) {
+    if (startTime === undefined) startTime = now;
+    elapsed = Math.min((now - startTime) / 1000, 15);
+    render(elapsed);
+
+    [3, 5.8].forEach(beat => {
+      if (previousTime < beat && elapsed >= beat) click();
+    });
+    previousTime = elapsed;
+
+    if (elapsed < 15) {
+      requestAnimationFrame(tick);
+    } else {
+      audioFinished = true;
+      setAudioLevel();
+      oscillators.forEach(oscillator => {
+        try { oscillator.stop(audioContext.currentTime + 1.5); } catch (_) {}
+      });
+    }
+  }
+
+  render(0);
+
+  const imageReady = Array.from(document.images).map(image => {
+    if (image.complete) return Promise.resolve();
+    return new Promise(resolve => {
+      image.addEventListener("load", resolve, { once: true });
+      image.addEventListener("error", resolve, { once: true });
+    });
+  });
+
+  Promise.all([
+    document.fonts.ready,
+    document.fonts.load('600 88px "Inter Tight"'),
+    document.fonts.load('400 36px "Inter Tight"'),
+    document.fonts.load('700 28px "Inter Tight"'),
+    ...imageReady
+  ]).then(() => requestAnimationFrame(tick));
+})();
+</script>
+</body>
+</html>

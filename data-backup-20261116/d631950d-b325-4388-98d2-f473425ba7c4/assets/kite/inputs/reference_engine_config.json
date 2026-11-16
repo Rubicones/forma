@@ -1,0 +1,849 @@
+{
+ "version": "3.0",
+ "about": "Единый конфиг движка: форматы, сетка, моушн, сцены, вариации, рендер. Размеры в px холста формата; u = 10.8 px",
+ "brand": {
+  "name": "KITE",
+  "field": "#FF5A1F",
+  "ink": "#F7EED3",
+  "font": "Schibsted Grotesk",
+  "wordmark": {
+   "w": 254,
+   "x": 108,
+   "top": 68,
+   "top_916": 280
+  },
+  "end_wordmark_w": 510
+ },
+ "formats": {
+  "4:5": {
+   "w": 1080,
+   "h": 1350,
+   "safe": {
+    "top": 0,
+    "right": 0,
+    "bottom": 0,
+    "left": 0
+   }
+  },
+  "9:16": {
+   "w": 1080,
+   "h": 1920,
+   "safe": {
+    "top": 250,
+    "right": 120,
+    "bottom": 440,
+    "left": 64
+   }
+  },
+  "1:1": {
+   "w": 1080,
+   "h": 1080,
+   "safe": {
+    "top": 0,
+    "right": 0,
+    "bottom": 0,
+    "left": 0
+   }
+  },
+  "16:9": {
+   "w": 1920,
+   "h": 1080,
+   "safe": {
+    "top": 0,
+    "right": 0,
+    "bottom": 0,
+    "left": 0
+   }
+  }
+ },
+ "styles": {
+  "headline": {
+   "size": 83,
+   "weight": 800,
+   "pitch": 1.14,
+   "plaque": true
+  },
+  "answer": {
+   "size": 83,
+   "weight": 800,
+   "pitch": 1.14,
+   "plaque": false
+  },
+  "list": {
+   "size": 64,
+   "weight": 800,
+   "pitch": 1.25,
+   "plaque": true
+  },
+  "end_sub": {
+   "size": 71,
+   "weight": 700,
+   "pitch": 1.25,
+   "plaque": false
+  },
+  "cta": {
+   "size": 64,
+   "weight": 800,
+   "pitch": 1.14,
+   "plaque": true
+  }
+ },
+ "plaque": {
+  "h": 1.08,
+  "pad_l": 0.03,
+  "pad_r": 0.15
+ },
+ "min_text_scale": 0.85,
+ "layouts": {
+  "hook": {
+   "4:5": {
+    "panel": [
+     0,
+     540,
+     1080,
+     810
+    ],
+    "outer_edge": "bottom",
+    "tab": {
+     "rect": [
+      547,
+      540,
+      480,
+      48
+     ],
+     "into": "down"
+    },
+    "text": {
+     "headline": {
+      "x": 108,
+      "bottom": 502,
+      "align": "left",
+      "maxw": 864
+     }
+    },
+    "text_rides_split": true
+   },
+   "9:16": {
+    "panel": [
+     0,
+     760,
+     1080,
+     1160
+    ],
+    "outer_edge": "bottom",
+    "tab": {
+     "rect": [
+      547,
+      760,
+      413,
+      48
+     ],
+     "into": "down"
+    },
+    "text": {
+     "headline": {
+      "x": 108,
+      "bottom": 722,
+      "align": "left",
+      "maxw": 852
+     }
+    },
+    "text_rides_split": false
+   },
+   "1:1": {
+    "panel": [
+     0,
+     432,
+     1080,
+     648
+    ],
+    "outer_edge": "bottom",
+    "tab": {
+     "rect": [
+      547,
+      432,
+      480,
+      48
+     ],
+     "into": "down"
+    },
+    "text": {
+     "headline": {
+      "x": 108,
+      "bottom": 394,
+      "align": "left",
+      "maxw": 864
+     }
+    },
+    "text_rides_split": true
+   },
+   "16:9": {
+    "panel": [
+     806,
+     0,
+     1114,
+     1080
+    ],
+    "outer_edge": "right",
+    "tab": {
+     "rect": [
+      806,
+      547,
+      48,
+      480
+     ],
+     "into": "right"
+    },
+    "text": {
+     "headline": {
+      "x": 108,
+      "top": 454,
+      "align": "left",
+      "maxw": 660
+     }
+    },
+    "text_rides_split": true
+   }
+  },
+  "problem": {
+   "4:5": {
+    "panel": [
+     0,
+     0,
+     1080,
+     826
+    ],
+    "outer_edge": "top",
+    "tab": {
+     "rect": [
+      30,
+      772,
+      478,
+      54
+     ],
+     "into": "up"
+    },
+    "text": {
+     "headline": {
+      "x": 108,
+      "top": 864,
+      "align": "left",
+      "maxw": 864
+     },
+     "answer": {
+      "right": 1004,
+      "bottom": 1270,
+      "align": "right",
+      "maxw": 896
+     }
+    },
+    "text_rides_split": true
+   },
+   "9:16": {
+    "panel": [
+     0,
+     890,
+     1080,
+     1030
+    ],
+    "outer_edge": "bottom",
+    "tab": {
+     "rect": [
+      64,
+      890,
+      478,
+      54
+     ],
+     "into": "down"
+    },
+    "text": {
+     "headline": {
+      "x": 108,
+      "top": 430,
+      "align": "left",
+      "maxw": 852
+     },
+     "answer": {
+      "right": 960,
+      "bottom": 852,
+      "align": "right",
+      "maxw": 852
+     }
+    },
+    "text_rides_split": false
+   },
+   "1:1": {
+    "panel": [
+     0,
+     0,
+     1080,
+     556
+    ],
+    "outer_edge": "top",
+    "tab": {
+     "rect": [
+      30,
+      502,
+      478,
+      54
+     ],
+     "into": "up"
+    },
+    "text": {
+     "headline": {
+      "x": 108,
+      "top": 594,
+      "align": "left",
+      "maxw": 864
+     },
+     "answer": {
+      "right": 1004,
+      "bottom": 1000,
+      "align": "right",
+      "maxw": 896
+     }
+    },
+    "text_rides_split": true
+   },
+   "16:9": {
+    "panel": [
+     0,
+     0,
+     998,
+     1080
+    ],
+    "outer_edge": "left",
+    "tab": {
+     "rect": [
+      944,
+      30,
+      54,
+      478
+     ],
+     "into": "left"
+    },
+    "text": {
+     "headline": {
+      "x": 1036,
+      "top": 324,
+      "align": "left",
+      "maxw": 776
+     },
+     "answer": {
+      "right": 1844,
+      "bottom": 1000,
+      "align": "right",
+      "maxw": 808
+     }
+    },
+    "text_rides_split": true
+   }
+  },
+  "solution": {
+   "4:5": {
+    "panel": [
+     0,
+     0,
+     575,
+     1350
+    ],
+    "outer_edge": "left",
+    "tab": {
+     "rect": [
+      540,
+      976,
+      35,
+      324
+     ],
+     "into": "left"
+    },
+    "text": {
+     "answer": {
+      "right": 1042,
+      "top": 378,
+      "align": "right",
+      "maxw": 429
+     },
+     "list": {
+      "x": 613,
+      "top": 642,
+      "align": "left",
+      "maxw": 429
+     }
+    },
+    "text_rides_split": true
+   },
+   "9:16": {
+    "panel": [
+     0,
+     850,
+     1080,
+     1070
+    ],
+    "outer_edge": "bottom",
+    "tab": {
+     "rect": [
+      636,
+      850,
+      324,
+      35
+     ],
+     "into": "down"
+    },
+    "text": {
+     "answer": {
+      "x": 108,
+      "top": 420,
+      "align": "left",
+      "maxw": 852,
+      "join_lines": true
+     },
+     "list": {
+      "x": 108,
+      "top": 575,
+      "align": "left",
+      "maxw": 852
+     }
+    },
+    "text_rides_split": false
+   },
+   "1:1": {
+    "panel": [
+     0,
+     0,
+     575,
+     1080
+    ],
+    "outer_edge": "left",
+    "tab": {
+     "rect": [
+      540,
+      706,
+      35,
+      324
+     ],
+     "into": "left"
+    },
+    "text": {
+     "answer": {
+      "right": 1042,
+      "top": 252,
+      "align": "right",
+      "maxw": 429
+     },
+     "list": {
+      "x": 613,
+      "top": 516,
+      "align": "left",
+      "maxw": 429
+     }
+    },
+    "text_rides_split": true
+   },
+   "16:9": {
+    "panel": [
+     0,
+     0,
+     1018,
+     1080
+    ],
+    "outer_edge": "left",
+    "tab": {
+     "rect": [
+      983,
+      706,
+      35,
+      324
+     ],
+     "into": "left"
+    },
+    "text": {
+     "answer": {
+      "x": 1056,
+      "top": 252,
+      "align": "left",
+      "maxw": 756
+     },
+     "list": {
+      "x": 1056,
+      "top": 516,
+      "align": "left",
+      "maxw": 756
+     }
+    },
+    "text_rides_split": true
+   }
+  }
+ },
+ "crop_rule": {
+  "master": "1:1",
+  "hero_zone": [
+   0.3,
+   0.3,
+   0.7,
+   0.7
+  ],
+  "scene_zone": [
+   0.15,
+   0.15,
+   0.85,
+   0.85
+  ],
+  "rule": "центр мастера ставится в центр видимой части панели (панель минус зоны интерфейса); мастер масштабируется минимально, чтобы закрыть всю панель; зона 30–70% мастера обязана поместиться в видимую часть",
+  "max_upscale_vs_video": 1.5
+ },
+ "motion": {
+  "curves": {
+   "out": [
+    0.55,
+    0,
+    1,
+    0.45
+   ],
+   "in": [
+    0.22,
+    1,
+    0.36,
+    1
+   ]
+  },
+  "panel_out": 0.16,
+  "field_hold": 0.04,
+  "panel_in": 0.25,
+  "tab_delay": 0.05,
+  "answer_type": {
+   "delay": 0.2,
+   "step": 0.125
+  },
+  "end": {
+   "wordmark_drop": {
+    "dur": 0.15,
+    "from_u": -5
+   },
+   "sub_type": {
+    "delay": 0.05,
+    "step": 0.125
+   },
+   "cta_rise": {
+    "delay": 0.1,
+    "dur": 0.25,
+    "from_u": 8
+   }
+  }
+ },
+ "scenes": {
+  "SUPERMARKET": {
+   "file": "media/supermarket.mp4",
+   "static": "media/static_supermarket.jpg",
+   "clip_in": 0.6,
+   "usable": [
+    0.6,
+    3.9
+   ]
+  },
+  "TABLE": {
+   "file": "media/table.mp4",
+   "static": "media/static_table.jpg",
+   "clip_in": 0.0,
+   "usable": [
+    0.0,
+    5.0
+   ]
+  },
+  "TRAM": {
+   "file": "media/tram.mp4",
+   "static": "media/static_tram.jpg",
+   "clip_in": 0.0,
+   "usable": [
+    0.0,
+    5.0
+   ]
+  },
+  "CAFE": {
+   "file": "media/cafe.mp4",
+   "static": "media/static_cafe.jpg",
+   "clip_in": 0.3,
+   "usable": [
+    0.3,
+    4.1
+   ]
+  }
+ },
+ "beats": {
+  "hook": {
+   "layout": "hook",
+   "scene": "by_hook"
+  },
+  "problem": {
+   "layout": "problem",
+   "scene": "TRAM"
+  },
+  "solution": {
+   "layout": "solution",
+   "scene": "CAFE"
+  },
+  "end": {
+   "layout": "end"
+  }
+ },
+ "lengths": {
+  "6": [
+   [
+    "hook",
+    3.0
+   ],
+   [
+    "end",
+    3.0
+   ]
+  ],
+  "12": [
+   [
+    "hook",
+    2.9
+   ],
+   [
+    "problem",
+    3.2
+   ],
+   [
+    "solution",
+    3.1
+   ],
+   [
+    "end",
+    2.8
+   ]
+  ],
+  "15": [
+   [
+    "hook",
+    3.3
+   ],
+   [
+    "problem",
+    4.2
+   ],
+   [
+    "solution",
+    3.8
+   ],
+   [
+    "end",
+    3.7
+   ]
+  ]
+ },
+ "languages": [
+  "EN",
+  "DE",
+  "ES",
+  "FR"
+ ],
+ "hooks": {
+  "H1": {
+   "scene": "SUPERMARKET",
+   "text": {
+    "EN": [
+     "Get paid",
+     "for buying milk"
+    ],
+    "DE": [
+     "Geld zurück",
+     "für jede Milch"
+    ],
+    "ES": [
+     "Cobra por",
+     "comprar leche"
+    ],
+    "FR": [
+     "Payé pour",
+     "acheter du lait"
+    ]
+   }
+  },
+  "H2": {
+   "scene": "TABLE",
+   "text": {
+    "EN": [
+     "Breakfast that",
+     "pays you back"
+    ],
+    "DE": [
+     "Frühstück, das",
+     "dich bezahlt"
+    ],
+    "ES": [
+     "Un desayuno",
+     "que te paga"
+    ],
+    "FR": [
+     "Le petit-déj",
+     "qui te paie"
+    ]
+   }
+  },
+  "H3": {
+   "scene": "SUPERMARKET",
+   "text": {
+    "EN": [
+     "5% back",
+     "on every shop"
+    ],
+    "DE": [
+     "5 % zurück",
+     "bei jedem Einkauf"
+    ],
+    "ES": [
+     "5 % de vuelta",
+     "en cada compra"
+    ],
+    "FR": [
+     "5 % remboursés",
+     "à chaque course"
+    ]
+   }
+  }
+ },
+ "ctas": {
+  "C1": {
+   "EN": "GET IT NOW",
+   "DE": "JETZT HOLEN",
+   "ES": "CONSÍGUELA YA",
+   "FR": "OBTIENS-LA"
+  },
+  "C2": {
+   "EN": "GET THE CARD",
+   "DE": "KARTE HOLEN",
+   "ES": "PIDE TU TARJETA",
+   "FR": "PRENDS TA CARTE"
+  },
+  "C3": {
+   "EN": "GET KITE",
+   "DE": "KITE HOLEN",
+   "ES": "CONSIGUE KITE",
+   "FR": "PRENDS KITE"
+  }
+ },
+ "copy": {
+  "problem.headline": {
+   "EN": [
+    "Your card doesn’t",
+    "pay you on food"
+   ],
+   "DE": [
+    "Deine Karte zahlt",
+    "dir nichts fürs Essen"
+   ],
+   "ES": [
+    "Tu tarjeta no te paga",
+    "por la comida"
+   ],
+   "FR": [
+    "Ta carte ne te paie",
+    "pas tes courses"
+   ]
+  },
+  "problem.answer": {
+   "EN": [
+    "KITE does"
+   ],
+   "DE": [
+    "KITE schon"
+   ],
+   "ES": [
+    "KITE sí"
+   ],
+   "FR": [
+    "KITE, si"
+   ]
+  },
+  "solution.answer": {
+   "EN": [
+    "KITE pays",
+    "5% back"
+   ],
+   "DE": [
+    "KITE zahlt",
+    "5 % zurück"
+   ],
+   "ES": [
+    "KITE paga",
+    "el 5 %"
+   ],
+   "FR": [
+    "KITE rend",
+    "5 %"
+   ]
+  },
+  "solution.list": {
+   "EN": [
+    "Groceries",
+    "Transport",
+    "Coffee"
+   ],
+   "DE": [
+    "Lebensmittel",
+    "Nahverkehr",
+    "Kaffee"
+   ],
+   "ES": [
+    "Súper",
+    "Transporte",
+    "Café"
+   ],
+   "FR": [
+    "Courses",
+    "Transport",
+    "Café"
+   ]
+  },
+  "end.sub": {
+   "EN": [
+    "Free card. 3 minutes",
+    "no fee · no minimum"
+   ],
+   "DE": [
+    "Gratis-Karte. 3 Minuten",
+    "0 € Gebühr · kein Minimum"
+   ],
+   "ES": [
+    "Tarjeta gratis. 3 minutos",
+    "sin comisión · sin mínimo"
+   ],
+   "FR": [
+    "Carte gratuite. 3 minutes",
+    "sans frais · sans minimum"
+   ]
+  }
+ },
+ "render": {
+  "fps": 24,
+  "codec": "H.264 High, yuv420p, MP4 (WebM VP9, если браузер не кодирует H.264)",
+  "bitrate_mbps": {
+   "4:5": 8,
+   "9:16": 10,
+   "1:1": 7,
+   "16:9": 10
+  },
+  "keyframe_every_s": 2,
+  "audio": "нет",
+  "naming": "{brand}_{scenario}_{hook}_{cta}_{lang}_{format}_{length}s_v{version}",
+  "naming_example": "KITE_SL01_H1_C1_EN_9x16_12s_v1.mp4",
+  "format_tokens": {
+   "4:5": "4x5",
+   "9:16": "9x16",
+   "1:1": "1x1",
+   "16:9": "16x9"
+  },
+  "scenario_code": "SL01",
+  "version": 1,
+  "zip": "один архив на пачку; внутри папки по формату; manifest.csv со всеми параметрами и текстами каждого файла; при большой пачке — части по 40 файлов",
+  "delivery_check": [
+   "число файлов = число выбранных сочетаний",
+   "длительность = длина ролика ±1 кадр",
+   "размер кадра = формат",
+   "имя файла соответствует шаблону"
+  ]
+ }
+}

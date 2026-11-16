@@ -1,0 +1,17 @@
+{
+  "version": 2,
+  "kind": "poster",
+  "theme": "Splitting bills without the argument",
+  "idea": "One shared receipt settles who paid in a single tap.",
+  "languages": ["en", "ru"],
+  "lines": {
+    "h1":  { "role": "hook",  "scene": "poster", "maxChars": 24, "hideIn": [],        "text": { "en": "“I paid last.”",       "ru": "«Платил уже я.»" } },
+    "p1":  { "role": "proof", "scene": "poster", "maxChars": 28, "hideIn": ["191x1"], "text": { "en": "One list. Split fast.", "ru": "Один список всем." } },
+    "o1":  { "role": "offer", "scene": "poster", "maxChars": 30, "hideIn": [],        "text": { "en": "Free 3 months",         "ru": "3 месяца даром" } },
+    "cta": { "role": "cta",   "scene": "poster", "maxChars": 20, "hideIn": [],        "text": { "en": "Start budget",          "ru": "Начать бюджет" } }
+  },
+  "scenes": [
+    { "id": "poster", "beat": "POSTER", "story": "The shared receipt card settles the bill at a glance.", "lines": ["h1", "p1", "o1", "cta"] }
+  ],
+  "notes": "Bold poster hierarchy with one dominant UI card."
+}

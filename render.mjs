@@ -14,7 +14,14 @@ const CANDIDATES = {
     '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser',
   ],
   linux: ['/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/headless-shell/headless-shell'],
-  win32: ['C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', 'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe'],
+  // Chrome installed for one user lives in %LOCALAPPDATA%; Edge ships with every Windows 10/11 and works as a fallback.
+  win32: [
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+    ...(process.env.LOCALAPPDATA ? [process.env.LOCALAPPDATA + '\\Google\\Chrome\\Application\\chrome.exe'] : []),
+    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+  ],
 };
 
 const fail = (message, status = 503) => Object.assign(Error(message), {status});

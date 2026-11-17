@@ -111,11 +111,13 @@ async function runQuery({prompt, options, task, dir, log, onText, model, effort,
 
 // Temp folders on macOS live under /var, a link to /private/var: the CLI may report either spelling of a path.
 // Every allowed root is checked in both, so a file inside it is never refused for how its path is written.
+// Windows paths are case-insensitive (C:\\ and c:\\ are the same folder) and temp folders may come as 8.3 short names.
+const samePath = p => process.platform === 'win32' ? p.toLowerCase() : p;
 const realRoots = async roots => [...new Set((await Promise.all(roots.filter(Boolean).map(async r => {
   const abs = path.resolve(r);
-  return [abs, await fs.realpath(abs).catch(() => abs)];
-}))).flat())];
-const under = (file, roots) => roots.some(r => file === r || file.startsWith(r + path.sep));
+  return [abs, await fs.realpath(abs).catch(() => abs), await fs.realpath.native(abs).catch(() => abs)];
+}))).flat().map(samePath))];
+const under = (file, roots) => { const f = samePath(file); return roots.some(r => f === r || f.startsWith(r + path.sep)); };
 
 const baseOptions = ({dir, billing, controller, model, effort}) => ({cwd:dir,
   ...(billing==='subscription' && {env:subscriptionEnv()}), settingSources:[], persistSession:false,
@@ -139,7 +141,7 @@ export async function generate({dir, files, scenario, style, billing, task, form
     hooks:{PreToolUse:[{hooks:[async input=>{
       if(mediaTools.includes(input.tool_name)) return {};
       const file = path.resolve(dir,input.tool_input?.file_path || '');
-      if(input.tool_name==='Read' && (under(file, readRoots) || allowedFiles.has(file))) return {};
+      if(input.tool_name==='Read' && (under(file, readRoots) || allowedFiles.has(samePath(file)))) return {};
       log('Access denied: '+input.tool_name+' '+short(input.tool_input?.file_path || '', 80), {level:'warn'});
       return {hookSpecificOutput:{hookEventName:'PreToolUse',permissionDecision:'deny',permissionDecisionReason:'Only uploaded files are available.'}};
     }]}]}};
@@ -165,8 +167,8 @@ export async function revise({dir, workFile, files, brief, thread, message, atta
       PreToolUse:[{hooks:[async input=>{
         if(mediaTools.includes(input.tool_name)) return {};
         const file = allowed(input.tool_input?.file_path);
-        if(input.tool_name==='Read' && (workFiles.has(file) || under(file, readRoots))) return {};
-        if(['Edit','Write'].includes(input.tool_name) && workFiles.has(file)) return {};
+        if(input.tool_name==='Read' && (workFiles.has(samePath(file)) || under(file, readRoots))) return {};
+        if(['Edit','Write'].includes(input.tool_name) && workFiles.has(samePath(file))) return {};
         log('Access denied: '+input.tool_name+' '+short(input.tool_input?.file_path || '', 80), {level:'warn'});
         return {hookSpecificOutput:{hookEventName:'PreToolUse',permissionDecision:'deny',permissionDecisionReason:'Only the working file can be edited; materials are read-only.'}};
       }]}],

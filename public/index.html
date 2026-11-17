@@ -68,6 +68,28 @@
         <button type="button" id="editBrand" class="btn secondary">Edit brand</button>
         <button type="button" id="addCampaign" class="btn primary">＋ New campaign</button>
       </div></header>
+    <section id="brandNotes" class="brand-notes" aria-labelledby="brandNotesHeading" hidden>
+      <div class="brand-notes-head">
+        <h2 id="brandNotesHeading" class="collection-heading">Brand notes</h2>
+        <div class="library-actions">
+          <button type="button" id="brandNotesEdit" class="btn secondary small">Edit</button>
+          <button type="button" id="brandNotesRewrite" class="btn secondary small">Rewrite</button>
+        </div>
+      </div>
+      <p id="brandNotesStatus" class="note" aria-live="polite"></p>
+      <p class="note">Every step reads these notes first. “Client decisions” override the brief and the materials.</p>
+      <div id="brandNotesQuestions" class="brand-questions" hidden>
+        <h3>Open questions</h3>
+        <p class="note">The materials leave these open. Answer the ones you care about: the answer becomes a client decision. Unanswered questions are left to the model, which picks what fits the brand best.</p>
+        <ol id="brandNotesQuestionList"></ol>
+      </div>
+      <div id="brandNotesText" class="brand-notes-text"></div>
+      <textarea id="brandNotesInput" rows="20" maxlength="20000" aria-label="Brand notes" hidden></textarea>
+      <div id="brandNotesEditActions" class="library-actions" hidden>
+        <button type="button" id="brandNotesSave" class="btn primary small">Save notes</button>
+        <button type="button" id="brandNotesCancel" class="btn secondary small">Cancel</button>
+      </div>
+    </section>
     <h2 class="collection-heading">Campaigns</h2>
     <div id="campaignCards" class="campaign-list" aria-live="polite"></div>
   </section>
@@ -246,6 +268,12 @@
           </div>
         </section>
 
+        <section class="group">
+          <h2>Art director</h2>
+          <label class="remember-check setting-check"><input type="checkbox" id="autoApplyPreviewNotes"> Apply preview notes automatically</label>
+          <p class="note">After every preview and final a model looks at the rendered frames and leaves notes. Final notes are applied once, automatically. Preview notes wait for your click unless this is on; then they are applied once too.</p>
+        </section>
+
         <div class="actions">
           <div class="setup-btn-row">
             <button type="submit" id="startCampaignBtn" class="btn primary">
@@ -380,6 +408,7 @@
               <select id="styleReviseTarget" aria-label="Which directions to rework"></select>
               <button type="button" id="reviseStylesBtn" class="btn secondary small">Rework all three</button>
             </div>
+            <label class="remember-check" title="Saves the note as a client decision in the brand notes. Every next step and campaign of this brand follows it."><input type="checkbox" id="styleRemember"> Remember these notes for the brand</label>
             <p class="note">All three: a new set of directions that follows your notes. One direction: only that one is replaced, the others stay. Notes are optional for a single direction.</p>
           </div>
         </div>
@@ -508,6 +537,24 @@
         </div>
       </section>
 
+      <!-- The art director's look at the current preview or final -->
+      <section id="reviewCard" class="card review-card" hidden aria-labelledby="reviewHeading">
+        <div class="card-head">
+          <h2 id="reviewHeading">Art director</h2>
+          <span id="reviewStatus" class="pill" aria-live="polite"></span>
+        </div>
+        <p id="reviewIntro" class="note"></p>
+        <p id="reviewSummary" class="review-summary" hidden></p>
+        <ol id="reviewNotes" class="review-notes" aria-label="Notes"></ol>
+        <div id="reviewSheets" class="review-sheets" aria-label="Contact sheets the art director looked at"></div>
+        <div class="review-actions">
+          <button type="button" id="reviewApplyBtn" class="btn primary small">Apply notes</button>
+          <button type="button" id="reviewLookBtn" class="btn secondary small">Look</button>
+          <button type="button" id="reviewSelectAll" class="link" hidden>Select all</button>
+        </div>
+        <p id="reviewMeta" class="note"></p>
+      </section>
+
       <!-- Copy Editor Drawer (§6.6, §8.6) -->
       <section id="copyDrawer" class="card copy-drawer" hidden aria-label="Copy editor">
         <div class="card-head">
@@ -537,6 +584,11 @@
           <div class="chat-actions">
             <button type="button" id="chatAttach" class="btn secondary small">＋ Files</button>
             <input type="file" id="chatFileInput" multiple hidden accept="image/*,video/*,.svg,.pdf">
+            <span id="chatModelRow" class="chat-model" hidden>
+              <select id="chatModel" aria-label="Model for this revision"></select>
+              <select id="chatEffort" aria-label="Effort for this revision"></select>
+            </span>
+            <label class="remember-check" id="chatRememberLabel" title="Saves this message as a client decision in the brand notes. Every next step and campaign of this brand follows it." hidden><input type="checkbox" id="chatRemember"> Remember for the brand</label>
             <span class="chat-hint">⌘↵ to send</span>
             <button type="button" id="chatStop" class="btn secondary small" hidden>Stop</button>
             <button id="chatSend" class="btn primary small">Send</button>

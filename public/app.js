@@ -27,6 +27,7 @@ import {
   buildFinal,
   saveCopyPatch,
   fetchActiveRuns,
+  furthestStep,
 } from '/campaign.js';
 import {renderCampaignBar, renderStepper, isStepInReviewMode} from '/stepper.js';
 import {
@@ -44,16 +45,25 @@ import {
   initPlayerControls,
   restartPlayer,
   setVariantSwitchHandler,
+  setViewListener,
+  setFormat,
+  setLang,
+  setLength,
 } from '/player.js';
 
 import {$, el} from './dom.js';
 import {campaignCard, libraryCard, listBrands, listBrandCampaigns, saveBrand} from './brand-library.js';
+import {fetchBrandNotes, saveBrandNotes, rewriteBrandNotes, rememberDecision, notesStatusText, renderNotes, decideQuestion, withoutOpenQuestions} from './brand-notes.js';
+import {reviewEntry, listReviews, reviewRevisionMessage, isReviewMessage, PRIORITY_LABEL} from './review.js';
 const items = new Map();
 let busy = false;
 let busyStep = null;
 let pending = 0;
 let editingSetup = false;
 let brandLibrary = [];
+// The art director's looks of the open campaign (newest first) and the notes the user left out of the next apply.
+let reviewList = [], reviewCampaignId = null, reviewRunning = false;
+const reviewLeftOut = new Map();
 let editingBrand = null;
 let importingCampaign = null;
 let brandNavigation = 0;
@@ -387,6 +397,7 @@ function showLibraryPage(page, title = '') {
   $('#brandBack').textContent = selectedBrand()?.name || 'Unassigned';
   $('#currentCrumb').textContent = title;
   $('#brandMessage').textContent = '';
+  syncUrl();
 }
 
 function renderBrandCards() {
@@ -416,6 +427,8 @@ async function openBrand(id) {
   showLibraryPage('campaignsPage', title);
   $('#brandHeading').textContent = title;
   $('#editBrand').hidden = $('#addCampaign').hidden = !brand;
+  notesEditing = false;
+  loadBrandNotes(brand?.id, request);
   $('#campaignCards').replaceChildren(el('p', 'library-empty', 'Loading campaigns…'));
   window.scrollTo(0, 0);
   try {
@@ -428,6 +441,247 @@ async function openBrand(id) {
     if (request === brandNavigation) $('#campaignCards').replaceChildren(el('p', 'library-empty', err.message));
   }
 }
+
+// ---- Brand notes on the brand page ----
+let notesState = null, notesEditing = false, notesTimer = null, notesBusy = false;
+
+async function loadBrandNotes(id, request) {
+  clearTimeout(notesTimer);
+  $('#brandNotes').hidden = !id;
+  if (!id) { notesState = null; return; }
+  try {
+    const notes = await fetchBrandNotes(id);
+    if (request !== brandNavigation) return;
+    notesState = notes;
+    renderBrandNotes();
+    if (notes.status === 'writing') notesTimer = setTimeout(() => loadBrandNotes(id, request), 3000);
+    // A new notes version is a new brand version: keep the library current so the next edit does not conflict.
+    if (notes.brand && selectedBrand() && selectedBrand().version !== notes.brand.version) brandLibrary = await listBrands();
+  } catch (err) {
+    if (request === brandNavigation) $('#brandNotesStatus').textContent = err.message;
+  }
+}
+
+function renderBrandNotes() {
+  const n = notesState;
+  if (!n) return;
+  const writing = n.status === 'writing';
+  $('#brandNotesStatus').textContent = notesStatusText(n);
+  $('#brandNotesText').replaceChildren(renderNotes(withoutOpenQuestions(n.text || '')));
+  const questions = notesEditing ? [] : n.questions || [];
+  $('#brandNotesQuestions').hidden = !questions.length || writing;
+  $('#brandNotesQuestionList').replaceChildren(...questions.map(q => {
+    const li = el('li', 'brand-question');
+    const form = el('form');
+    const input = el('input');
+    input.type = 'text';
+    input.maxLength = 500;
+    input.placeholder = 'Your answer, e.g. “Cool daylight only.”';
+    input.setAttribute('aria-label', 'Answer: ' + q);
+    const save = el('button', 'btn secondary small', 'Decide');
+    save.type = 'submit';
+    save.disabled = notesBusy;
+    form.onsubmit = async e => {
+      e.preventDefault();
+      if (notesBusy || !input.value.trim()) { input.focus(); return; }
+      notesBusy = true;
+      renderBrandNotes();
+      try {
+        notesState = await decideQuestion(activeBrandId, q, input.value);
+        brandLibrary = await listBrands();
+      } catch (err) {
+        $('#brandNotesStatus').textContent = err.message;
+      }
+      notesBusy = false;
+      renderBrandNotes();
+    };
+    form.append(input, save);
+    li.append(el('p', '', q), form);
+    return li;
+  }));
+  $('#brandNotesText').hidden = notesEditing || !n.text;
+  $('#brandNotesInput').hidden = !notesEditing;
+  $('#brandNotesEditActions').hidden = !notesEditing;
+  $('#brandNotesEdit').hidden = notesEditing || !n.text || writing;
+  $('#brandNotesRewrite').hidden = notesEditing || writing;
+  $('#brandNotesRewrite').textContent = n.text ? 'Rewrite' : 'Write notes';
+  for (const id of ['#brandNotesEdit', '#brandNotesRewrite', '#brandNotesSave', '#brandNotesCancel']) $(id).disabled = notesBusy;
+  $('#brandNotesInput').disabled = notesBusy;
+}
+
+$('#brandNotesEdit').onclick = () => {
+  if (!notesState) return;
+  notesEditing = true;
+  $('#brandNotesInput').value = notesState.text || '';
+  renderBrandNotes();
+  $('#brandNotesInput').focus();
+};
+$('#brandNotesCancel').onclick = () => { notesEditing = false; renderBrandNotes(); };
+$('#brandNotesSave').onclick = async () => {
+  if (!notesState || notesBusy) return;
+  if (!$('#brandNotesInput').value.trim()) {
+    $('#brandNotesStatus').textContent = 'The notes cannot be empty. To write them again, use “Rewrite”.';
+    return;
+  }
+  notesBusy = true;
+  renderBrandNotes();
+  $('#brandNotesStatus').textContent = 'Saving…';
+  try {
+    notesState = await saveBrandNotes(activeBrandId, {text: $('#brandNotesInput').value, version: notesState.brand?.version});
+    notesEditing = false;
+    brandLibrary = await listBrands();
+  } catch (err) {
+    notesBusy = false;
+    renderBrandNotes();
+    $('#brandNotesStatus').textContent = err.message;
+    return;
+  }
+  notesBusy = false;
+  renderBrandNotes();
+};
+$('#brandNotesRewrite').onclick = async () => {
+  if (notesBusy) return;
+  const provider = currentProviderObject();
+  if (provider.mode === 'demo') {
+    $('#brandNotesStatus').textContent = 'Brand notes need a model: choose Claude or Codex in the model settings of a campaign, then try again.';
+    return;
+  }
+  if (notesState?.text && !confirm('Rewrite the brand notes from the brand files? Hand edits will be replaced; client decisions are kept.')) return;
+  notesBusy = true;
+  renderBrandNotes();
+  try {
+    await rewriteBrandNotes(activeBrandId, provider);
+    notesBusy = false;
+    await loadBrandNotes(activeBrandId, brandNavigation);
+  } catch (err) {
+    notesBusy = false;
+    renderBrandNotes();
+    $('#brandNotesStatus').textContent = err.message;
+  }
+};
+
+// ---- Addresses: every page has its own URL; back/forward and shared links work ----
+// /                              brands
+// /brands/<id>|unassigned        a brand: its notes and campaigns
+// /brands/new, /brands/<id>/edit the brand editor
+// /brands/<id>/new               a new campaign of that brand
+// /campaigns/<id>?step=&style=&f=&l=&d=&settings=1   a campaign at a step, a style, a format, language and length
+let routerReady = false, routeApplying = false;
+
+function visiblePage() {
+  return ['pipelinePage', 'brandEditor', 'campaignsPage', 'brandsPage'].find(id => !$('#' + id).hidden) || 'brandsPage';
+}
+
+function routeUrl() {
+  const page = visiblePage();
+  const brandSeg = activeBrandId ? encodeURIComponent(activeBrandId) : 'unassigned';
+  if (page === 'brandsPage') return '/';
+  if (page === 'campaignsPage') return '/brands/' + brandSeg;
+  if (page === 'brandEditor') {
+    if (editingBrand) return '/brands/' + encodeURIComponent(editingBrand.id) + '/edit';
+    return importingCampaign ? location.pathname + location.search : '/brands/new';
+  }
+  const c = state.campaign;
+  // An old build opened from the history drawer has no address of its own: stay where we are.
+  if (!c && view.stage === 'legacy' && view.url) return location.pathname + location.search;
+  if (!c) return '/brands/' + brandSeg + '/new';
+  const q = new URLSearchParams({step: String(state.activeStep || 1)});
+  if (editingSetup) q.set('settings', '1');
+  if ((c.variants?.length || 0) > 1 && c.activeVariant) q.set('style', c.activeVariant);
+  if (view.url && (view.stage === 'preview' || view.stage === 'final')) {
+    if (view.format) q.set('f', view.format);
+    if (view.stage === 'final' && view.lang) q.set('l', view.lang);
+    if (view.stage === 'final' && view.kind !== 'poster' && view.length) q.set('d', String(view.length));
+  }
+  return '/campaigns/' + encodeURIComponent(c.id) + '?' + q;
+}
+
+// Moving to another page is a history entry; changing the format or language on the same page only rewrites it.
+const pageKey = url => {
+  const u = new URL(url, location.origin);
+  return [u.pathname, u.searchParams.get('step') || '', u.searchParams.get('settings') || ''].join('|');
+};
+
+function syncUrl({replace = false} = {}) {
+  if (!routerReady || routeApplying) return;
+  const url = routeUrl();
+  const now = location.pathname + location.search;
+  document.title = 'Forma · ' + (visiblePage() === 'brandsPage' ? 'Brands' : $('#currentCrumb').textContent || 'Studio');
+  if (url === now) return;
+  if (replace || pageKey(url) === pageKey(now)) history.replaceState(null, '', url);
+  else history.pushState(null, '', url);
+}
+
+async function openCampaignFromUrl(id, q) {
+  await openCampaign(id);
+  const c = state.campaign;
+  if (!c || c.id !== id) {
+    openBrands();
+    status.textContent = 'This campaign was not found.';
+    return;
+  }
+  const style = q.get('style');
+  if (style && style !== c.activeVariant && c.variants?.some(v => v.id === style)) await handleSwitchVariant(style);
+  const step = Number(q.get('step'));
+  if ([1, 2, 3].includes(step) && step <= furthestStep(state.campaign) && step !== state.activeStep) {
+    state.activeStep = step;
+    renderWorkspace();
+    syncRightPaneToCampaign();
+  }
+  if (q.get('settings') === '1') {
+    editingSetup = true;
+    syncSetupDraftFromCampaign(state.campaign);
+    renderWorkspace();
+  }
+  if (q.get('f')) setFormat(q.get('f'));
+  if (q.get('l')) setLang(q.get('l'));
+  if (q.get('d')) setLength(q.get('d'));
+}
+
+async function applyRoute() {
+  routeApplying = true;
+  try {
+    const parts = location.pathname.split('/').filter(Boolean).map(decodeURIComponent);
+    const q = new URLSearchParams(location.search);
+    if (parts[0] === 'campaigns' && parts[1]) {
+      await openCampaignFromUrl(parts[1], q);
+    } else if (parts[0] === 'brands' && parts[1] === 'new') {
+      editBrand(null);
+    } else if (parts[0] === 'brands' && parts[1]) {
+      const id = parts[1] === 'unassigned' ? '' : parts[1];
+      if (id && !brandLibrary.some(b => b.id === id)) {
+        openBrands();
+        status.textContent = 'This brand was not found.';
+      } else if (parts[2] === 'edit' && id) {
+        activeBrandId = id;
+        editBrand(selectedBrand());
+      } else if (parts[2] === 'new') {
+        activeBrandId = id;
+        ++brandNavigation;
+        beginCampaign();
+      } else {
+        await openBrand(id);
+      }
+    } else {
+      openBrands();
+    }
+  } finally {
+    routeApplying = false;
+  }
+  syncUrl({replace: true});
+}
+
+addEventListener('popstate', () => {
+  if (busy || pending > 0) {
+    // A step is running: stay on this page rather than abandon it.
+    history.pushState(null, '', routeUrl());
+    status.textContent = 'Wait for the current step to finish, then go back.';
+    return;
+  }
+  applyRoute();
+});
+
+setViewListener(() => syncUrl());
 
 async function openCampaign(id) {
   const request = ++brandNavigation;
@@ -451,6 +705,7 @@ function beginCampaign() {
   setCampaign(null);
   editingSetup = false;
   $('#newCampaignName').value = '';
+  $('#autoApplyPreviewNotes').checked = false;
   openThread(null);
   renderWorkspace();
   showEmptyStage('Set up the campaign and approve its script.');
@@ -502,6 +757,7 @@ $('#brandEditor').onsubmit = async e => {
       brand: editingBrand,
       campaign: importingCampaign,
       materials: items,
+      provider: currentProviderObject(),
     });
     brandLibrary = [...brandLibrary.filter(b => b.id !== brand.id), brand];
     activeBrandId = brand.id;
@@ -855,6 +1111,7 @@ function validateSetupForm() {
 
 function syncSetupDraftFromCampaign(c) {
   if (!c?.setup) return;
+  $('#autoApplyPreviewNotes').checked = c.setup.review?.autoApplyPreview === true;
   setupDraft = {
     kind: c.setup.kind,
     languages: [...(c.setup.languages || ['en'])],
@@ -1046,6 +1303,13 @@ function renderStyleCards(styles = [], chosenIndex = null, cardsLocked = false) 
     img.alt = '';
     const name = el('strong', '', option.name);
     const idea = el('span', '', option.idea);
+    // Directions stand on three steps away from the brand's usual picture: Native → World → Bold.
+    const step = String(option.direction || '').match(/^\s*(Native|World|Bold):/i)?.[1];
+    if (step) {
+      const badge = el('em', 'choice-step', step[0].toUpperCase() + step.slice(1).toLowerCase());
+      badge.title = {native:'Made the way the brand usually makes its pictures', world:'The brand\'s world made physically', bold:'Leaves the brand\'s usual way of making and layout'}[step.toLowerCase()];
+      name.append(' ', badge);
+    }
     button.append(img, name, idea);
     button.disabled = busy || cardsLocked;
     button.onclick = async () => {
@@ -1111,6 +1375,7 @@ function renderReviseBox(styles = [], locked = false) {
   select.value = reviseTarget;
   select.disabled = busy;
   $('#styleFeedback').disabled = busy;
+  $('#styleRemember').disabled = busy;
   btn.disabled = busy;
   if (!btn.classList.contains('is-loading')) {
     btn.textContent = reviseTarget === 'all' ? 'Rework all three' : 'Rework ' + styles[Number(reviseTarget)].name;
@@ -1123,7 +1388,7 @@ $('#styleReviseTarget').onchange = e => {
   renderReviseBox(styles);
 };
 
-$('#reviseStylesBtn').onclick = () => {
+$('#reviseStylesBtn').onclick = async () => {
   if (busy || !state.campaign) return;
   const revise = reviseTarget === 'all' ? 'all' : Number(reviseTarget);
   const feedbackEl = $('#styleFeedback');
@@ -1132,6 +1397,13 @@ $('#reviseStylesBtn').onclick = () => {
     status.textContent = 'Describe what should change in all three directions.';
     feedbackEl.focus();
     return;
+  }
+  if (feedback && $('#styleRemember').checked) {
+    try {
+      const saved = await rememberDecision(state.campaign.id, feedback);
+      $('#styleRemember').checked = false;
+      status.textContent = saved.brandVersion ? 'Remembered for the brand.' : 'Remembered for this campaign (it has no saved brand).';
+    } catch (err) { status.textContent = err.message; return; }
   }
   const styles = state.campaign.entries?.styles?.output?.styles || [];
   const label = revise === 'all' ? 'all three directions' : '“' + (styles[revise]?.name || 'direction ' + (revise + 1)) + '”';
@@ -1357,6 +1629,7 @@ function syncRightPaneToCampaign({keepTime = false} = {}) {
 
 function renderWorkspace() {
   const c = state.campaign;
+  syncReviews();
   if (c) activeBrandId = c.brandId || '';
   showLibraryPage('pipelinePage', c?.name || 'New campaign');
   $('#newCampaignBtn').hidden = !selectedBrand();
@@ -1420,6 +1693,7 @@ function renderWorkspace() {
     s2.hidden = true;
     s3.hidden = true;
     validateSetupForm();
+    syncUrl();
     return;
   }
 
@@ -1431,6 +1705,7 @@ function renderWorkspace() {
   if (state.activeStep === 1) renderStep1Panel();
   else if (state.activeStep === 2) renderStep2Panel();
   else if (state.activeStep === 3) renderStep3Panel();
+  syncUrl();
 }
 
 $('#setupPopoverClose').onclick = $('#setupCancelEditBtn').onclick = () => {
@@ -1494,6 +1769,7 @@ function renderStoreStatusPill() {
 
 function refreshUI() {
   const cfg = state.config;
+  renderReviewCard();
   renderStoreStatusPill();
   const demo = mode.value === 'demo';
   const codex = mode.value === 'codex';
@@ -1558,6 +1834,7 @@ $('#brief').onsubmit = async e => {
     lengths: setupDraft.kind === 'poster' ? [] : [...setupDraft.lengths],
     formats: [...setupDraft.formats],
     provider: currentProviderObject(),
+    review: {autoApplyPreview: $('#autoApplyPreviewNotes').checked},
   };
 
   try {
@@ -1778,6 +2055,7 @@ function handleBuildPreview() {
     renderWorkspace();
     syncRightPaneToCampaign();
     status.textContent = 'Preview ready. Review the frames and approve them.';
+    lookAfterBuild('preview');
   }).catch(() => {});
 }
 
@@ -1836,6 +2114,7 @@ async function handleBuildFinal() {
     renderWorkspace();
     syncRightPaneToCampaign();
     status.textContent = 'Final build ready.';
+    lookAfterBuild('final');
   }).catch(() => {});
 }
 
@@ -1880,7 +2159,32 @@ const bubble = cls => el('li', 'bubble ' + cls);
 const assetSrc = (entry, name) =>
   state.config.previewURL + '/p/' + entry.project + '/assets/' + name.split('/').map(encodeURIComponent).join('/');
 
+// The revision model is chosen next to the chat. It starts as the model of the step being revised
+// (its own model when the step has one) and stays as chosen while the same version is open.
+let chatModelFor = null;
+function syncChatModel() {
+  const c = state.campaign;
+  const entry = currentEntry;
+  const provMode = c?.setup?.provider?.mode;
+  const show = Boolean(entry?.campaign && c && provMode && provMode !== 'demo');
+  $('#chatModelRow').hidden = !show;
+  if (!show) return;
+  const key = entry.id + ':' + provMode;
+  if (chatModelFor === key) return;
+  chatModelFor = key;
+  const stage = entry.type === 'preview' ? 'preview' : 'final';
+  const step = c.setup.stepModels?.[stage] || {};
+  const models = Object.keys(state.config?.models?.[provMode] || {});
+  fillOptions($('#chatModel'), models, step.model || c.setup.provider.model);
+  $('#chatEffort').value = step.effort || c.setup.provider.effort || 'high';
+  updateEffort($('#chatModel'), $('#chatEffort'), provMode);
+  if (step.effort || c.setup.provider.effort) $('#chatEffort').value = step.effort || c.setup.provider.effort;
+}
+$('#chatModel').onchange = () => updateEffort($('#chatModel'), $('#chatEffort'), state.campaign?.setup?.provider?.mode);
+
 function chatTarget() {
+  $('#chatRememberLabel').hidden = !currentEntry?.campaign;
+  syncChatModel();
   const last = threadList.dataset.last;
   $('#chatTarget').textContent =
     currentEntry && last && currentEntry.id !== last ? 'This revision will branch from version ' + when(currentEntry.createdAt) : '';
@@ -1949,8 +2253,15 @@ function renderThread(thread) {
       threadList.append(li);
       continue;
     }
-    const user = bubble('user');
-    if (e.input.revision.message) user.append(el('p', '', e.input.revision.message));
+    const fromAD = isReviewMessage(e.input.revision.message);
+    const user = bubble('user' + (fromAD ? ' is-ad' : ''));
+    if (fromAD) {
+      const lines = e.input.revision.message.split('\n').filter(l => /^\d+\. /.test(l));
+      user.append(el('p', '', 'Art director’s notes (' + lines.length + ')'));
+      const ol = el('ol', 'meta');
+      for (const l of lines) ol.append(el('li', '', l.replace(/^\d+\. /, '').replace(/ \(Hint: [^)]*\)$/, '')));
+      user.append(ol);
+    } else if (e.input.revision.message) user.append(el('p', '', e.input.revision.message));
     if (e.input.revision.attachments?.length) {
       const row = el('div', 'thumbs');
       for (const name of e.input.revision.attachments) {
@@ -2098,38 +2409,62 @@ async function sendRevision() {
     status.textContent = 'Describe a change or attach a file.';
     return;
   }
+  const ok = await submitRevision({base: currentEntry, message, files, remember: $('#chatRemember').checked});
+  if (ok) {
+    chatInput.value = '';
+    chatAttachments = [];
+    renderChatFiles();
+  }
+}
 
-  const isCampaignEntry = Boolean(currentEntry.campaign);
+// One revision of a preview or final: from the chat, or from the art director's notes.
+// Returns true when the revision was made.
+async function submitRevision({base, message, files = [], attachments = [], remember = false, review = null}) {
+  if (busy || pending || !base) return false;
+  const isCampaignEntry = Boolean(base.campaign);
+  // The decision is saved before the revision runs, so this revision already follows it.
+  if (isCampaignEntry && message && remember && state.campaign) {
+    try {
+      const saved = await rememberDecision(state.campaign.id, message);
+      $('#chatRemember').checked = false;
+      localLog((saved.brandVersion ? 'Remembered for the brand: ' : 'Remembered for this campaign (it has no saved brand): ') + message, 'done');
+    } catch (err) { status.textContent = err.message; return false; }
+  }
   const prov = isCampaignEntry && state.campaign?.setup?.provider
-    ? state.campaign.setup.provider
+    ? {...state.campaign.setup.provider, ...(!$('#chatModelRow').hidden && $('#chatModel').value ? {model: $('#chatModel').value, effort: $('#chatEffort').value || null} : {})}
     : currentProviderObject();
 
   if (!isCampaignEntry && prov.mode === 'demo') {
     status.textContent = 'To revise a legacy build, select Claude or Codex in the model settings.';
-    return;
+    return false;
   }
 
   const controller = new AbortController();
   const requestId = crypto.randomUUID();
-  const base = currentEntry;
   let tracker = null;
+  let made = false;
   busy = true;
   refreshUI();
   resetLog();
   hideLive();
   draftBadge.hidden = true;
-  localLog('Revision · ' + (providerName[prov.mode] || prov.mode) + ' · based on version from ' + when(base.createdAt), 'step', message);
+  localLog('Revision · ' + [providerName[prov.mode] || prov.mode, prov.model, prov.effort].filter(Boolean).join(' · ') + ' · based on version from ' + when(base.createdAt), 'step', message);
 
-  const user = bubble('user');
-  if (message) user.append(el('p', '', message));
+  const user = bubble('user' + (review ? ' is-ad' : ''));
+  if (review) {
+    user.append(el('p', '', 'Art director’s notes (' + review.notes.length + ')' + (review.auto ? ' · applied automatically' : '')));
+    const ol = el('ol', 'meta');
+    for (const n of review.notes) ol.append(el('li', '', (n.where ? n.where + ': ' : '') + n.problem));
+    user.append(ol);
+  } else if (message) user.append(el('p', '', message));
   if (files.length) user.append(el('div', 'meta', 'attachments: ' + files.map(f => f.name).join(', ')));
   const bot = bubble('bot pending');
-  bot.append(el('p', '', 'Applying changes…'));
+  bot.append(el('p', '', review ? 'Applying the art director’s notes…' : 'Applying changes…'));
   threadList.append(user, bot);
   threadList.scrollTop = threadList.scrollHeight;
 
   try {
-    const names = [];
+    const names = [...attachments];
     for (const [i, f] of files.entries()) {
       const name = 'revisions/' + requestId.slice(0, 8) + '/' + (i + 1) + '-' + safeName(f.name);
       localLog('↑ ' + name + ' · ' + (f.size / 1024).toFixed(0) + ' KB');
@@ -2148,9 +2483,13 @@ async function sendRevision() {
     tracker = startTracking(requestId, base.type === 'preview' ? 'preview' : 'creative', 'Applying changes…', text => {
       bot.firstChild.textContent = text;
     });
+    // A revision of a final may need a picture made again: it keeps the media the final was built with,
+    // plus whatever is ticked in step 3 now. Previews never generate media.
+    const ready = Boolean(state.config?.media?.ready);
+    const built = isCampaignEntry && base.type !== 'preview' ? base.input?.media || {} : {};
     const media = {
-      images: Boolean(state.config?.media?.ready && $('#mediaImages').checked),
-      video: Boolean(state.config?.media?.ready && $('#mediaVideo').checked),
+      images: ready && (Boolean(built.images) || (!review && $('#mediaImages').checked)),
+      video: ready && (Boolean(built.video) || (!review && $('#mediaVideo').checked)),
     };
     const result = await (
       await api('/api/history/' + base.id + '/revise', {
@@ -2166,13 +2505,12 @@ async function sendRevision() {
           message,
           attachments: names,
           media,
+          ...(review ? {reviewId: review.id, reviewNotes: review.indices, auto: Boolean(review.auto)} : {}),
         }),
       })
     ).json();
     await tracker.stop();
-    chatInput.value = '';
-    chatAttachments = [];
-    renderChatFiles();
+    made = true;
     if (result.campaign) {
       setCampaign(result.campaign);
       renderWorkspace();
@@ -2188,7 +2526,7 @@ async function sendRevision() {
       await openThread(result.historyId);
     }
     const costNote = result.cost?.total ? ' · ≈ ' + moneyPrecise(result.cost.total) + ' at API rates' : '';
-    status.textContent = 'Revision ready.' + costNote;
+    status.textContent = (review ? 'The art director’s notes are applied.' : 'Revision ready.') + costNote;
   } catch (err) {
     await tracker?.stop();
     status.textContent = controller.signal.aborted ? 'Revision stopped.' : err.message;
@@ -2205,8 +2543,219 @@ async function sendRevision() {
     busy = false;
     refreshUI();
     refreshHistory();
+    if (isCampaignEntry) loadReviews();
   }
+  return made;
 }
+
+// ---- The art director: looks at the current preview or final and leaves notes ----
+
+const reviewWhen = iso => new Date(iso).toLocaleString('en-US', {day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'});
+
+function reviewTarget() {
+  const c = state.campaign;
+  if (!c || editingSetup) return null;
+  const fin = c.entries?.final, prev = c.entries?.preview;
+  if (state.activeStep === 3 && fin?.output?.path) return fin;
+  if (state.activeStep >= 2 && prev?.output?.path) return prev;
+  return null;
+}
+
+function syncReviews() {
+  const id = state.campaign?.id || null;
+  if (id !== reviewCampaignId) {
+    reviewCampaignId = id;
+    reviewList = [];
+    if (id) loadReviews();
+  }
+  renderReviewCard();
+}
+
+async function loadReviews() {
+  const id = state.campaign?.id;
+  if (!id) return;
+  try {
+    const list = await listReviews(id);
+    if (state.campaign?.id !== id) return;
+    reviewList = list;
+  } catch {}
+  renderReviewCard();
+}
+
+// The look of exactly this version; or the look whose notes produced it; or an older look of the same step.
+function reviewState(target) {
+  const c = state.campaign;
+  const stage = target.type === 'preview' ? 'preview' : 'final';
+  const exact = reviewList.find(r => r.for === target.id) || null;
+  const source = exact ? null : reviewList.find(r => r.applied?.entryId === target.id) || null;
+  const older = exact || source ? null : reviewList.find(r => r.stage === stage && (!r.variantId || r.variantId === c.activeVariant)) || null;
+  return {stage, exact, source, older, review: exact || source || older};
+}
+
+function renderReviewCard() {
+  const card = $('#reviewCard');
+  const c = state.campaign;
+  const target = reviewTarget();
+  card.hidden = !target;
+  if (!target) return;
+  const {stage, exact, source, older, review: r} = reviewState(target);
+  const codex = c.setup?.provider?.mode === 'codex';
+  const auto = stage === 'final' || Boolean(c.setup?.review?.autoApplyPreview);
+
+  const pill = $('#reviewStatus');
+  pill.className = 'pill';
+  let label;
+  if (reviewRunning) { label = 'Looking…'; pill.classList.add('is-running'); }
+  else if (!r) label = codex ? 'Needs Claude' : 'Not looked at yet';
+  else if (source || exact?.applied) { label = 'Notes applied'; pill.classList.add('is-ok'); }
+  else if (older) { label = 'Earlier version'; pill.classList.add('is-stale'); }
+  else if (!exact.notes.length) { label = 'All clear'; pill.classList.add('is-ok'); }
+  else label = exact.notes.length + (exact.notes.length === 1 ? ' note' : ' notes');
+  pill.textContent = label;
+
+  $('#reviewIntro').textContent = codex
+    ? 'The art director’s look works with Claude. Switch the campaign model to Claude in Settings to use it.'
+    : stage === 'preview'
+      ? 'Style notes on the preview, while it can still change. ' + (auto ? 'They are applied automatically, once.' : 'Untick what you disagree with, then apply.')
+      : 'An execution check of the final in every format and language. Its notes are applied automatically, once; a new look waits for your click.';
+
+  $('#reviewSummary').hidden = !r?.summary;
+  $('#reviewSummary').textContent = r?.summary || '';
+
+  const editable = Boolean(exact && !exact.applied && exact.notes.length && !reviewRunning);
+  const off = r ? reviewLeftOut.get(r.id) || new Set() : new Set();
+  const list = $('#reviewNotes');
+  list.replaceChildren();
+  if (r && !r.notes.length) list.append(el('li', 'review-empty', stage === 'final' ? 'Nothing serious in the frames.' : 'No notes on this preview.'));
+  (r?.notes || []).forEach((n, i) => {
+    const li = el('li', 'review-note' + (off.has(i) ? ' is-off' : ''));
+    const box = el('input');
+    box.type = 'checkbox';
+    box.checked = !off.has(i);
+    box.disabled = !editable || busy;
+    box.setAttribute('aria-label', 'Include note ' + (i + 1) + ' in the next revision');
+    box.onchange = () => {
+      const set = reviewLeftOut.get(r.id) || new Set();
+      if (box.checked) set.delete(i); else set.add(i);
+      reviewLeftOut.set(r.id, set);
+      renderReviewCard();
+    };
+    const head = el('div', 'review-note-head');
+    const prio = el('span', 'review-prio ' + n.priority.toLowerCase(), n.priority);
+    prio.title = PRIORITY_LABEL[n.priority] || '';
+    head.append(prio);
+    if (n.where) head.append(el('span', '', n.where));
+    li.append(box, head, el('p', '', n.problem));
+    if (n.fix) li.append(el('p', 'review-fix', 'Hint: ' + n.fix));
+    list.append(li);
+  });
+
+  const sheets = $('#reviewSheets');
+  sheets.replaceChildren();
+  for (const sh of r?.sheets || []) {
+    const a = el('a');
+    a.href = sh.url;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.title = 'Open “' + sh.title + '” full size';
+    const img = new Image();
+    img.src = sh.url;
+    img.alt = sh.title;
+    img.loading = 'lazy';
+    a.append(img, el('span', '', sh.title));
+    sheets.append(a);
+  }
+  sheets.hidden = !r?.sheets?.length;
+
+  const total = exact?.notes.length || 0;
+  const chosen = editable ? total - off.size : 0;
+  const apply = $('#reviewApplyBtn');
+  apply.hidden = !editable;
+  apply.textContent = chosen === total ? (total === 1 ? 'Apply the note' : 'Apply all ' + total + ' notes') : 'Apply ' + chosen + ' of ' + total + ' notes';
+  apply.disabled = busy || pending > 0 || chosen === 0;
+  const look = $('#reviewLookBtn');
+  look.textContent = r ? 'Look again' : 'Look now';
+  look.disabled = busy || pending > 0 || codex;
+  $('#reviewSelectAll').hidden = !editable || off.size === 0;
+
+  const meta = [];
+  if (r) meta.push('Looked ' + reviewWhen(r.createdAt) + (r.model ? ' · ' + r.model : '') + (r.cost?.total ? ' · ≈ ' + moneyPrecise(r.cost.total) + ' at API rates' : ''));
+  if (r?.applied) meta.push((r.applied.auto ? 'applied automatically ' : 'applied ') + reviewWhen(r.applied.at));
+  if (older) meta.push('these notes are about an earlier version; “Look again” checks the current one');
+  $('#reviewMeta').textContent = meta.join(' · ');
+}
+
+async function runReview(target, {auto = false} = {}) {
+  const c = state.campaign;
+  if (!c || !target || busy || pending > 0 || c.setup?.provider?.mode === 'codex') return null;
+  const stage = target.type === 'preview' ? 'preview' : 'final';
+  reviewRunning = true;
+  renderReviewCard();
+  let res = null;
+  try {
+    res = await runCampaignTask({
+      stepNum: stage === 'preview' ? 2 : 3,
+      task: 'review',
+      startMsg: 'The art director is looking at the ' + stage + '…',
+      triggerBtn: $('#reviewLookBtn'),
+      fn: ({requestId, signal}) => reviewEntry(c.id, {requestId, entryId: target.id, signal}),
+    });
+  } catch {
+    // runCampaignTask has already shown the error with a retry.
+  } finally {
+    reviewRunning = false;
+  }
+  const r = res?.review;
+  if (r) reviewList = [r, ...reviewList.filter(x => x.id !== r.id)];
+  renderReviewCard();
+  if (!r) return null;
+  status.textContent = r.notes.length
+    ? 'The art director left ' + r.notes.length + (r.notes.length === 1 ? ' note.' : ' notes.') + (auto ? ' Applying them…' : '')
+    : 'The art director found nothing serious.';
+  if (auto && r.notes.length) await applyReview(r, {auto: true});
+  return r;
+}
+
+async function applyReview(r, {auto = false} = {}) {
+  const target = reviewTarget();
+  if (!target || r.for !== target.id) {
+    status.textContent = 'These notes are about an earlier version. Look again first.';
+    return;
+  }
+  const off = auto ? new Set() : reviewLeftOut.get(r.id) || new Set();
+  const indices = r.notes.map((_, i) => i).filter(i => !off.has(i));
+  const notes = indices.map(i => r.notes[i]);
+  if (!notes.length) return;
+  const ok = await submitRevision({
+    base: target,
+    message: reviewRevisionMessage({stage: r.stage, notes, hasSheets: r.sheets.length > 0}),
+    attachments: r.sheets.map(s => s.rel),
+    review: {id: r.id, notes, indices, auto},
+  });
+  if (ok) await loadReviews();
+}
+
+// One look after every build; the notes are applied once when that step is set to apply them.
+function lookAfterBuild(stage) {
+  const c = state.campaign;
+  const target = reviewTarget();
+  if (!c || !target || (target.type === 'preview') !== (stage === 'preview')) return;
+  if (c.setup?.provider?.mode === 'codex') return;
+  runReview(target, {auto: stage === 'final' || Boolean(c.setup?.review?.autoApplyPreview)});
+}
+
+$('#reviewLookBtn').onclick = () => runReview(reviewTarget());
+$('#reviewApplyBtn').onclick = () => {
+  const target = reviewTarget();
+  const r = target && reviewList.find(x => x.for === target.id);
+  if (r) applyReview(r);
+};
+$('#reviewSelectAll').onclick = () => {
+  const target = reviewTarget();
+  const r = target && reviewList.find(x => x.for === target.id);
+  if (r) reviewLeftOut.delete(r.id);
+  renderReviewCard();
+};
 
 // ---- History Drawer (§8.7): Кампании & Старые сборки ----
 const historyPanel = $('#history');
@@ -2833,4 +3382,7 @@ addEventListener('click', e => {
     $('#brandMessage').textContent = err.message;
   }
   refreshUI();
+  try { await applyRoute(); } catch (err) { status.textContent = err.message; }
+  routerReady = true;
+  syncUrl({replace: true});
 })();

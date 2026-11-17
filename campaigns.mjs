@@ -1,4 +1,4 @@
-import {materializeBrand} from './brands.mjs';
+import {materializeBrand, latestBrand, brandNotesText, brandNotesWriting, rememberForBrand} from './brands.mjs';
 // Campaign state, invalidation (§2.5), concurrency gating (§6.2), cost roll-up and HTTP routes (§6).
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -19,13 +19,18 @@ import {
   finalPrompt, finalMessage,
   stageRevisionPrompt, revisionMessage, output as checkHTML,
   extractCopyPatch, validateCopyPatch, mergeCopyPatches, applyCopyPatch,
+  BRAND_NOTES_FILE, addClientDecision,
+  reviewPrompt, reviewMessage, parseReview,
 } from './creative.mjs';
+import {renderSheets as defaultRenderSheets} from './render.mjs';
 import {settings} from './models.mjs';
 import {mediaKey} from './media.mjs';
 
 const validId = id => /^[0-9a-f-]{36}$/.test(String(id || ''));
 const knownLangCodes = new Set(LANGUAGES.map(l => l.code));
 export const conflict = (msg, status = 409) => Object.assign(Error(msg), {status});
+// The preview may make exactly one picture: its hero.
+export const PREVIEW_MEDIA = Object.freeze({images: true, video: false, maxImages: 1});
 
 // Active running job per campaign: Map<campaignId, requestId>
 export const runningJob = new Map();
@@ -109,7 +114,7 @@ export function validateSetup(raw = {}) {
 
   const stepModels = {};
   if (raw.stepModels && typeof raw.stepModels === 'object') {
-    for (const step of ['scenario', 'styles', 'preview', 'final']) {
+    for (const step of ['scenario', 'styles', 'preview', 'final', 'review']) {
       const ov = raw.stepModels[step];
       if (ov && typeof ov === 'object' && (ov.model || ov.effort)) {
         if (mode !== 'demo') {
@@ -132,6 +137,9 @@ export function validateSetup(raw = {}) {
     formats: fmtIds,
     provider: {mode, billing, model: sel.model || null, effort: sel.effort || null},
     stepModels,
+    // The art director looks at every preview and final. Final notes are always applied once;
+    // preview notes are applied automatically only when this is on (otherwise they wait for a click).
+    review: {autoApplyPreview: raw.review?.autoApplyPreview === true},
   };
 }
 
@@ -573,6 +581,30 @@ const wait = (ms, signal) => new Promise((ok, no) => {
   signal?.addEventListener('abort', () => { clearTimeout(t); no(signal.reason ?? Error('aborted')); }, {once: true});
 });
 
+// The brand notes are live: a campaign of a saved brand always reads the brand's latest notes (so an edit or an
+// answered question on the brand page reaches campaigns already running) and keeps a copy in its materials.
+// A campaign without a saved brand has only its own copy.
+async function brandNotesFor(campaign, assets, log = () => {}) {
+  const local = path.join(assets, BRAND_NOTES_FILE);
+  const own = await fs.readFile(local, 'utf8').catch(() => '');
+  if (!campaign.brandId) return own;
+  if (brandNotesWriting(campaign.brandId)) {
+    log('Waiting for the brand notes to finish…');
+    const until = Date.now() + 180000;
+    while (brandNotesWriting(campaign.brandId) && Date.now() < until) await new Promise(ok => setTimeout(ok, 2000));
+  }
+  const latest = await latestBrand(campaign.brandId).catch(() => null);
+  const text = latest ? await brandNotesText(latest) : '';
+  if (!text.trim()) return own;
+  if (text !== own) {
+    await fs.mkdir(assets, {recursive: true});
+    await fs.writeFile(local, text);
+    await store.sync.up(campaign.project, {path: 'assets/' + BRAND_NOTES_FILE, dataDir: path.dirname(path.dirname(assets))});
+    log(own ? 'Brand notes updated from the brand' : 'Brand notes added to this campaign');
+  }
+  return text;
+}
+
 export async function loadDemoScenario(rootDir, setup, currentScenario = null) {
   const file = path.join(rootDir, 'fixtures', `scenario-${setup.kind}.json`);
   const fixture = JSON.parse(await fs.readFile(file, 'utf8'));
@@ -709,6 +741,7 @@ export function registerCampaignRoutes(app, {
   runModelText,
   runModelHtml,
   runModelRevise,
+  renderSheets = defaultRenderSheets,
 }) {
   setJobRunSink(store.runs);
 
@@ -951,6 +984,23 @@ export function registerCampaignRoutes(app, {
     res.status(201).json(await hydrateCampaign(updated));
   });
 
+  // POST /api/campaigns/:id/remember {text}: a client decision that outlives this note. It goes first into this
+  // campaign's brand notes (in force from the next step) and, for a saved brand, into its next version.
+  app.post('/api/campaigns/:id/remember', async (req, res) => {
+    const campaign = await requireCampaign(req.params.id);
+    const text = typeof req.body?.text === 'string' ? req.body.text.replace(/\s+/g, ' ').trim() : '';
+    if (!text || text.length > 500) throw conflict('Write the decision to remember (up to 500 characters).', 400);
+    const assets = path.join(folder(campaign.project), 'assets');
+    await store.sync.down(campaign.project, {dataDir});
+    const current = await brandNotesFor(campaign, assets);
+    const notes = addClientDecision(current || `# ${campaign.name || 'Brand'} — brand notes\n`, text);
+    await fs.mkdir(assets, {recursive: true});
+    await fs.writeFile(path.join(assets, BRAND_NOTES_FILE), notes);
+    await store.sync.up(campaign.project, {path: 'assets/' + BRAND_NOTES_FILE, dataDir});
+    const brand = campaign.brandId ? await rememberForBrand(campaign.brandId, text, notes) : null;
+    res.json({notes, brandVersion: brand?.version ?? null});
+  });
+
   // PATCH /api/campaigns/:id/variants/:vid {label} (§4.2)
   app.patch('/api/campaigns/:id/variants/:vid', async (req, res) => {
     const campaign = await requireCampaign(req.params.id);
@@ -1079,7 +1129,7 @@ export function registerCampaignRoutes(app, {
         log('Demo script generated', {level: 'done'});
       } else {
         const system = scenarioPrompt(campaign.setup);
-        const user = scenarioMessage({files, notes: notes || undefined, current: currentScenario, setup: campaign.setup});
+        const user = scenarioMessage({files, notes: notes || undefined, current: currentScenario, setup: campaign.setup, brandNotes: await brandNotesFor(campaign, assets, log)});
         const onText = text => { job.text = text; job.tail = text.slice(-600); };
         let rawText = await runModelText({
           mode: sel.mode, billing: sel.billing, model: sel.model, effort: sel.effort,
@@ -1551,11 +1601,12 @@ export function registerCampaignRoutes(app, {
         job.sketches = typeof revise === 'number' ? [pitch.styles[revise].svg] : pitch.styles.map(s => s.svg);
         log('Demo directions ready: ' + pitch.styles.map(s => s.name).join(' · '), {level: 'done'});
       } else {
+        const brandNotes = await brandNotesFor(campaign, assets, log);
         let system = stylesPrompt({kind: campaign.setup.kind, scenario: scenarioObj, setup: campaign.setup});
-        let user = stylesMessage({setup: campaign.setup, scenario: scenarioObj, files});
+        let user = stylesMessage({setup: campaign.setup, scenario: scenarioObj, files, brandNotes});
         if (revise !== null) {
           system += '\n\n' + styleRevisionPrompt({previous, revise, hasFeedback: Boolean(feedback)});
-          user = styleRevisionMessage({setup: campaign.setup, scenario: scenarioObj, files, previous, feedback, revise});
+          user = styleRevisionMessage({setup: campaign.setup, scenario: scenarioObj, files, previous, feedback, revise, brandNotes});
         }
         const onText = text => {
           job.text = text;
@@ -1788,11 +1839,14 @@ export function registerCampaignRoutes(app, {
         srcHtml = await fs.readFile(path.join(root, 'fixtures', 'preview.html'), 'utf8');
         log('Demo preview built', {level: 'done'});
       } else {
-        const system = previewPrompt({kind: campaign.setup.kind, scenario: scenarioObj, style: stylePayload, setup: campaign.setup});
-        const user = previewMessage({setup: campaign.setup, scenario: scenarioObj, style: stylePayload, files});
+        // One generated hero picture, so the preview can be judged by its light and material, not by grey boxes.
+        const heroMedia = mediaKey() ? PREVIEW_MEDIA : null;
+        if (!heroMedia) log('Image generation is off (no OPENROUTER_API_KEY): the preview uses placeholders only.', {level: 'warn'});
+        const system = previewPrompt({kind: campaign.setup.kind, scenario: scenarioObj, style: stylePayload, setup: campaign.setup, media: heroMedia});
+        const user = previewMessage({setup: campaign.setup, scenario: scenarioObj, style: stylePayload, files, brandNotes: await brandNotesFor(campaign, assets, log)});
         srcHtml = await runModelHtml({
           mode: sel.mode, billing: sel.billing, model: sel.model, effort: sel.effort,
-          dir: assets, system, user, task: 'preview', media: null, controller, log, onText,
+          dir: assets, system, user, task: 'preview', media: heroMedia, controller, log, onText,
         });
       }
 
@@ -1969,6 +2023,7 @@ export function registerCampaignRoutes(app, {
           scenario: scenarioObj,
           style: stylePayload,
           files,
+          brandNotes: await brandNotesFor(campaign, assets, log),
           previewPath: sel.mode === 'claude' ? tempPreviewPath : undefined,
           previewHtml: sel.mode === 'codex' ? previewSrc : undefined,
         });
@@ -2157,6 +2212,122 @@ export function registerCampaignRoutes(app, {
   });
 
   // Handler for revising a campaign preview or final entry (delegated from POST /api/history/:id/revise)
+  // ---- The art director's look: render the built entry, let a model look at it, keep its notes ----
+
+  const lightReview = r => r && ({
+    id: r.id, createdAt: r.createdAt, stage: r.stage, author: r.author || null,
+    for: r.input?.for || null, variantId: r.input?.variantId || null,
+    summary: r.output?.summary || '', notes: r.output?.notes || [], sheets: r.output?.sheets || [],
+    applied: r.output?.applied || null, cost: r.cost || null, mode: r.mode, model: r.model,
+  });
+
+  async function entryScenario(campaign, entry) {
+    const scId = entry.input?.scenarioId || campaign.steps.scenario.entryId;
+    const sc = scId ? await history.get(scId) : null;
+    return applyCopyPatch(sc?.output?.scenario, entry.input?.copyPatch || {});
+  }
+
+  async function chosenStyleOf(variant) {
+    const st = variant?.styles?.entryId ? await history.get(variant.styles.entryId) : null;
+    const chosen = st?.output?.styles?.[variant.styles.chosenIndex];
+    return chosen ? {name: chosen.name, idea: chosen.idea, direction: variant.styles.direction || chosen.direction} : null;
+  }
+
+  // POST /api/campaigns/:id/review {requestId, entryId}
+  app.post('/api/campaigns/:id/review', async (req, res) => {
+    const campaign = await requireCampaign(req.params.id);
+    const entry = validId(req.body?.entryId) ? await history.get(req.body.entryId) : null;
+    if (!entry || entry.campaign !== campaign.id || !['preview', 'creative'].includes(entry.type) || !entry.output?.path) {
+      throw conflict('Choose a built preview or final to look at.', 400);
+    }
+    const stage = entry.type === 'preview' ? 'preview' : 'final';
+    const sel = stepSelection(campaign.setup, 'review');
+    if (sel.mode === 'codex') throw conflict('The art director’s look works with Claude. Switch the campaign model to Claude to use it.', 409);
+
+    const requestId = validId(req.body?.requestId) ? req.body.requestId : randomUUID();
+    await startCampaignRun(campaign, requestId, 'review');
+    const dir = folder(campaign.project), assets = path.join(dir, 'assets');
+    const job = createJob(requestId, {task: 'review', mode: sel.mode, project: campaign.project, campaign: campaign.id});
+    const log = logger(job, {mediaURL: file => assetURL(campaign.project, file)});
+    const controller = new AbortController();
+    res.on('close', () => { if (!res.writableFinished) controller.abort(); });
+
+    let runStatus = 'done';
+    let entryId = null;
+    try {
+      await checkProvider(sel.mode, sel.billing);
+      await store.sync.down(campaign.project, {dataDir});
+      const variant = findVariantForEntry(campaign.variants, entry, campaign.activeVariant);
+      const scenario = await entryScenario(campaign, entry);
+      log(`Art director · looking at the ${stage}${sel.model ? ' · ' + sel.model : ''}`, {level: 'step'});
+
+      let sheets = [];
+      let result;
+      if (sel.mode === 'demo') {
+        await wait(300, controller.signal);
+        result = {summary: 'Demo look: the frame reads well; one demo note to try the flow.', notes: [{priority: 'P2', where: 'Demo · whole frame', problem: 'A demo note: nothing was rendered or judged.', fix: 'Apply it to see the round trip.'}]};
+      } else {
+        const rel = 'review/' + requestId;
+        const outDir = path.join(assets, rel);
+        log('Rendering frames in headless Chrome…');
+        const rendered = await renderSheets({
+          url: previewURL + entry.output.path, stage, setup: campaign.setup, scenario,
+          outDir, publicBase: assetURL(campaign.project, rel), log,
+        });
+        sheets = rendered.map(s => ({name: s.name, title: s.title, rel: rel + '/' + s.name + '.png', url: s.url, frames: s.frames}));
+        let previewSheet = null;
+        const approvedPreview = stage === 'final' && variant?.preview?.entryId ? await history.get(variant.preview.entryId) : null;
+        if (approvedPreview?.output?.path) {
+          const prevRendered = await renderSheets({
+            url: previewURL + approvedPreview.output.path, stage: 'preview', setup: campaign.setup,
+            scenario: await entryScenario(campaign, approvedPreview), outDir: path.join(outDir, 'approved'),
+            publicBase: assetURL(campaign.project, rel + '/approved'), log: () => {},
+          }).catch(err => { log('Could not render the approved preview: ' + err.message, {level: 'warn'}); return []; });
+          if (prevRendered[0]) previewSheet = {title: 'Approved preview', rel: rel + '/approved/' + prevRendered[0].name + '.png'};
+        }
+        for (const s of sheets) log('Contact sheet · ' + s.title, {media: {kind: 'image', file: s.rel, attached: true}});
+        const raw = await runModelText({
+          mode: sel.mode, billing: sel.billing, model: sel.model, effort: sel.effort, dir: assets,
+          system: reviewPrompt({stage, kind: campaign.setup.kind}),
+          user: reviewMessage({stage, setup: campaign.setup, scenario, style: await chosenStyleOf(variant), brandNotes: await brandNotesFor(campaign, assets, log), sheets, previewSheet}),
+          task: 'review', controller, log, onText: text => { job.text = text; },
+        });
+        result = parseReview(raw);
+        await store.sync.up(campaign.project, {dataDir});
+      }
+      log(result.notes.length ? `Art director left ${result.notes.length} note${result.notes.length === 1 ? '' : 's'}` : 'Art director found nothing serious', {level: 'done'});
+
+      const rec = await history.record({
+        id: requestId, type: 'review', status: 'ok', campaign: campaign.id, stage, kind: campaign.setup.kind,
+        project: campaign.project, mode: sel.mode, model: sel.model, effort: sel.effort,
+        durationMs: Date.now() - job.started,
+        input: {for: entry.id, variantId: variant?.id || null},
+        output: {summary: result.summary, notes: result.notes, sheets, applied: null},
+        cost: job.costs, log: job.events,
+      });
+      entryId = rec.id;
+      const variants = structuredClone(campaign.variants);
+      const v = variants.find(x => x.id === variant?.id);
+      if (v) v.cost = addCost(v.cost, job.costs);
+      const updated = await history.update(campaign.id, {variants, cost: addCost(campaign.cost, job.costs)});
+      res.json({review: lightReview(rec), campaign: await hydrateCampaign(updated)});
+    } catch (error) {
+      runStatus = controller.signal.aborted ? 'cancelled' : 'error';
+      log((controller.signal.aborted ? 'Look stopped' : 'Look failed: ' + error.message), {level: controller.signal.aborted ? 'warn' : 'error'});
+      throw error;
+    } finally {
+      await finishCampaignRun(campaign.id, requestId, job, {status: runStatus, entryId});
+    }
+  });
+
+  // GET /api/campaigns/:id/reviews — newest first
+  app.get('/api/campaigns/:id/reviews', async (req, res) => {
+    const campaign = await requireCampaign(req.params.id);
+    const page = await history.list({type: 'review', campaign: campaign.id, limit: 20});
+    const full = await Promise.all(page.items.map(r => (r.output ? r : history.get(r.id))));
+    res.set('Cache-Control', 'no-store').json(full.filter(Boolean).map(lightReview));
+  });
+
   async function reviseCampaignEntry(req, res, parent) {
     const campaign = await requireCampaign(parent.campaign);
     await ensureIdle(campaign.id);
@@ -2185,9 +2356,14 @@ export function registerCampaignRoutes(app, {
           ),
         };
 
+    // A final keeps the media it was built with, so a revision can make a picture again; the request can add more.
+    const builtMedia = stage === 'final' && (sel.mode === 'demo' || mediaKey()) ? parent.input?.media || {} : {};
     const media = stage === 'final'
-      ? {images: req.body?.media?.images === true, video: campaign.setup.kind !== 'poster' && req.body?.media?.video === true}
-      : {images: false, video: false};
+      ? {
+          images: req.body?.media?.images === true || builtMedia.images === true,
+          video: campaign.setup.kind !== 'poster' && (req.body?.media?.video === true || builtMedia.video === true),
+        }
+      : sel.mode !== 'demo' && mediaKey() ? {...PREVIEW_MEDIA} : {images: false, video: false};
 
     if ((media.images || media.video) && sel.mode !== 'demo' && !mediaKey()) {
       throw conflict('To generate images, add OPENROUTER_API_KEY to .env and restart the server.', 503);
@@ -2261,6 +2437,7 @@ export function registerCampaignRoutes(app, {
         const prompt = revisionMessage({
           workFile,
           files,
+          brandNotes: await brandNotesFor(campaign, assets, log),
           thread: chain,
           message,
           attachments,
@@ -2284,6 +2461,7 @@ export function registerCampaignRoutes(app, {
         });
         const user = revisionMessage({
           files,
+          brandNotes: await brandNotesFor(campaign, assets, log),
           thread: chain,
           message,
           attachments,
@@ -2363,6 +2541,12 @@ export function registerCampaignRoutes(app, {
         log: job.events,
       });
       entryId = newEntry.id;
+      if (validId(req.body?.reviewId)) {
+        const rv = await history.get(req.body.reviewId).catch(() => null);
+        if (rv?.type === 'review' && rv.campaign === campaign.id) {
+          await history.update(rv.id, {output: {...rv.output, applied: {entryId: newEntry.id, at: new Date().toISOString(), auto: req.body?.auto === true, notes: Array.isArray(req.body?.reviewNotes) ? req.body.reviewNotes.filter(Number.isInteger) : null}}}).catch(() => {});
+        }
+      }
 
       const variants = structuredClone(campaign.variants);
       const targetVar = findVariantForEntry(variants, parent, campaign.activeVariant);

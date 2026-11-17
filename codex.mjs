@@ -94,7 +94,7 @@ function tailFile(file, log) {
 }
 // prompt: optional {system, user} override (used for revisions).
 export async function generateCodex({dir, files, scenario, style, billing="api", task, formats, duration, media, model, effort, controller, log=()=>{}, onText=()=>{}, prompt}) {
-  const useMedia = (task==='creative' || task==='final') && Boolean(mediaKey() && (media?.images || media?.video));
+  const useMedia = (task==='creative' || task==='final' || task==='preview') && Boolean(mediaKey() && (media?.images || media?.video));
   const temp = await mkdtemp(path.join(tmpdir(), 'forma-codex-'));
   const resultFile = path.join(temp, 'creative.html'), mediaLog = path.join(temp, 'media.jsonl');
   const args = ['exec','--json','--skip-git-repo-check','--ephemeral','--ignore-user-config',
@@ -105,6 +105,9 @@ export async function generateCodex({dir, files, scenario, style, billing="api",
     ...(useMedia ? ['-c','mcp_servers.forma_media.command='+toml(process.execPath),
       '-c','mcp_servers.forma_media.args=['+toml(mediaServer)+']',
       '-c','mcp_servers.forma_media.env={FORMA_ASSETS='+toml(dir)+',FORMA_MEDIA='+toml(JSON.stringify(media))+',FORMA_LOG='+toml(mediaLog)+'}',
+      // A build has no interactive approval channel. Authorize only the media the designer enabled.
+      ...(media.images ? ['-c','mcp_servers.forma_media.tools.generate_image.approval_mode="approve"'] : []),
+      ...(media.video ? ['-c','mcp_servers.forma_media.tools.generate_video.approval_mode="approve"'] : []),
       '-c','mcp_servers.forma_media.tool_timeout_sec=900'] : []),
     '--model',model,'-c','model_reasoning_effort="'+effort+'"','--output-last-message',resultFile,'-'];
   const stopTail = useMedia ? tailFile(mediaLog, log) : async()=>{};

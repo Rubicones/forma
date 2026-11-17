@@ -38,7 +38,14 @@ app.use('/api',(req,res,next)=>{
  authorStorage.run(author, next);
 });
 app.use(express.json({limit:'256kb'}));
-registerBrandRoutes(app);
+// Text-only model call shared by brand notes and the campaign steps.
+const runModelText = async ({mode, billing, model, effort, dir, system, user, task, controller, log, onText}) => {
+  if (mode === 'codex') {
+    return generateCodex({dir, files: [], billing, task, media: null, model, effort, controller, log, onText, prompt: {system, user}});
+  }
+  return generate({dir, files: [], billing, task, media: null, model, effort, controller, log, onText, prompt: {system, user}});
+};
+registerBrandRoutes(app, {runModelText, checkProvider});
 const localChatLogin=()=>['127.0.0.1','localhost','::1'].includes(host) && chatLogin();
 const localClaudeLogin=()=>['127.0.0.1','localhost','::1'].includes(host) && subscriptionReady();
 app.get('/api/status',async(req,res)=>res.json({ready:ready(),claudeSubscription:await localClaudeLogin(),codexReady:Boolean(codexKey()),chatReady:await localChatLogin(),models,previewURL,
@@ -158,12 +165,7 @@ const {reviseCampaignEntry} = registerCampaignRoutes(app, {
   generatedMedia,
   costLine,
   assetURL,
-  runModelText: async ({mode, billing, model, effort, dir, system, user, task, controller, log, onText}) => {
-    if (mode === 'codex') {
-      return generateCodex({dir, files: [], billing, task, media: null, model, effort, controller, log, onText, prompt: {system, user}});
-    }
-    return generate({dir, files: [], billing, task, media: null, model, effort, controller, log, onText, prompt: {system, user}});
-  },
+  runModelText,
   runModelHtml: async ({mode, billing, model, effort, dir, system, user, task, media, extraReadDirs, extraReadFiles, controller, log, onText}) => {
     if (mode === 'codex') {
       return generateCodex({dir, files: [], billing, task, media, model, effort, controller, log, onText, prompt: {system, user}});
@@ -282,6 +284,8 @@ app.post('/api/history/import-local',async(req,res)=>{
 });
 app.use('/shared',express.static(path.join(root,'shared')));
 app.use(express.static(path.join(root,'public')));
+// Pages of the studio are real addresses: the app answers them and routes on the client.
+app.get(/^\/(?:brands|campaigns)(?:\/.*)?$/,(req,res)=>res.sendFile(path.join(root,'public','index.html')));
 preview.use((req,res,next)=>{
  res.set({'Access-Control-Allow-Origin':'*','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Content-Security-Policy':"sandbox allow-scripts; default-src 'none'; script-src 'self' 'unsafe-inline' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' blob:; connect-src 'self'; worker-src blob:; base-uri 'none'; form-action 'none'"}); next();
 });

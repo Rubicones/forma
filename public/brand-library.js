@@ -7,11 +7,11 @@ export const listBrands = () => apiJson('/api/brands');
 const isJunkPath = name => String(name).split('/').some(seg => (seg.startsWith('.') && seg !== '.' && seg !== '..') || seg === '__MACOSX' || /^(thumbs\.db|desktop\.ini)$/i.test(seg));
 export const listBrandCampaigns = (id, covers = false) => apiJson('/api/brand-campaigns?' + new URLSearchParams({brand:id || '', covers:covers ? '1' : '0'}));
 
-export async function saveBrand({name, brand, campaign, materials}) {
+export async function saveBrand({name, brand, campaign, materials, provider}) {
   if (campaign) {
     return apiJson('/api/campaigns/' + campaign.id + '/brand', {
       method: 'POST',
-      body: JSON.stringify({name}),
+      body: JSON.stringify({name, provider}),
     });
   }
 
@@ -31,7 +31,7 @@ export async function saveBrand({name, brand, campaign, materials}) {
   }
   return apiJson('/api/brands', {
     method: 'POST',
-    body: JSON.stringify({id: brand?.id, version: brand?.version, name, files}),
+    body: JSON.stringify({id: brand?.id, version: brand?.version, name, files, provider}),
   });
 }
 

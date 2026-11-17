@@ -6,7 +6,8 @@ import {z} from 'zod';
 
 const API = 'https://openrouter.ai/api/v1';
 export const mediaKey = () => process.env.OPENROUTER_API_KEY;
-export const imageModel = () => process.env.OPENROUTER_IMAGE_MODEL || 'google/gemini-3.1-flash-lite-image';
+// Nano Banana 2: the lite tier gave mirrored corridors and badly fitted objects in the lab round; its cost is small next to the LLM.
+export const imageModel = () => process.env.OPENROUTER_IMAGE_MODEL || 'google/gemini-3.1-flash-image';
 export const videoModel = () => process.env.OPENROUTER_VIDEO_MODEL || 'x-ai/grok-imagine-video-1.5-lite';
 // Gemini image models ("Nano Banana") cannot output alpha.
 const supportsTransparency = model => !/gemini|nano-banana/i.test(model);
@@ -24,8 +25,8 @@ export const imageShape = {
   prompt: z.string().min(20).describe('Photographer/illustrator brief: subject, action, framing, lens, light, materials, exact background color hex, where to leave empty space for copy. Never ask for text, logos or UI in the image.'),
   name: z.string().regex(/^[a-z0-9][a-z0-9-]{1,40}$/).describe('Short kebab-case file name without extension, e.g. "hero-milk-pour".'),
   aspect_ratio: z.enum(ratios).default('1:1').describe('Pick the ratio of the largest crop you will use; for multi-format heroes generate a wider/taller plate with generous margins.'),
-  transparent: z.boolean().default(false).describe('Request a transparent PNG cutout (isolated object or person). Not every model supports it; if it fails, retry on a flat background matching the ad color.'),
-  references: z.array(refPath).max(4).default([]).describe('Brand or product images to keep the real product, packaging, palette or a previous generation consistent. Use for edits/variations too.'),
+  transparent: z.boolean().default(false).describe('Request a transparent PNG cutout. Prefer one whole scene with the object in it; ask for a cutout only when the object must be its own layer. Models that cannot output alpha return it on a flat background, which shows as a box over any other picture.'),
+  references: z.array(refPath).max(4).default([]).describe('Brand or product images to keep the real product, packaging, palette or a previous generation consistent; the background plate when a layer must match its scene. Use for edits/variations too.'),
 };
 export const videoShape = {
   prompt: z.string().min(20).describe('Shot description: subject, one clear camera move or action, lens, light, pace. Silent. No text, logos or UI.'),
@@ -100,7 +101,8 @@ const wait = (ms, signal) => new Promise((ok, no) => {
 // One session per build: enforces the per-build budget and logs every OpenRouter request.
 // log(message, {level, detail, media:{kind,file,name}, quiet})
 export function mediaSession({dir, signal, log = () => {}, allow = {images:true, video:false}}) {
-  const limits = mediaLimits(), used = {images:0, videos:0};
+  // A step may allow fewer pictures than the build limit (the preview gets one hero picture).
+  const limits = {...mediaLimits(), ...(Number.isInteger(allow.maxImages) ? {images: allow.maxImages} : {})}, used = {images:0, videos:0};
   const refs = list => list.length ? ' · references: ' + list.join(', ') : '';
 
   async function image(input) {
@@ -112,7 +114,7 @@ export function mediaSession({dir, signal, log = () => {}, allow = {images:true,
     used.images++;
     const model = imageModel(), started = Date.now();
     const transparent = args.transparent && supportsTransparency(model);
-    const body = {model, prompt:args.prompt, n:1, aspect_ratio:args.aspect_ratio, quality:'high', resolution:process.env.OPENROUTER_IMAGE_RESOLUTION || '1K'};
+    const body = {model, prompt:args.prompt, n:1, aspect_ratio:args.aspect_ratio, quality:'high', resolution:process.env.OPENROUTER_IMAGE_RESOLUTION || '2K'};
     if (args.transparent && !transparent) body.prompt += '\nIsolated subject on a perfectly flat, uniform solid background with no shadow, gradient or texture.';
     if (transparent) Object.assign(body, {background:'transparent', output_format:'png'});
     log('OpenRouter → image “' + args.name + '” · ' + model + ' · ' + args.aspect_ratio + (transparent ? ' · transparent background' : '') + refs(args.references) + ' (' + used.images + '/' + limits.images + ')',
@@ -139,7 +141,7 @@ export function mediaSession({dir, signal, log = () => {}, allow = {images:true,
     const size = imageSize(buf);
     log('OpenRouter ✓ ' + file + ' · ' + (size.width ? size.width + '×' + size.height + ' · ' : '') + kb(buf.length) + ' · ' + ((Date.now() - started) / 1000).toFixed(1) + ' s' + usd(result.usage?.cost),
       {level:'done', media:{kind:'image', file, name:args.name, cost:result.usage?.cost}, cost:{kind:'image', usd:result.usage?.cost ?? null}});
-    const note = args.transparent && !transparent ? 'This model cannot output transparency; the subject is on a flat solid background. Match the panel color or mask it.' : undefined;
+    const note = args.transparent && !transparent ? 'This model cannot output transparency: the subject is on a flat solid background and will show as a box over any other picture. Use it only on a flat field of exactly that colour; otherwise generate the whole scene as one picture.' : undefined;
     return {file, url:'assets/' + file, ...size, model, transparent, note, cost:result.usage?.cost, remaining:limits.images - used.images};
   }
 

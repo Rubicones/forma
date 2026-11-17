@@ -179,6 +179,7 @@ describe('campaigns.mjs: HTTP endpoints, gating and history integration', () => 
   let mockTextImpl = async () => '{}';
   let mockHtmlImpl = async () => '<html><body></body></html>';
   let mockReviseImpl = async () => ({html: '<html><body></body></html>', reply: 'ok'});
+  const renderCalls = [];
 
   before(async () => {
     tempDir = await fs.mkdtemp(path.join(tmpdir(), 'forma-camp-test-'));
@@ -202,6 +203,11 @@ describe('campaigns.mjs: HTTP endpoints, gating and history integration', () => 
       runModelText: async args => { modelCalls.push({fn: 'text', ...args}); return mockTextImpl(args); },
       runModelHtml: async args => { modelCalls.push({fn: 'html', ...args}); return mockHtmlImpl(args); },
       runModelRevise: async args => { modelCalls.push({fn: 'revise', ...args}); return mockReviseImpl(args); },
+      renderSheets: async args => {
+        renderCalls.push(args);
+        const name = args.stage === 'preview' ? 'preview' : 'format-9x16';
+        return [{name, title: name, file: path.join(args.outDir, name + '.png'), url: args.publicBase + '/' + name + '.png', frames: 4}];
+      },
     });
     app.post('/api/history/:id/revise', async (req, res) => {
       const parent = await history.get(req.params.id);
@@ -757,6 +763,35 @@ describe('campaigns.mjs: HTTP endpoints, gating and history integration', () => 
     const revFinalHtml = await fs.readFile(path.join(tempDir, new URL(revFinal.body.url).pathname.replace(/^\/p\//, '')), 'utf8');
     assert.ok(revFinalHtml.includes('Join free today'));
     assert.ok(revFinalHtml.includes('Подключить бесплатно'));
+
+    // 8. The art director's look: Claude only, renders the entry, keeps notes, and is marked applied by the revision
+    const blockedLook = await req('POST', `/api/campaigns/${cid}/review`, {entryId: revFinal.body.historyId});
+    assert.equal(blockedLook.status, 409);
+    const toClaude = await req('PATCH', `/api/campaigns/${cid}`, {setup: {provider: {mode: 'claude', billing: 'subscription'}, review: {autoApplyPreview: true}}});
+    assert.equal(toClaude.body.setup.review.autoApplyPreview, true);
+    modelCalls = [];
+    mockTextImpl = async () => 'Here you go:\n{"summary":"Reads well.","notes":[{"priority":"p0","where":"9:16 · end hold","problem":"The offer is cut at the right edge.","fix":"Shrink it."}]}';
+    const look = await req('POST', `/api/campaigns/${cid}/review`, {entryId: revFinal.body.historyId});
+    assert.equal(look.status, 200);
+    assert.equal(look.body.review.for, revFinal.body.historyId);
+    assert.equal(look.body.review.stage, 'final');
+    assert.deepEqual(look.body.review.notes.map(n => n.priority), ['P0']);
+    assert.ok(renderCalls.some(c => c.stage === 'final'));
+    const lookCall = modelCalls.find(c => c.task === 'review');
+    assert.ok(lookCall.system.includes('judge the execution'));
+    assert.ok(JSON.parse(lookCall.user).sheets[0].file.startsWith('review/'));
+    const listedLooks = await req('GET', `/api/campaigns/${cid}/reviews`);
+    assert.equal(listedLooks.body[0].id, look.body.review.id);
+    mockReviseImpl = async ({workFile}) => ({html: await fs.readFile(workFile, 'utf8'), reply: 'Fixed the offer.'});
+    const appliedLook = await req('POST', `/api/history/${revFinal.body.historyId}/revise`, {
+      mode: 'claude', billing: 'subscription',
+      message: "Art director's notes on this final. Solve each one inside the chosen idea.\n1. [P0] 9:16 · end hold: The offer is cut at the right edge.",
+      reviewId: look.body.review.id, reviewNotes: [0], auto: true,
+    });
+    assert.equal(appliedLook.status, 200);
+    const afterLooks = await req('GET', `/api/campaigns/${cid}/reviews`);
+    assert.equal(afterLooks.body[0].applied.entryId, appliedLook.body.historyId);
+    assert.equal(afterLooks.body[0].applied.auto, true);
 
     // 8. Translate and Cuts with model (Claude/Codex)
     await req('PATCH', `/api/campaigns/${cid}`, {setup: {languages: ['en', 'ru', 'de'], lengths: [4, 6, 10]}});

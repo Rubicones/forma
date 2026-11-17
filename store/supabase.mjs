@@ -87,6 +87,10 @@ export function classifyProjectFile(relPath) {
     if (parts[1] === 'revisions') {
       return parts.length >= 3 ? 'attachment' : null;
     }
+    // Contact sheets of the art director's looks: working files, never brand material.
+    if (parts[1] === 'review') {
+      return parts.length >= 3 ? 'generated' : null;
+    }
     return 'upload';
   }
 

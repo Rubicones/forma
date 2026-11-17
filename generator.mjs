@@ -31,17 +31,30 @@ async function runQuery({prompt, options, task, dir, log, onText, model, effort,
   for await (const event of query({prompt,options})) {
     if(event.type==='system' && event.subtype==='init') {
       log('Claude connected · '+(event.model || model || 'default model')+(effort ? ' · effort '+effort : ''), {level:'step'});
-      const extras=[
-        ...(event.mcp_servers || []).filter(s=>s.source && s.source!=='sdk').map(s=>'MCP '+s.name+' ('+s.source+')'),
-        ...(event.plugins || []).map(p=>'plugin '+p.name),
-        ...(event.skills || []).map(name=>'skill '+name),
-      ];
-      log('Session context · tools: '+(event.tools || []).join(', ')+(extras.length ? ' · extra: '+extras.join(', ') : ' · no skills, plugins or outside MCP'), {level:extras.length ? 'warn' : 'info', quiet:!extras.length});
+      // Plugins and skills in init are what the CLI found, not what the model sees: without the Skill tool it cannot
+      // call skills. Outside MCP servers and agent/skill tools would add to the context, so only those warn.
+      const outside=(event.mcp_servers || []).filter(s=>s.source && s.source!=='sdk').map(s=>'MCP '+s.name+' ('+s.source+')');
+      const extraTools=(event.tools || []).filter(t=>/^(Skill|Agent|Task)$/.test(t));
+      const found=[...(event.plugins || []).map(p=>'plugin '+p.name), ...(event.skills || []).map(name=>'skill '+name)];
+      const risky=[...outside, ...extraTools.map(t=>'tool '+t)];
+      log('Session context · tools: '+(event.tools || []).join(', ')+(risky.length ? ' · extra in context: '+risky.join(', ') : ' · nothing extra in context')+(found.length ? ' · installed in the CLI, not callable: '+found.join(', ') : ''), {level:risky.length ? 'warn' : 'info', quiet:!risky.length});
     }
     if(event.type==='system' && event.subtype==='api_retry') log('Claude is retrying the request ('+event.error+'), delay '+Math.ceil(event.retry_delay_ms/1000)+' s', {level:'warn'});
     if(event.type==='stream_event'){
       const part=event.event;
-      if(part.type==='message_start') turn++;
+      if(part.type==='message_start') {
+        turn++;
+        const u=part.message?.usage;
+        if(turn===1 && u) {
+          const inContext=(u.input_tokens||0)+(u.cache_creation_input_tokens||0)+(u.cache_read_input_tokens||0);
+          const own=Math.round(((typeof options.systemPrompt==='string' ? options.systemPrompt.length : 0)+String(prompt||'').length)/3.5);
+          const overhead=inContext-own;
+          // Tool definitions (Read, media) and the CLI's own framing add a steady few thousand tokens, and the
+          // character estimate is rough; claude.ai connectors used to add 170k+. Only an overhead that size is a problem.
+          const suspicious = overhead > 20000;
+          log('First request · '+inContext.toLocaleString('en')+' tokens in context, Forma\'s own prompt ≈ '+own.toLocaleString('en')+' · tools and CLI ≈ '+Math.max(0, overhead).toLocaleString('en')+(suspicious ? ' · far more than tools and the CLI need: check Session context for outside MCP servers' : ''), {level:suspicious ? 'warn' : 'info', quiet:!suspicious});
+        }
+      }
       if(part.type==='content_block_start'){
         blockKind=part.content_block.type;
         if(blockKind==='thinking' || blockKind==='redacted_thinking'){ thinking=''; log('Claude is working on'+(turn>1 ? ' (step '+turn+')' : ' the task')); }
@@ -96,20 +109,29 @@ async function runQuery({prompt, options, task, dir, log, onText, model, effort,
   throw Error('Session ended without a result.');
 }
 
+// Temp folders on macOS live under /var, a link to /private/var: the CLI may report either spelling of a path.
+// Every allowed root is checked in both, so a file inside it is never refused for how its path is written.
+const realRoots = async roots => [...new Set((await Promise.all(roots.filter(Boolean).map(async r => {
+  const abs = path.resolve(r);
+  return [abs, await fs.realpath(abs).catch(() => abs)];
+}))).flat())];
+const under = (file, roots) => roots.some(r => file === r || file.startsWith(r + path.sep));
+
 const baseOptions = ({dir, billing, controller, model, effort}) => ({cwd:dir,
   ...(billing==='subscription' && {env:subscriptionEnv()}), settingSources:[], persistSession:false,
   // Isolation: only our own MCP server; no claude.ai connectors, and no skills or plugins synced from claude.ai (this run only).
-  strictMcpConfig:true, settings:{disableClaudeAiConnectors:true, syncClaudeAiSkills:false, syncClaudeAiPlugins:false},
+  strictMcpConfig:true, settings:{disableClaudeAiConnectors:true, syncClaudeAiSkills:false, syncClaudeAiPlugins:false, disableBundledSkills:true},
   abortController:controller, includePartialMessages:true, model: model || process.env.CLAUDE_MODEL, effort});
 
 // log(message, {level, detail, media, cost}) — journal; onText(text) — the text block being streamed right now.
 export async function generate({dir, files, scenario, style, billing, task, formats, duration, media, controller, log=()=>{}, onText=()=>{}, model, effort, prompt:customPrompt, extraReadDirs=[], extraReadFiles=[]}) {
-  const useMedia = (task==='creative' || task==='final') && Boolean(media?.images || media?.video);
+  const useMedia = (task==='creative' || task==='final' || task==='preview') && Boolean(media?.images || media?.video);
   const {mcpServers, mediaTools} = mediaServer({dir, media:useMedia ? media : null, controller, log});
   const systemPrompt = customPrompt?.system ?? instructions(task, {formats, duration, media:useMedia ? media : null});
   const prompt = customPrompt?.user ?? briefMessage({scenario,style,files,formats,duration});
   const allowedDirs = (extraReadDirs || []).map(d => path.resolve(d));
-  const allowedFiles = new Set((extraReadFiles || []).map(f => path.resolve(f)));
+  const readRoots = await realRoots([dir, ...allowedDirs]);
+  const allowedFiles = new Set(await realRoots(extraReadFiles || []));
   log('Prompt ready · system ' + (systemPrompt.length/1000).toFixed(1) + 'k characters, brief ' + (prompt.length/1000).toFixed(1) + 'k characters' + (mediaTools.length ? ' · tools: ' + mediaTools.map(toolLabel).join(', ') : ''), {quiet:true, detail:prompt});
   const options = {...baseOptions({dir, billing, controller, model, effort}),
     tools:['Read'], allowedTools:['Read', ...mediaTools], mcpServers, maxTurns:useMedia ? 48 : 24, systemPrompt,
@@ -117,11 +139,11 @@ export async function generate({dir, files, scenario, style, billing, task, form
     hooks:{PreToolUse:[{hooks:[async input=>{
       if(mediaTools.includes(input.tool_name)) return {};
       const file = path.resolve(dir,input.tool_input?.file_path || '');
-      if(input.tool_name==='Read' && (file.startsWith(dir+path.sep) || allowedFiles.has(file) || allowedDirs.some(d => file===d || file.startsWith(d+path.sep)))) return {};
+      if(input.tool_name==='Read' && (under(file, readRoots) || allowedFiles.has(file))) return {};
       log('Access denied: '+input.tool_name+' '+short(input.tool_input?.file_path || '', 80), {level:'warn'});
       return {hookSpecificOutput:{hookEventName:'PreToolUse',permissionDecision:'deny',permissionDecisionReason:'Only uploaded files are available.'}};
     }]}]}};
-  const label = task==='style'?'Claude is drawing three sketches':task==='scenario'?'Claude is writing the script':task==='translate'?'Claude is translating the script':task==='cuts'?'Claude is calculating cuts':task==='preview'?'Claude is writing the preview HTML':'Claude is writing the creative HTML';
+  const label = task==='review'?'Claude is looking at the frames':task==='brand-notes'?'Claude is writing the brand notes':task==='style'?'Claude is drawing three sketches':task==='scenario'?'Claude is writing the script':task==='translate'?'Claude is translating the script':task==='cuts'?'Claude is calculating cuts':task==='preview'?'Claude is writing the preview HTML':'Claude is writing the creative HTML';
   const result = await runQuery({prompt, options, task, dir, log, onText, model, effort, label});
   return output(result,'Claude',task);
 }
@@ -134,6 +156,8 @@ export async function revise({dir, workFile, files, brief, thread, message, atta
   const prompt = customPrompt || revisionMessage({workFile, brief, files, thread, message, attachments, formats, duration});
   log('Revision prompt ready · chat history: '+(thread?.length || 0)+' messages'+(attachments?.length ? ' · attachments: '+attachments.length : ''), {quiet:true, detail:prompt});
   const allowed = file => path.resolve(dir, String(file || ''));
+  const readRoots = await realRoots([dir]);
+  const workFiles = new Set(await realRoots([workFile]));
   const options = {...baseOptions({dir, billing, controller, model, effort}),
     tools:['Read','Edit','Write'], allowedTools:['Read','Edit','Write', ...mediaTools], mcpServers, maxTurns:mediaTools.length ? 48 : 32, systemPrompt,
     additionalDirectories:[path.dirname(workFile)],
@@ -141,8 +165,8 @@ export async function revise({dir, workFile, files, brief, thread, message, atta
       PreToolUse:[{hooks:[async input=>{
         if(mediaTools.includes(input.tool_name)) return {};
         const file = allowed(input.tool_input?.file_path);
-        if(input.tool_name==='Read' && (file===workFile || file.startsWith(dir+path.sep))) return {};
-        if(['Edit','Write'].includes(input.tool_name) && file===workFile) return {};
+        if(input.tool_name==='Read' && (workFiles.has(file) || under(file, readRoots))) return {};
+        if(['Edit','Write'].includes(input.tool_name) && workFiles.has(file)) return {};
         log('Access denied: '+input.tool_name+' '+short(input.tool_input?.file_path || '', 80), {level:'warn'});
         return {hookSpecificOutput:{hookEventName:'PreToolUse',permissionDecision:'deny',permissionDecisionReason:'Only the working file can be edited; materials are read-only.'}};
       }]}],

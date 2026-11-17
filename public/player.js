@@ -29,6 +29,12 @@ export function setVariantSwitchHandler(fn) {
   onSwitchVariant = fn;
 }
 
+// Told whenever the visible format, language, length or scene changes (the page keeps them in its URL).
+let onViewChange = () => {};
+export function setViewListener(fn) {
+  onViewChange = typeof fn === 'function' ? fn : () => {};
+}
+
 export function variantsForStage(campaign = state.campaign, stage = view.stage, activeStep = state.activeStep) {
   if (!Array.isArray(campaign?.variants)) return [];
   if (activeStep === 2 || stage === 'preview') {
@@ -329,6 +335,7 @@ export function setFormat(id) {
     const frame = $('#stageFrame');
     frame.src = frameURL({keepTime: true});
   }
+  onViewChange();
 }
 
 export function setLang(code) {
@@ -339,6 +346,7 @@ export function setLang(code) {
     const frame = $('#stageFrame');
     frame.src = frameURL({keepTime: true});
   }
+  onViewChange();
 }
 
 export function setLength(len) {
@@ -354,6 +362,7 @@ export function setLength(len) {
     const frame = $('#stageFrame');
     frame.src = frameURL({keepTime: false});
   }
+  onViewChange();
 }
 
 export function setScene(sceneId) {
@@ -367,6 +376,7 @@ export function setScene(sceneId) {
     const frame = $('#stageFrame');
     frame.src = frameURL({scene: sceneId, keepTime: false});
   }
+  onViewChange();
 }
 
 export function showEmptyStage(message = 'Your preview will appear here after the script step.') {
@@ -447,6 +457,7 @@ export function showStage({
       frame.src = targetSrc;
     }
   }
+  onViewChange();
 }
 
 export function initPlayerControls() {

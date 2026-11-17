@@ -1186,6 +1186,91 @@ describe('Runs locking, heartbeat, event flushing, render-progress fallback & FO
     assert.deepEqual(new Set(listed.body.map(c => c.id)),new Set([a.body.id,b.body.id]));
   });
 
+  it('writes brand notes on save, keeps hand edits and client decisions, and carries them into campaigns', async () => {
+    const file = await req('PUT', '/api/brand-files', Buffer.from('<svg/>'));
+    const created = await req('POST', '/api/brands', {name:'Notes Co', files:[{name:'logos/mark.svg', hash:file.body.hash}], provider:{mode:'demo'}});
+    assert.equal(created.status, 201);
+    const id = created.body.id;
+    const setup = {kind:'poster', languages:['en'], lengths:[], formats:['1x1'], provider:{mode:'demo'}};
+    // A campaign started before the notes exist (pinned to version 1).
+    const early = await req('POST', '/api/campaigns', {brandId:id, brandVersion:1, setup});
+    assert.equal(early.status, 201);
+    // Demo never writes notes on its own; the explicit button does.
+    assert.equal((await req('GET', `/api/brands/${id}/notes`)).body.status, 'missing');
+    assert.equal((await req('POST', `/api/brands/${id}/notes`, {provider:{mode:'demo'}})).status, 202);
+
+    let notes;
+    for (let i = 0; i < 50; i++) {
+      notes = await req('GET', `/api/brands/${id}/notes`);
+      if (notes.body.status === 'ready') break;
+      await new Promise(ok => setTimeout(ok, 20));
+    }
+    assert.equal(notes.body.status, 'ready');
+    assert.equal(notes.body.source, 'generated');
+    assert.equal(notes.body.brand.version, 2);
+    assert.match(notes.body.text, /## Client decisions\n- none yet/);
+    assert.match(notes.body.text, /## Character/);
+
+    // An editor opened on version 1 (before the notes) still saves, on top of the notes, and keeps them.
+    const logo2 = await req('PUT', '/api/brand-files', Buffer.from('<svg id="2"/>'));
+    const rebased = await req('POST', '/api/brands', {id, version:1, name:'Notes Co', files:[{name:'logos/mark.svg', hash:logo2.body.hash}]});
+    assert.equal(rebased.status, 201);
+    assert.equal(rebased.body.version, 3);
+    assert.ok(rebased.body.files.some(f => f.name === 'BRAND-NOTES.md'));
+    notes = await req('GET', `/api/brands/${id}/notes`);
+    assert.equal(notes.body.outdated, true);
+
+    // Hand edit is saved as is and survives a plain brand re-save with the same files.
+    const edited = await req('PUT', `/api/brands/${id}/notes`, {text:notes.body.text.replace('Demo notes', 'Calm and precise'), version:3});
+    assert.equal(edited.status, 200);
+    assert.equal(edited.body.source, 'edited');
+    const latest = (await req('GET', '/api/brands')).body.find(b => b.id === id);
+    const resaved = await req('POST', '/api/brands', {id, version:latest.version, name:'Notes Co', files:latest.files, provider:{mode:'demo'}});
+    assert.equal(resaved.status, 201);
+    assert.equal(resaved.body.notes.source, 'edited');
+    const stale = await req('PUT', `/api/brands/${id}/notes`, {text:'# x\n## Character\nx', version:3});
+    assert.equal(stale.status, 409);
+
+    // Remember for the brand: the early campaign picks the notes up and adds the decision; the brand gets it too.
+    const remembered = await req('POST', `/api/campaigns/${early.body.id}/remember`, {text:"The founder's face is not shown."});
+    assert.equal(remembered.status, 200);
+    assert.match(remembered.body.notes, /## Client decisions\n- The founder's face is not shown\./);
+    assert.match(remembered.body.notes, /Calm and precise/);
+    const local = await fs.readFile(path.join(tempDir, early.body.project, 'assets', 'BRAND-NOTES.md'), 'utf8');
+    assert.equal(local, remembered.body.notes);
+    const after = await req('GET', `/api/brands/${id}/notes`);
+    assert.equal(after.body.brand.version, remembered.body.brandVersion);
+    assert.match(after.body.text, /The founder's face is not shown\./);
+
+    // A rewrite replaces the text but keeps the client decisions.
+    const rewrite = await req('POST', `/api/brands/${id}/notes`, {provider:{mode:'demo'}});
+    assert.equal(rewrite.status, 202);
+    for (let i = 0; i < 50; i++) {
+      notes = await req('GET', `/api/brands/${id}/notes`);
+      if (notes.body.status === 'ready' && notes.body.source === 'generated') break;
+      await new Promise(ok => setTimeout(ok, 20));
+    }
+    assert.equal(notes.body.source, 'generated');
+    assert.doesNotMatch(notes.body.text, /Calm and precise/);
+    assert.match(notes.body.text, /## Client decisions\n- The founder's face is not shown\./);
+
+    // Open questions: answering one turns it into a client decision.
+    const withQuestion = notes.body.text.trimEnd() + '\n\n## Open questions\n- Faces? shown or not\n';
+    const q1 = await req('PUT', `/api/brands/${id}/notes`, {text:withQuestion, version:notes.body.brand.version});
+    assert.deepEqual(q1.body.questions, ['Faces? shown or not']);
+    const decided = await req('POST', `/api/brands/${id}/notes/decide`, {question:'Faces? shown or not', decision:'No faces.'});
+    assert.equal(decided.status, 200);
+    assert.deepEqual(decided.body.questions, []);
+    assert.match(decided.body.text, /- No faces\./);
+    assert.equal((await req('POST', `/api/brands/${id}/notes/decide`, {question:'Faces? shown or not', decision:'x'})).status, 409);
+    notes = decided;
+
+    // A new campaign from the latest version gets the notes with its materials.
+    const fresh = await req('POST', '/api/campaigns', {brandId:id, brandVersion:notes.body.brand.version, setup});
+    const copied = await fs.readFile(path.join(tempDir, fresh.body.project, 'assets', 'BRAND-NOTES.md'), 'utf8');
+    assert.match(copied, /The founder's face is not shown\./);
+  });
+
 });
 
 

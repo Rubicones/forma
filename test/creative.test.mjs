@@ -188,3 +188,84 @@ describe('creative.mjs: copy patch extraction, validation and merge', () => {
     );
   });
 });
+
+import {brandNotesPrompt, brandNotesMessage, splitClientDecisions, composeBrandNotes, addClientDecision, stylesMessage as stylesMsg, revisionMessage as revMsg} from '../creative.mjs';
+describe('creative.mjs: brand notes', () => {
+  it('builds the notes prompt and keeps client decisions first and verbatim', () => {
+    assert.ok(brandNotesPrompt().includes('## Pictures'));
+    assert.ok(!JSON.parse(brandNotesMessage({name:'X', files:['a.svg','BRAND-NOTES.md']})).files.some(f => f.name === 'BRAND-NOTES.md'));
+    let t = composeBrandNotes('# X — brand notes\n\n## Character\nCalm.', []);
+    assert.match(t, /^# X — brand notes\n\n## Client decisions\n- none yet\n\n## Character/);
+    t = addClientDecision(t, 'No founder');
+    t = addClientDecision(t, 'No founder');
+    assert.deepEqual(splitClientDecisions(t).decisions, ['No founder']);
+    const rewritten = composeBrandNotes('# X — brand notes\n\n## Client decisions\n- invented\n\n## Character\nNew.', splitClientDecisions(t).decisions);
+    assert.deepEqual(splitClientDecisions(rewritten).decisions, ['No founder']);
+  });
+  it('puts the notes into step messages', () => {
+    assert.equal(JSON.parse(stylesMsg({setup:{kind:'poster'}, scenario:{}, files:[], brandNotes:'# N'})).brand_notes, '# N');
+    assert.equal(JSON.parse(stylesMsg({setup:{kind:'poster'}, scenario:{}, files:[]})).brand_notes, undefined);
+    assert.ok(revMsg({files:[], message:'x', brandNotes:'# N\n- a'}).includes('Brand notes (approved by the client'));
+  });
+});
+
+import {finalPrompt as fp2} from '../creative.mjs';
+describe('creative.mjs: generated media in the final', () => {
+  it('puts one picture first and warns about boxes from flat-background cut-outs', () => {
+    const prompt = fp2({kind:'poster', setup:{kind:'poster', languages:['en'], formats:['1x1']}, media:{images:true, video:false}});
+    assert.ok(prompt.includes('ONE PICTURE FIRST'));
+    assert.ok(prompt.includes('shows as a box'));
+    assert.ok(!fp2({kind:'poster', setup:{kind:'poster', languages:['en'], formats:['1x1']}, media:{images:false, video:false}}).includes('ONE PICTURE FIRST'));
+  });
+});
+
+import {extractBrandNotes} from '../creative.mjs';
+describe('creative.mjs: extractBrandNotes', () => {
+  it('pulls the notes out of prose and fences and normalises headings', () => {
+    const t = extractBrandNotes('Here they are:\n```markdown\n# T — brand notes\n\n## 1. Character\nCalm.\n## **Pictures**\nx\n### Never:\ny\n```\nDone.');
+    assert.equal(t, '# T — brand notes\n\n## Character\nCalm.\n## Pictures\nx\n## Never\ny');
+    assert.equal(extractBrandNotes('I read the files. Done.'), null);
+  });
+});
+
+import {reviewPrompt, parseReview, assetManifest as manifest2} from '../creative.mjs';
+describe('creative.mjs: the art director', () => {
+  it('splits style and execution and parses notes tolerantly', () => {
+    assert.ok(reviewPrompt({stage:'preview'}).includes('timid'));
+    assert.ok(reviewPrompt({stage:'final'}).includes('judge the execution'));
+    const r = parseReview('ok ```json\n{"summary":"s","notes":[{"priority":"p1","problem":"x"},{"priority":"zz","problem":"y"},{"problem":""}]}\n```');
+    assert.deepEqual(r.notes.map(n => n.priority), ['P1', 'P2']);
+    assert.throws(() => parseReview('no json here'));
+    assert.deepEqual(manifest2(['logo.svg', 'review/x/a.png']).map(f => f.name), ['logo.svg']);
+  });
+});
+
+import {previewPrompt as pp2, openQuestions, decideOpenQuestion, P1 as P1b} from '../creative.mjs';
+describe('creative.mjs: preview hero, open questions, poster', () => {
+  it('lets the preview make one hero picture only when media is on', () => {
+    const setup = {kind:'poster', languages:['en'], formats:['1x1']};
+    assert.ok(pp2({kind:'poster', setup, media:{images:true, maxImages:1}}).includes('ONE generated picture: the hero'));
+    assert.ok(pp2({kind:'poster', setup}).includes('NO generated imagery'));
+  });
+  it('moves an answered question into the client decisions', () => {
+    const t = '# X — brand notes\n\n## Client decisions\n- none yet\n\n## Character\nCalm.\n\n## Open questions\n- Light? cool or warm\n';
+    assert.deepEqual(openQuestions(t), ['Light? cool or warm']);
+    const d = decideOpenQuestion(t, 'Light? cool or warm', 'Cool daylight only.');
+    assert.deepEqual(openQuestions(d), []);
+    assert.match(d, /## Client decisions\n- Cool daylight only\./);
+    assert.doesNotMatch(d, /Open questions/);
+  });
+  it('has no narrow layout rules for posters', () => {
+    assert.ok(!P1b.poster.includes('negative space'));
+    assert.ok(!P1b.poster.includes('exactly once'));
+  });
+});
+
+import {mediaSession} from '../media.mjs';
+describe('media.mjs: per-step picture budget', () => {
+  it('honours a smaller budget than the build limit', async () => {
+    const session = mediaSession({dir:'/tmp', allow:{images:true, video:false, maxImages:0}});
+    await assert.rejects(() => session.image({prompt:'A cup of coffee on a stone pavement at dawn', name:'hero'}), /budget/);
+  });
+});
+

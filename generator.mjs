@@ -1,3 +1,4 @@
+import {realpath as realpathCb} from 'node:fs';
 import { query, createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk';
 import {subscriptionEnv} from './claude-auth.mjs';
 import path from 'node:path';
@@ -112,12 +113,14 @@ async function runQuery({prompt, options, task, dir, log, onText, model, effort,
 // Temp folders on macOS live under /var, a link to /private/var: the CLI may report either spelling of a path.
 // Every allowed root is checked in both, so a file inside it is never refused for how its path is written.
 // Windows paths are case-insensitive (C:\\ and c:\\ are the same folder) and temp folders may come as 8.3 short names.
+// fs/promises has no realpath.native; the callback API has it (it expands Windows 8.3 short names).
+const nativeRealpath = p => new Promise(done => realpathCb.native(p, (err, real) => done(err ? p : real)));
 const samePath = p => process.platform === 'win32' ? p.toLowerCase() : p;
-const realRoots = async roots => [...new Set((await Promise.all(roots.filter(Boolean).map(async r => {
+export const realRoots = async roots => [...new Set((await Promise.all(roots.filter(Boolean).map(async r => {
   const abs = path.resolve(r);
-  return [abs, await fs.realpath(abs).catch(() => abs), await fs.realpath.native(abs).catch(() => abs)];
+  return [abs, await fs.realpath(abs).catch(() => abs), await nativeRealpath(abs)];
 }))).flat().map(samePath))];
-const under = (file, roots) => { const f = samePath(file); return roots.some(r => f === r || f.startsWith(r + path.sep)); };
+export const under = (file, roots) => { const f = samePath(file); return roots.some(r => f === r || f.startsWith(r + path.sep)); };
 
 const baseOptions = ({dir, billing, controller, model, effort}) => ({cwd:dir,
   ...(billing==='subscription' && {env:subscriptionEnv()}), settingSources:[], persistSession:false,

@@ -29,7 +29,7 @@ export function stepInfo(campaign, stepNum, busyStep = null) {
   const prevApproved = Boolean(scApproved && s.preview?.approvedAt && !s.preview?.stale);
 
   if (stepNum === 1) {
-    const cost = stepCostLabel(entries.scenario?.cost);
+    const cost = stepCostLabel(entries.scenario?.stepCost || entries.scenario?.cost);
     if (busyStep === 1) {
       return {state: 'generating', badge: '1', status: 'Generating…', cost, locked: false, approved: false, stale: false};
     }
@@ -48,7 +48,8 @@ export function stepInfo(campaign, stepNum, busyStep = null) {
   }
 
   if (stepNum === 2) {
-    const sumCost = combineStepCosts(entries.styles?.cost, entries.preview?.cost);
+    // stepCost: the build plus every revision of it (see chainCost on the server).
+    const sumCost = combineStepCosts(entries.styles?.stepCost || entries.styles?.cost, entries.preview?.stepCost || entries.preview?.cost);
     const cost = stepCostLabel(sumCost);
     const hasWork = Boolean(s.styles?.entryId || s.preview?.entryId);
     if (!scApproved && !hasWork) {
@@ -67,7 +68,7 @@ export function stepInfo(campaign, stepNum, busyStep = null) {
   }
 
   // Step 3: Финал / Видео
-  const cost = stepCostLabel(entries.final?.cost);
+  const cost = stepCostLabel(entries.final?.stepCost || entries.final?.cost);
   const hasFinal = Boolean(s.final?.entryId);
   if (!prevApproved && !hasFinal) {
     return {state: 'locked', badge: '3', status: 'Approve the preview first', cost, locked: true, approved: false, stale: false};

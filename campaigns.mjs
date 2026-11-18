@@ -431,6 +431,30 @@ const lightEntry = entry => {
   return {...rest, logSize: entry.logSize ?? log?.length ?? 0};
 };
 
+// The entry a step shows is the last link of a chain: the build, then each revision of it
+// (manual, copy edits, applied art-director notes, reworked directions, a rewritten script). The step costs the whole chain, not its last link.
+// An entry's cost never changes, so each link's chain sum is cached.
+const chainCostCache = new Map();
+async function chainCost(entry) {
+  if (!entry) return null;
+  const links = [];
+  let cur = entry, base = emptyCost();
+  while (cur && links.length < 200 && !links.some(l => l.id === cur.id)) {
+    if (chainCostCache.has(cur.id)) { base = chainCostCache.get(cur.id); break; }
+    links.push(cur);
+    // Revisions point back with revision.parent; reworked directions with parentId; a rewritten script with parentScenarioId.
+    const parentId = cur.input?.revision?.parent || cur.input?.parentId || cur.input?.parentScenarioId;
+    const parent = parentId ? await history.get(parentId).catch(() => null) : null;
+    cur = parent && parent.type === entry.type ? parent : null;
+  }
+  for (const link of links.reverse()) {
+    base = addCost(base, link.cost || {});
+    chainCostCache.set(link.id, base);
+  }
+  return base;
+}
+const withStepCost = (light, cost) => (light ? {...light, stepCost: cost} : null);
+
 export async function hydrateCampaign(rawCampaign) {
   if (!rawCampaign) return null;
   const campaign = upgradeCampaign(rawCampaign);
@@ -531,10 +555,10 @@ export async function hydrateCampaign(rawCampaign) {
     activeVariant: activeVar.id,
     runningRequestId: runningJob.get(campaign.id) || null,
     entries: {
-      scenario: lightEntry(scenario),
-      styles: lightEntry(activeStylesEntry),
-      preview: lightEntry(activePreviewEntry),
-      final: lightEntry(activeFinalEntry),
+      scenario: withStepCost(lightEntry(scenario), await chainCost(scenario)),
+      styles: withStepCost(lightEntry(activeStylesEntry), await chainCost(activeStylesEntry)),
+      preview: withStepCost(lightEntry(activePreviewEntry), await chainCost(activePreviewEntry)),
+      final: withStepCost(lightEntry(activeFinalEntry), await chainCost(activeFinalEntry)),
     },
   };
 }

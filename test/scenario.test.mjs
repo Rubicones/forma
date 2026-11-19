@@ -15,7 +15,7 @@ const validMulti = () => ({
     h1b: {role:'hook',  scene:'s1', maxChars:16, hideIn:[],        text:{en:'“No, I did.”',                   'sr-Latn':'„Ne, ja sam.”'}},
     p1:  {role:'proof', scene:'s2', maxChars:28, hideIn:['191x1'], text:{en:'One list. Split fast.',          'sr-Latn':'Jedna lista. Delite.'}},
     o1:  {role:'offer', scene:'s3', maxChars:32, hideIn:[],        text:{en:'Free 3 months',                  'sr-Latn':'Besplatno 3 meseca'}},
-    cta: {role:'cta',   scene:'s3', maxChars:24, hideIn:[],        text:{en:'Start shared budget',            'sr-Latn':'Pokreni budžet'}},
+    cta: {role:'cta',   scene:'s3', maxChars:24, hideIn:[],        text:{en:'Start budget',                   'sr-Latn':'Pokreni budžet'}},
   },
   scenes: [
     {id:'s1', beat:'HOOK',        story:'Two voices claim the same bill.',         lines:['h1', 'h1b']},
@@ -25,18 +25,18 @@ const validMulti = () => ({
   cuts: {
     '4': {
       scenes: [
-        {id:'s1', start:0,   end:1.6, lines:['h1']},
-        {id:'s3', start:1.6, end:4,   lines:['cta']},
+        {id:'s1', start:0,   end:2.0, lines:['h1']},
+        {id:'s3', start:2.0, end:4,   lines:['cta']},
       ],
       note: 'PROOF and secondary lines dropped for 4 s.',
     },
     '10': {
       scenes: [
-        {id:'s1', start:0,   end:3.4, lines:['h1', 'h1b']},
-        {id:'s2', start:3.4, end:5.2, lines:['p1']},
-        {id:'s3', start:5.2, end:10,  lines:['o1', 'cta']},
+        {id:'s1', start:0,   end:2.4, lines:['h1']},
+        {id:'s2', start:2.4, end:5.0, lines:['p1']},
+        {id:'s3', start:5.0, end:10,  lines:['o1', 'cta']},
       ],
-      note: 'Full story.',
+      note: 'Full story; the reply line is dropped to keep time to read.',
     },
   },
   notes: 'Keep it punchy.',
@@ -231,7 +231,8 @@ describe('scenario.mjs: validateScenario', () => {
     const scSlow = validMulti();
     scSlow.lines.h1.text['sr-Latn'] = 'Ovo je veoma dugačka rečenica koja nikako ne može da se pročita za manje od dve sekunde u ovom kadru';
     const resSlow = validateScenario(scSlow, defaultSetup());
-    assert.equal(resSlow.cells['4'].s1.byLang.en.verdict, 'ok');
+    // A 4 s two-scene cut is tight by design once the picture needs time; English still passes, Serbian fails.
+    assert.notEqual(resSlow.cells['4'].s1.byLang.en.verdict, 'fail');
     assert.equal(resSlow.cells['4'].s1.byLang['sr-Latn'].verdict, 'fail');
     assert.equal(resSlow.cells['4'].s1.verdict, 'fail');
     assert.ok(resSlow.errors.some(e => /fails reading-time check/i.test(e)));
@@ -239,11 +240,11 @@ describe('scenario.mjs: validateScenario', () => {
 
   it('produces warnings for tight windows, maxChars overflow, single-scene length and long poster hooks', () => {
     const sc = validMulti();
-    // Make s2 in 10s cut tight: 5 words -> need = 0.4 + 5/2.6 = 2.323s; have = 2.0s (2.0 / 2.323 = 0.861 >= 0.85 -> tight)
+    // Make s2 in 10s cut tight: 5 words -> need = 0.4 + 5/2.6 + 0.6 (picture) = 2.923s; have = 2.6s (0.889 >= 0.85 -> tight)
     sc.lines.p1.text.en = 'One shared list settles all';
-    sc.cuts['10'].scenes[1].start = 3.4;
-    sc.cuts['10'].scenes[1].end = 5.4;
-    sc.cuts['10'].scenes[2].start = 5.4;
+    sc.cuts['10'].scenes[1].start = 2.4;
+    sc.cuts['10'].scenes[1].end = 5.0;
+    sc.cuts['10'].scenes[2].start = 5.0;
     // Also exceed maxChars on h1b without adding words
     sc.lines.h1b.maxChars = 8;
     const res = validateScenario(sc, defaultSetup());

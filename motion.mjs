@@ -321,6 +321,65 @@ function runtimeV2(resolveFn, data) {
         if (Math.abs(video.currentTime - target) > .04) video.currentTime = target;
       }
     },
+    // Pins an element to four points, e.g. the corners of a screen in a picture, with a perspective transform.
+    // The element is absolutely positioned at left:0; top:0 of the same container the points are measured in (CSS px).
+    // quad: {tl:[x,y], tr:[x,y], br:[x,y], bl:[x,y]}. Call it again whenever the points move (it is cheap).
+    pin(el, quad) {
+      if (!el || !quad) return;
+      const w = el.offsetWidth || 1, h = el.offsetHeight || 1;
+      const adj = m => [m[4]*m[8]-m[5]*m[7], m[2]*m[7]-m[1]*m[8], m[1]*m[5]-m[2]*m[4], m[5]*m[6]-m[3]*m[8], m[0]*m[8]-m[2]*m[6], m[2]*m[3]-m[0]*m[5], m[3]*m[7]-m[4]*m[6], m[1]*m[6]-m[0]*m[7], m[0]*m[4]-m[1]*m[3]];
+      const mul = (a, b) => { const c = [0,0,0,0,0,0,0,0,0]; for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) for (let k = 0; k < 3; k++) c[3*i+j] += a[3*i+k] * b[3*k+j]; return c; };
+      const mulv = (m, v) => [m[0]*v[0]+m[1]*v[1]+m[2]*v[2], m[3]*v[0]+m[4]*v[1]+m[5]*v[2], m[6]*v[0]+m[7]*v[1]+m[8]*v[2]];
+      const basis = p => { const m = [p[0][0], p[1][0], p[2][0], p[0][1], p[1][1], p[2][1], 1, 1, 1]; const v = mulv(adj(m), [p[3][0], p[3][1], 1]); return mul(m, [v[0],0,0, 0,v[1],0, 0,0,v[2]]); };
+      const t = mul(basis([quad.tl, quad.tr, quad.bl, quad.br]), adj(basis([[0,0], [w,0], [0,h], [w,h]])));
+      const n = t.map(x => x / t[8]);
+      el.style.position = 'absolute'; el.style.left = '0px'; el.style.top = '0px';
+      el.style.transformOrigin = '0 0';
+      el.style.transform = 'matrix3d(' + [n[0], n[3], 0, n[6], n[1], n[4], 0, n[7], 0, 0, 1, 0, n[2], n[5], 0, n[8]].join(',') + ')';
+    },
+    // Finds the four corners of a flat key-coloured surface (pure green by default) in a loaded <img> — a screen,
+    // a sign or a sheet the image model was asked to leave in #00FF00 — and returns them as a quad in the CSS px
+    // of the img's offsetParent, ready for FORMA.pin. Honours object-fit (cover, contain, fill) and object-position.
+    // Returns null when no such surface is found. Call it inside FORMA.setup, after the layout of the format is set.
+    findSurface(img, {grow = 1.5} = {}) {
+      if (!img || !img.naturalWidth) return null;
+      const nw = img.naturalWidth, nh = img.naturalHeight;
+      const k = Math.min(1, 900 / Math.max(nw, nh));
+      const cw = Math.max(1, Math.round(nw * k)), ch = Math.max(1, Math.round(nh * k));
+      let d;
+      try {
+        const c = document.createElement('canvas'); c.width = cw; c.height = ch;
+        const x = c.getContext('2d', {willReadFrequently: true}); x.drawImage(img, 0, 0, cw, ch);
+        d = x.getImageData(0, 0, cw, ch).data;
+      } catch (e) { console.error('FORMA.findSurface: cannot read the image', e); return null; }
+      let tl = null, tr = null, br = null, bl = null, count = 0;
+      for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) {
+        const i = (y * cw + x) * 4, r = d[i], g = d[i + 1], b = d[i + 2];
+        if (g < 120 || g - Math.max(r, b) < 70) continue;
+        count++;
+        if (!tl || x + y < tl[0] + tl[1]) tl = [x, y];
+        if (!br || x + y > br[0] + br[1]) br = [x, y];
+        if (!tr || x - y > tr[0] - tr[1]) tr = [x, y];
+        if (!bl || x - y < bl[0] - bl[1]) bl = [x, y];
+      }
+      if (count < cw * ch * 0.002) return null;
+      const bw = img.clientWidth, bh = img.clientHeight;
+      const fit = getComputedStyle(img).objectFit;
+      let sx = bw / nw, sy = bh / nh;
+      if (fit === 'cover') sx = sy = Math.max(bw / nw, bh / nh);
+      else if (fit === 'contain' || fit === 'scale-down') sx = sy = Math.min(bw / nw, bh / nh);
+      const pos = getComputedStyle(img).objectPosition.split(' ');
+      const frac = (v, free) => v.endsWith('%') ? parseFloat(v) / 100 * free : v.endsWith('px') ? parseFloat(v) : free / 2;
+      const ox = frac(pos[0] || '50%', bw - nw * sx), oy = frac(pos[1] || pos[0] || '50%', bh - nh * sy);
+      const map = p => [img.offsetLeft + ox + (p[0] + 0.5) / k * sx, img.offsetTop + oy + (p[1] + 0.5) / k * sy];
+      const q = {tl: map(tl), tr: map(tr), br: map(br), bl: map(bl)};
+      const cx = (q.tl[0] + q.tr[0] + q.br[0] + q.bl[0]) / 4, cy = (q.tl[1] + q.tr[1] + q.br[1] + q.bl[1]) / 4;
+      for (const key of ['tl', 'tr', 'br', 'bl']) {
+        const [px, py] = q[key], len = Math.hypot(px - cx, py - cy) || 1;
+        q[key] = [px + (px - cx) / len * grow, py + (py - cy) / len * grow];
+      }
+      return q;
+    },
     random(seed = 1) {
       let s = seed >>> 0 || 1;
       return () => ((s = Math.imul(s ^ s >>> 15, 1 | s), s ^= s + Math.imul(s ^ s >>> 7, 61 | s), (s ^ s >>> 14) >>> 0) / 4294967296);

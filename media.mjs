@@ -8,7 +8,16 @@ const API = 'https://openrouter.ai/api/v1';
 export const mediaKey = () => process.env.OPENROUTER_API_KEY;
 // Nano Banana 2: the lite tier gave mirrored corridors and badly fitted objects in the lab round; its cost is small next to the LLM.
 export const imageModel = () => process.env.OPENROUTER_IMAGE_MODEL || 'google/gemini-3.1-flash-image';
-export const videoModel = () => process.env.OPENROUTER_VIDEO_MODEL || 'x-ai/grok-imagine-video-1.5-lite';
+// MiniMax H3 Max: 768p at about $0.08 a second, seconds to generate, first and last frame. H3 (minimax/hailuo-3) is 2K only at $0.13 a second.
+export const videoModel = () => process.env.OPENROUTER_VIDEO_MODEL || 'minimax/hailuo-3-max';
+const range = (a, b) => Array.from({length: b - a + 1}, (_, i) => a + i);
+// What OpenRouter accepts per model (from its /videos/models listing); it rejects any other value or field.
+// Models not listed here get the request as asked.
+const VIDEO_CAPS = {
+  'minimax/hailuo-3-max': {durations: range(5, 15), resolutions: ['768p', '480p'], ratios: ['21:9', '16:9', '4:3', '1:1', '3:4', '9:16'], audio: false},
+  'minimax/hailuo-3': {durations: range(5, 15), resolutions: ['2K'], ratios: ['21:9', '16:9', '4:3', '1:1', '3:4', '9:16'], audio: true},
+};
+export const videoCaps = (model = videoModel()) => VIDEO_CAPS[model.replace(/-\d{8}$/, '')] || null;
 // Gemini image models ("Nano Banana") cannot output alpha.
 const supportsTransparency = model => !/gemini|nano-banana/i.test(model);
 const kb = bytes => (bytes / 1024).toFixed(0) + ' KB';
@@ -31,15 +40,15 @@ export const imageShape = {
 export const videoShape = {
   prompt: z.string().min(20).describe('Shot description: subject, one clear camera move or action, lens, light, pace. Silent. No text, logos or UI.'),
   name: z.string().regex(/^[a-z0-9][a-z0-9-]{1,40}$/).describe('Short kebab-case file name without extension.'),
-  aspect_ratio: z.enum(['16:9','9:16','1:1','4:3','3:4']).default('9:16').describe('Not every video model supports every ratio; 16:9 and 9:16 are the safest.'),
-  duration: z.number().int().min(3).max(10).default(5).describe('Clip length in seconds.'),
+  aspect_ratio: z.enum(['16:9','9:16','1:1','4:3','3:4','21:9']).default('9:16').describe('Not every video model supports every ratio; 16:9 and 9:16 are the safest.'),
+  duration: z.number().int().min(3).max(15).default(5).describe('Clip length in seconds. The current model takes 5–15 s; a shorter ask is rounded up, so plan a clip at least 5 s long and use the part you need.'),
   first_frame: refPath.optional().describe('Image to start from (image-to-video). Best results: generate and inspect a still first, then animate it.'),
   last_frame: refPath.optional().describe('Optional image to end on.'),
   references: z.array(refPath).max(3).default([]).describe('Style or product references when no first_frame is given.'),
 };
 export const toolText = {
   image: 'Generate a still image (photography, illustration, texture, product scene or cutout) with ' + 'OpenRouter and save it into the materials folder. Returns its local file name, URL and pixel size. Open the file afterwards to check it against the art direction; regenerate with the previous result in references to correct it.',
-  video: 'Generate a short silent video clip with OpenRouter (slow; use for hero footage only) and save it as MP4 in the materials folder. Returns its local file name and URL. Play it in the creative with FORMA.syncVideo(video, t, startSecond).',
+  video: 'Generate a short silent video clip with OpenRouter (use it for the one move code cannot make: a hero shot or a change between two scenes) and save it as MP4 in the materials folder. Returns its local file name and URL. Play it in the creative with FORMA.syncVideo(video, t, startSecond).',
 };
 
 function inside(dir, rel) {
@@ -153,14 +162,24 @@ export function mediaSession({dir, signal, log = () => {}, allow = {images:true,
     if (used.videos >= limits.videos) { log('Video limit reached (' + limits.videos + ')', {level:'warn'}); throw Error('Video budget for this build is used up (' + limits.videos + ').'); }
     used.videos++;
     const model = videoModel(), started = Date.now();
-    const body = {model, prompt:args.prompt, aspect_ratio:args.aspect_ratio, duration:args.duration, generate_audio:false};
-    if (process.env.OPENROUTER_VIDEO_RESOLUTION) body.resolution = process.env.OPENROUTER_VIDEO_RESOLUTION;
+    const caps = videoCaps(model);
+    // Fit the request to what the model accepts: the nearest allowed length at or above the ask, a ratio and resolution it lists,
+    // and generate_audio only where the model has audio (the clip plays muted anyway).
+    const duration = caps ? (caps.durations.find(d => d >= args.duration) ?? caps.durations.at(-1)) : args.duration;
+    const aspect = caps && !caps.ratios.includes(args.aspect_ratio) ? '16:9' : args.aspect_ratio;
+    const body = {model, prompt:args.prompt, aspect_ratio:aspect, duration};
+    if (!caps || caps.audio) body.generate_audio = false;
+    const resolution = process.env.OPENROUTER_VIDEO_RESOLUTION;
+    if (resolution && (!caps || caps.resolutions.includes(resolution))) body.resolution = resolution;
+    else if (caps) body.resolution = caps.resolutions[0];
+    if (resolution && caps && !caps.resolutions.includes(resolution)) log(model + ' has no ' + resolution + '; using ' + body.resolution, {level:'warn'});
+    if (duration !== args.duration) log(model + ' makes ' + caps.durations[0] + '–' + caps.durations.at(-1) + ' s clips; asking for ' + duration + ' s instead of ' + args.duration + ' s');
     const frames = [];
     if (args.first_frame) frames.push({type:'image_url', image_url:{url:await dataURL(dir, args.first_frame)}, frame_type:'first_frame'});
     if (args.last_frame) frames.push({type:'image_url', image_url:{url:await dataURL(dir, args.last_frame)}, frame_type:'last_frame'});
     if (frames.length) body.frame_images = frames;
     else if (args.references.length) body.input_references = await Promise.all(args.references.map(async r => ({type:'image_url', image_url:{url:await dataURL(dir, r)}})));
-    log('OpenRouter → video “' + args.name + '” · ' + model + ' · ' + args.aspect_ratio + ' · ' + args.duration + ' s' + (body.resolution ? ' · ' + body.resolution : '') +
+    log('OpenRouter → video “' + args.name + '” · ' + model + ' · ' + body.aspect_ratio + ' · ' + body.duration + ' s' + (body.resolution ? ' · ' + body.resolution : '') +
       (args.first_frame ? ' · first frame: ' + args.first_frame : '') + (args.last_frame ? ' · last frame: ' + args.last_frame : '') + (!frames.length ? refs(args.references) : ''),
       {level:'step', detail:args.prompt});
     let job;
@@ -176,7 +195,7 @@ export function mediaSession({dir, signal, log = () => {}, allow = {images:true,
         throw Error('Video generation ' + state.status + ': ' + reason);
       }
       if (Date.now() > deadline) { log('Video generation timed out', {level:'error'}); throw Error('Video generation timed out. Continue without the clip.'); }
-      await wait(8000, signal);
+      await wait(Number(process.env.MEDIA_VIDEO_POLL_MS || 5000), signal);
       state = await (await call(API + '/videos/' + encodeURIComponent(job.id), {method:'GET'}, signal)).json();
       const elapsed = Math.round((Date.now() - started) / 1000) + ' s';
       log('Video “' + args.name + '” · ' + state.status + ' · ' + elapsed, {level:state.status !== lastStatus ? 'step' : 'info'});
@@ -188,7 +207,7 @@ export function mediaSession({dir, signal, log = () => {}, allow = {images:true,
     await fs.writeFile(path.join(dir, file), buf);
     log('OpenRouter ✓ ' + file + ' · ' + kb(buf.length) + ' · ' + Math.round((Date.now() - started) / 1000) + ' s' + usd(state.usage?.cost),
       {level:'done', media:{kind:'video', file, name:args.name, cost:state.usage?.cost}, cost:{kind:'video', usd:state.usage?.cost ?? null}});
-    return {file, url:'assets/' + file, duration:args.duration, aspect_ratio:args.aspect_ratio, model, cost:state.usage?.cost, remaining:limits.videos - used.videos};
+    return {file, url:'assets/' + file, duration:body.duration, aspect_ratio:body.aspect_ratio, model, cost:state.usage?.cost, remaining:limits.videos - used.videos};
   }
 
   return {image, video, used, limits};

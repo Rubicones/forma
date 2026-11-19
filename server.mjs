@@ -46,12 +46,22 @@ const runModelText = async ({mode, billing, model, effort, dir, system, user, ta
   return generate({dir, files: [], billing, task, media: null, model, effort, controller, log, onText, prompt: {system, user}});
 };
 registerBrandRoutes(app, {runModelText, checkProvider});
-const localChatLogin=()=>['127.0.0.1','localhost','::1'].includes(host) && chatLogin();
-const localClaudeLogin=()=>['127.0.0.1','localhost','::1'].includes(host) && subscriptionReady();
-app.get('/api/status',async(req,res)=>res.json({ready:ready(),claudeSubscription:await localClaudeLogin(),codexReady:Boolean(codexKey()),chatReady:await localChatLogin(),models,previewURL,
+// Each sign-in check runs a CLI (up to 10 s) and the store check is a database round trip; the page polls /api/status,
+// so their answers are kept for a while and refreshed in the background (the first call waits, later ones never do).
+const cachedCheck=(fn,ms)=>{let value,at=0,pending=null;return()=>{
+ const refresh=()=>pending||(pending=Promise.resolve().then(fn).then(v=>{value=v;at=Date.now();return v},()=>value).finally(()=>{pending=null}));
+ if(!at)return refresh();
+ if(Date.now()-at>ms)refresh();
+ return Promise.resolve(value);
+}};
+const isLocal=['127.0.0.1','localhost','::1'].includes(host);
+const localChatLogin=cachedCheck(()=>isLocal && chatLogin(),60000);
+const localClaudeLogin=cachedCheck(()=>isLocal && subscriptionReady(),60000);
+const storeStatus=cachedCheck(()=>store.status(),30000);
+app.get('/api/status',async(req,res)=>{const [claudeSubscription,chatReady,storeState]=await Promise.all([localClaudeLogin(),localChatLogin(),storeStatus()]);res.json({ready:ready(),claudeSubscription,codexReady:Boolean(codexKey()),chatReady,models,previewURL,
  formats:Object.values(formats),defaultFormats,durations,
- store:await store.status(),
- media:{ready:Boolean(mediaKey()),imageModel:imageModel(),videoModel:videoModel(),limits:mediaLimits()}}));
+ store:storeState,
+ media:{ready:Boolean(mediaKey()),imageModel:imageModel(),videoModel:videoModel(),limits:mediaLimits()}})});
 app.post('/api/projects',async(req,res)=>{
  const id=randomUUID(); await fs.mkdir(path.join(folder(id),'assets'),{recursive:true});
  await store.registerProject(id);
@@ -67,10 +77,10 @@ app.put('/api/projects/:id/file',express.raw({type:'application/octet-stream',li
 });
 async function checkProvider(mode,billing){
  if(mode==='codex' && !['chatgpt','api'].includes(billing))throw issue('Unknown sign-in method.');
- if(mode==='codex' && billing==='chatgpt' && !await localChatLogin())throw issue('Run codex login and sign in with ChatGPT for local use.',503);
+ if(mode==='codex' && billing==='chatgpt' && !(await localChatLogin() || (isLocal && await chatLogin())))throw issue('Run codex login and sign in with ChatGPT for local use.',503);
  if(mode==='codex'&&billing==='api'&&!codexKey())throw issue('Add CODEX_API_KEY to .env and restart the server.',503);
  if(mode==='claude' && !['api','subscription'].includes(billing))throw issue('Unknown Claude billing method.');
- if(mode==='claude' && billing==='subscription' && !await localClaudeLogin())throw issue('Run npm run claude:login in the project folder to sign in with your Claude subscription.',503);
+ if(mode==='claude' && billing==='subscription' && !(await localClaudeLogin() || (isLocal && await subscriptionReady())))throw issue('Run npm run claude:login in the project folder to sign in with your Claude subscription.',503);
  if(mode==='claude'&&billing==='api'&&!ready())throw issue('To use Claude, add ANTHROPIC_API_KEY to .env and restart the server.',503);
 }
 const listAssets=async assets=>(await fs.readdir(assets,{recursive:true,withFileTypes:true})).filter(e=>e.isFile()).map(e=>path.relative(assets,path.join(e.parentPath,e.name)));

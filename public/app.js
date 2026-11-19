@@ -13,6 +13,7 @@ import {
   forkCampaign,
   fetchCampaign,
   listCampaigns,
+  archiveCampaign,
   patchCampaign,
   generateScenario,
   saveScenarioManual,
@@ -2619,8 +2620,13 @@ function renderReviewCard() {
       ? 'Style notes on the preview, while it can still change. ' + (auto ? 'They are applied automatically, once.' : 'Untick what you disagree with, then apply.')
       : 'An execution check of the final in every format and language. Its notes are applied automatically, once; a new look waits for your click.';
 
-  $('#reviewSummary').hidden = !r?.summary;
-  $('#reviewSummary').textContent = r?.summary || '';
+  const errs = r?.problems?.errors || [], flat = r?.problems?.blank || [];
+  const problemText = [
+    errs.length ? 'The browser reported ' + errs.length + (errs.length === 1 ? ' error' : ' errors') + ': ' + errs[0].message + (errs.length > 1 ? ' …' : '') : '',
+    flat.length ? 'Flat frames: ' + flat.slice(0, 3).join(', ') + (flat.length > 3 ? ' …' : '') : '',
+  ].filter(Boolean).join(' · ');
+  $('#reviewSummary').hidden = !r?.summary && !problemText;
+  $('#reviewSummary').textContent = [problemText, r?.summary || ''].filter(Boolean).join(' — ');
 
   const editable = Boolean(exact && !exact.applied && exact.notes.length && !reviewRunning);
   const off = r ? reviewLeftOut.get(r.id) || new Set() : new Set();
@@ -2685,7 +2691,8 @@ function renderReviewCard() {
   $('#reviewMeta').textContent = meta.join(' · ');
 }
 
-async function runReview(target, {auto = false} = {}) {
+// afterBuild: the look that follows a build. When the browser reported errors or flat frames, its notes are applied once even if auto is off.
+async function runReview(target, {auto = false, afterBuild = false} = {}) {
   const c = state.campaign;
   if (!c || !target || busy || pending > 0 || c.setup?.provider?.mode === 'codex') return null;
   const stage = target.type === 'preview' ? 'preview' : 'final';
@@ -2709,10 +2716,12 @@ async function runReview(target, {auto = false} = {}) {
   if (r) reviewList = [r, ...reviewList.filter(x => x.id !== r.id)];
   renderReviewCard();
   if (!r) return null;
+  const broken = Boolean(r.problems?.errors?.length || r.problems?.blank?.length);
+  const apply = r.notes.length > 0 && (auto || (afterBuild && broken));
   status.textContent = r.notes.length
-    ? 'The art director left ' + r.notes.length + (r.notes.length === 1 ? ' note.' : ' notes.') + (auto ? ' Applying them…' : '')
+    ? 'The art director left ' + r.notes.length + (r.notes.length === 1 ? ' note.' : ' notes.') + (apply ? (broken && !auto ? ' The frames had render errors, so they are applied now…' : ' Applying them…') : '')
     : 'The art director found nothing serious.';
-  if (auto && r.notes.length) await applyReview(r, {auto: true});
+  if (apply) await applyReview(r, {auto: true});
   return r;
 }
 
@@ -2741,7 +2750,7 @@ function lookAfterBuild(stage) {
   const target = reviewTarget();
   if (!c || !target || (target.type === 'preview') !== (stage === 'preview')) return;
   if (c.setup?.provider?.mode === 'codex') return;
-  runReview(target, {auto: stage === 'final' || Boolean(c.setup?.review?.autoApplyPreview)});
+  runReview(target, {auto: stage === 'final' || Boolean(c.setup?.review?.autoApplyPreview), afterBuild: true});
 }
 
 $('#reviewLookBtn').onclick = () => runReview(reviewTarget());
@@ -2764,6 +2773,7 @@ const historyMore = $('#historyMore');
 let historyTab = 'campaigns'; // 'campaigns' | 'legacy'
 let historyType = '';
 let historyAuthorMode = 'all'; // 'all' | 'mine' | 'colleagues'
+let historyArchived = false; // the campaigns tab shows archived campaigns instead of the active ones
 let historyNext = null;
 
 const typeName = {creative: 'Creative', style: 'Styles', scenario: 'Script', preview: 'Preview'};
@@ -2985,6 +2995,15 @@ function campaignHistoryItem(c) {
   if (logEntryId) {
     actions.append(actionBtn('Run log', () => showSavedLog({id: logEntryId})));
   }
+  const isArchived = c.status === 'archived';
+  const archiveBtn = actionBtn(isArchived ? 'Restore' : 'Archive', async () => {
+    await archiveCampaign(c.id, !isArchived);
+    li.remove();
+    status.textContent = isArchived ? 'Restored “' + (c.name || 'campaign') + '” to the list.' : 'Archived “' + (c.name || 'campaign') + '”. Find it under Archived.';
+    refreshHistoryCount();
+  });
+  archiveBtn.title = isArchived ? 'Bring this campaign back to the list' : 'Hide this campaign from the list; nothing is deleted';
+  actions.append(archiveBtn);
   li.append(actions);
   return li;
 }
@@ -3068,16 +3087,17 @@ async function loadHistory(reset = true) {
     $('#historyFilter').hidden = true;
     const {items: campItems, next, total} = await listCampaigns({
       before: !reset && historyNext ? historyNext : undefined,
-      limit: 30,
+      limit: 12,
       author: authorParam,
       excludeAuthor: excludeAuthorParam,
+      archived: historyArchived,
     });
     if (reset) historyList.replaceChildren();
     for (const c of campItems) historyList.append(campaignHistoryItem(c));
-    if (reset && !campItems.length) historyList.append(el('li', 'h-empty', 'No campaigns yet.'));
+    if (reset && !campItems.length) historyList.append(el('li', 'h-empty', historyArchived ? 'No archived campaigns.' : 'No campaigns yet.'));
     historyNext = next;
     historyMore.hidden = !next;
-    $('#historyCount').textContent = total ? String(total) : '';
+    if (!historyArchived) $('#historyCount').textContent = total ? String(total) : '';
     return;
   }
 
@@ -3108,13 +3128,17 @@ function closeHistory() {
   $('#historyOpen').setAttribute('aria-expanded', 'false');
 }
 
+function refreshHistoryCount() {
+  listCampaigns({limit: 1})
+    .then(r => {
+      $('#historyCount').textContent = r.total ? String(r.total) : '';
+    })
+    .catch(() => {});
+}
+
 function refreshHistory() {
   if (historyPanel.hidden) {
-    listCampaigns({limit: 1})
-      .then(r => {
-        $('#historyCount').textContent = r.total ? String(r.total) : '';
-      })
-      .catch(() => {});
+    refreshHistoryCount();
   } else {
     loadHistory().catch(() => {});
   }
@@ -3147,11 +3171,18 @@ for (const b of document.querySelectorAll('#historyFilter button')) {
   };
 }
 
-for (const b of document.querySelectorAll('#historyAuthorFilter button')) {
+$('#historyArchived').onclick = () => {
+  historyArchived = !historyArchived;
+  historyNext = null;
+  $('#historyArchived').setAttribute('aria-pressed', String(historyArchived));
+  loadHistory(true).catch(err => { status.textContent = err.message; });
+};
+
+for (const b of document.querySelectorAll('#historyAuthorFilter button[data-author-filter]')) {
   b.onclick = () => {
     historyAuthorMode = b.dataset.authorFilter || 'all';
     historyNext = null;
-    for (const x of document.querySelectorAll('#historyAuthorFilter button')) {
+    for (const x of document.querySelectorAll('#historyAuthorFilter button[data-author-filter]')) {
       x.setAttribute('aria-pressed', String(x === b));
     }
     loadHistory(true).catch(err => { status.textContent = err.message; });

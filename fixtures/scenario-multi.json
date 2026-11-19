@@ -3,42 +3,164 @@
   "kind": "multi",
   "theme": "Splitting bills without the argument",
   "idea": "Two flatmates both swear they paid; the app ends it in one tap.",
-  "languages": ["en", "ru"],
+  "languages": [
+    "en",
+    "ru"
+  ],
   "lines": {
-    "h1":  { "role": "hook",  "scene": "s1", "maxChars": 24, "hideIn": [],        "text": { "en": "“I paid last.”",       "ru": "«Платил уже я.»" } },
-    "h1b": { "role": "hook",  "scene": "s1", "maxChars": 16, "hideIn": [],        "text": { "en": "“No, I did.”",          "ru": "«Нет, я.»" } },
-    "p1":  { "role": "proof", "scene": "s2", "maxChars": 28, "hideIn": ["191x1"], "text": { "en": "One list. Split fast.", "ru": "Один список всем." } },
-    "o1":  { "role": "offer", "scene": "s3", "maxChars": 30, "hideIn": [],        "text": { "en": "Free 3 months",         "ru": "3 месяца даром" } },
-    "cta": { "role": "cta",   "scene": "s3", "maxChars": 20, "hideIn": [],        "text": { "en": "Start budget",          "ru": "Начать бюджет" } }
+    "h1": {
+      "role": "hook",
+      "scene": "s1",
+      "maxChars": 24,
+      "hideIn": [],
+      "text": {
+        "en": "“I paid last.”",
+        "ru": "«Платил уже я.»"
+      }
+    },
+    "h1b": {
+      "role": "hook",
+      "scene": "s1",
+      "maxChars": 16,
+      "hideIn": [],
+      "text": {
+        "en": "“No, I did.”",
+        "ru": "«Нет, я.»"
+      }
+    },
+    "p1": {
+      "role": "proof",
+      "scene": "s2",
+      "maxChars": 28,
+      "hideIn": [
+        "191x1"
+      ],
+      "text": {
+        "en": "One list. Split fast.",
+        "ru": "Один список всем."
+      }
+    },
+    "o1": {
+      "role": "offer",
+      "scene": "s3",
+      "maxChars": 30,
+      "hideIn": [],
+      "text": {
+        "en": "Free 3 months",
+        "ru": "3 месяца даром"
+      }
+    },
+    "cta": {
+      "role": "cta",
+      "scene": "s3",
+      "maxChars": 20,
+      "hideIn": [],
+      "text": {
+        "en": "Start budget",
+        "ru": "Начать бюджет"
+      }
+    }
   },
   "scenes": [
-    { "id": "s1", "beat": "HOOK",        "story": "Two voices claim the same bill.",         "lines": ["h1", "h1b"] },
-    { "id": "s2", "beat": "PROOF",       "story": "The shared list settles who paid what.",  "lines": ["p1"] },
-    { "id": "s3", "beat": "OFFER + CTA", "story": "The offer lands with the brand and CTA.", "lines": ["o1", "cta"] }
+    {
+      "id": "s1",
+      "beat": "HOOK",
+      "story": "Two voices claim the same bill.",
+      "lines": [
+        "h1",
+        "h1b"
+      ]
+    },
+    {
+      "id": "s2",
+      "beat": "PROOF",
+      "story": "The shared list settles who paid what.",
+      "lines": [
+        "p1"
+      ]
+    },
+    {
+      "id": "s3",
+      "beat": "OFFER + CTA",
+      "story": "The offer lands with the brand and CTA.",
+      "lines": [
+        "o1",
+        "cta"
+      ]
+    }
   ],
   "cuts": {
     "4": {
       "scenes": [
-        { "id": "s1", "start": 0,   "end": 1.7, "lines": ["h1"] },
-        { "id": "s3", "start": 1.7, "end": 4,   "lines": ["cta"] }
+        {
+          "id": "s1",
+          "start": 0,
+          "end": 1.9,
+          "lines": [
+            "h1"
+          ]
+        },
+        {
+          "id": "s3",
+          "start": 1.9,
+          "end": 4,
+          "lines": [
+            "cta"
+          ]
+        }
       ],
       "note": "PROOF and secondary lines dropped; hook → CTA."
     },
     "6": {
       "scenes": [
-        { "id": "s1", "start": 0,   "end": 1.8, "lines": ["h1"] },
-        { "id": "s2", "start": 1.8, "end": 3.5, "lines": ["p1"] },
-        { "id": "s3", "start": 3.5, "end": 6,   "lines": ["cta"] }
+        {
+          "id": "s1",
+          "start": 0,
+          "end": 2.6,
+          "lines": [
+            "h1"
+          ]
+        },
+        {
+          "id": "s3",
+          "start": 2.6,
+          "end": 6,
+          "lines": [
+            "cta"
+          ]
+        }
       ],
-      "note": "Three scenes with primary lines."
+      "note": "Hook → CTA; the proof scene does not fit 6 s with time to read."
     },
     "10": {
       "scenes": [
-        { "id": "s1", "start": 0,   "end": 3.4, "lines": ["h1", "h1b"] },
-        { "id": "s2", "start": 3.4, "end": 5.5, "lines": ["p1"] },
-        { "id": "s3", "start": 5.5, "end": 10,  "lines": ["o1", "cta"] }
+        {
+          "id": "s1",
+          "start": 0,
+          "end": 2.4,
+          "lines": [
+            "h1"
+          ]
+        },
+        {
+          "id": "s2",
+          "start": 2.4,
+          "end": 5.0,
+          "lines": [
+            "p1"
+          ]
+        },
+        {
+          "id": "s3",
+          "start": 5.0,
+          "end": 10,
+          "lines": [
+            "o1",
+            "cta"
+          ]
+        }
       ],
-      "note": "Full story."
+      "note": "Full story; the reply line is dropped to keep time to read."
     }
   },
   "notes": "Keep transitions crisp."

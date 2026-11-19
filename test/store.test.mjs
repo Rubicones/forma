@@ -387,6 +387,18 @@ describe('Supabase migrations & entryToRow / rowToEntry round-trip (§3, M3)', (
         neq(col, val) { filters.push(r => r[col] !== val); return builder; },
         is(col, val) { filters.push(r => (r[col] ?? null) === val); return builder; },
         lt(col, val) { filters.push(r => String(r[col]) < String(val)); return builder; },
+        or(expr) {
+          const tests = String(expr).split(',').map(part => {
+            const [col, op, ...rest] = part.split('.');
+            const val = rest.join('.');
+            if (op === 'is') return r => (r[col] ?? null) === (val === 'null' ? null : val);
+            if (op === 'eq') return r => String(r[col]) === val;
+            if (op === 'neq') return r => r[col] !== null && r[col] !== undefined && String(r[col]) !== val;
+            return () => false;
+          });
+          filters.push(r => tests.some(t => t(r)));
+          return builder;
+        },
         order(col, {ascending = true} = {}) { orderCol = col; orderAsc = ascending; return builder; },
         limit(n) { limitCount = n; return builder; },
         async maybeSingle() {

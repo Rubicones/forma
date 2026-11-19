@@ -29,9 +29,11 @@ async function runQuery({prompt, options, task, dir, log, onText, model, effort,
   let lastError='', turn=0, blockKind=null, thinking='', text='', lastThinkingStatus=0, textStarted=0;
   const sketchCount = () => (text.match(/"svg"\s*:/g) || []).length;
   const display = file => path.isAbsolute(String(file)) && !String(file).startsWith(dir + path.sep) ? path.basename(String(file)) : path.relative(dir, path.resolve(dir, String(file || '')));
+  log('Starting Claude…', {quiet:true});
+  const started=Date.now();
   for await (const event of query({prompt,options})) {
     if(event.type==='system' && event.subtype==='init') {
-      log('Claude connected · '+(event.model || model || 'default model')+(effort ? ' · effort '+effort : ''), {level:'step'});
+      log('Claude connected · '+(event.model || model || 'default model')+(effort ? ' · effort '+effort : '')+' · started in '+((Date.now()-started)/1000).toFixed(1)+' s', {level:'step'});
       // Plugins and skills in init are what the CLI found, not what the model sees: without the Skill tool it cannot
       // call skills. Outside MCP servers and agent/skill tools would add to the context, so only those warn.
       const outside=(event.mcp_servers || []).filter(s=>s.source && s.source!=='sdk').map(s=>'MCP '+s.name+' ('+s.source+')');

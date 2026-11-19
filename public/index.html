@@ -39,6 +39,7 @@
     <button type="button" data-author-filter="all" aria-pressed="true">All</button>
     <button type="button" data-author-filter="mine" aria-pressed="false">Mine</button>
     <button type="button" data-author-filter="colleagues" aria-pressed="false">Teammates</button>
+    <button type="button" id="historyArchived" aria-pressed="false" title="Show archived campaigns instead of the active ones">Archived</button>
   </div>
   <div id="historyFilter" class="chips small" role="group" aria-label="Entry type" hidden>
     <button type="button" data-type="" aria-pressed="true">All</button>
@@ -453,7 +454,7 @@
           </label>
           <label id="finalVideoLabel" class="check">
             <input type="checkbox" id="mediaVideo">
-            <span>Video <small>Slower and more expensive. Up to one clip.</small></span>
+            <span>Video <small>Final only. One clip for the move code cannot make (a hero shot, or one scene turning into the next); paid per second of clip.</small></span>
           </label>
           <p id="mediaHint" class="note"></p>
         </fieldset>

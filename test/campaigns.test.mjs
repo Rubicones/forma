@@ -31,7 +31,7 @@ const sampleScenario = () => ({
     h1:  {role:'hook',  scene:'s1', maxChars:24, hideIn:[], text:{en:'“I paid last.”',       ru:'«Платил уже я.»'}},
     p1:  {role:'proof', scene:'s2', maxChars:28, hideIn:[], text:{en:'One list. Split fast.', ru:'Один список на всех.'}},
     o1:  {role:'offer', scene:'s3', maxChars:32, hideIn:[], text:{en:'Free 3 months',         ru:'3 месяца бесплатно'}},
-    cta: {role:'cta',   scene:'s3', maxChars:24, hideIn:[], text:{en:'Start shared budget',   ru:'Начать бюджет'}},
+    cta: {role:'cta',   scene:'s3', maxChars:24, hideIn:[], text:{en:'Start budget',          ru:'Начать бюджет'}},
   },
   scenes: [
     {id:'s1', beat:'HOOK',        story:'Two voices claim the same bill.',         lines:['h1']},
@@ -41,16 +41,16 @@ const sampleScenario = () => ({
   cuts: {
     '4': {
       scenes: [
-        {id:'s1', start:0,   end:1.6, lines:['h1']},
-        {id:'s3', start:1.6, end:4,   lines:['cta']},
+        {id:'s1', start:0,   end:2.0, lines:['h1']},
+        {id:'s3', start:2.0, end:4,   lines:['cta']},
       ],
       note: 'Short cut.',
     },
     '10': {
       scenes: [
         {id:'s1', start:0,   end:3.0, lines:['h1']},
-        {id:'s2', start:3.0, end:5.2, lines:['p1']},
-        {id:'s3', start:5.2, end:10,  lines:['o1', 'cta']},
+        {id:'s2', start:3.0, end:5.6, lines:['p1']},
+        {id:'s3', start:5.6, end:10,  lines:['o1', 'cta']},
       ],
       note: 'Full cut.',
     },
@@ -346,7 +346,7 @@ describe('campaigns.mjs: HTTP endpoints, gating and history integration', () => 
     // 1. Generate scenario in demo mode
     const scRes = await req('POST', `/api/campaigns/${cid}/scenario`, {notes: 'Make it snappy'});
     assert.equal(scRes.status, 200);
-    assert.deepEqual(scRes.body.validation.errors, []);
+    assert.deepEqual(scRes.body.validation.errors, [], JSON.stringify(scRes.body.validation.errors));
 
     // 2. Approve scenario
     const appSc = await req('POST', `/api/campaigns/${cid}/approve`, {step: 'scenario'});
@@ -423,6 +423,8 @@ describe('campaigns.mjs: HTTP endpoints, gating and history integration', () => 
 
     // 11. Parallel job gate -> 409 while a job is running
     const p1 = req('POST', `/api/campaigns/${cid}/styles`, {});
+    // Give the first request time to take the campaign's run lock (the demo step itself lasts ~0.4 s); without it the two raced.
+    await new Promise(resolve => setTimeout(resolve, 120));
     const p2 = await req('POST', `/api/campaigns/${cid}/styles`, {});
     assert.equal(p2.status, 409);
     const p1Done = await p1;
@@ -814,11 +816,10 @@ describe('campaigns.mjs: HTTP endpoints, gating and history integration', () => 
       const next = structuredClone(trModel.body.scenario);
       next.cuts['6'] = {
         scenes: [
-          {id: 's1', start: 0, end: 2.0, lines: ['h1']},
-          {id: 's2', start: 2.0, end: 3.8, lines: ['p1']},
-          {id: 's3', start: 3.8, end: 6.0, lines: ['cta']},
+          {id: 's1', start: 0, end: 2.6, lines: ['h1']},
+          {id: 's3', start: 2.6, end: 6.0, lines: ['cta']},
         ],
-        note: '6s cut.',
+        note: '6s cut: hook → CTA (a proof scene does not fit with time to read).',
       };
       return JSON.stringify(next);
     };
@@ -1006,5 +1007,20 @@ describe('campaigns.mjs: HTTP endpoints, gating and history integration', () => 
     assert.equal(v1Stale.previewStale, true);
     assert.equal(v1Stale.finalStale, true);
     assert.equal(v2Stale.previewStale, true);
+  });
+
+  it('archives a campaign out of the list and restores it', async () => {
+    const created = await req('POST', '/api/campaigns', {project: projectId, setup: {kind: 'poster', languages: ['en'], formats: ['1x1'], provider: {mode: 'demo'}}, name: 'To archive'});
+    assert.equal(created.status, 201);
+    const id = created.body.id;
+    const ids = async q => (await req('GET', '/api/campaigns?limit=200' + q)).body.items.map(c => c.id);
+    assert.ok((await ids('')).includes(id));
+    const arch = await req('POST', `/api/campaigns/${id}/archive`, {archived: true});
+    assert.equal(arch.status, 200);
+    assert.ok(!(await ids('')).includes(id));
+    assert.ok((await ids('&archived=1')).includes(id));
+    await req('POST', `/api/campaigns/${id}/archive`, {archived: false});
+    assert.ok((await ids('')).includes(id));
+    assert.ok(!(await ids('&archived=1')).includes(id));
   });
 });

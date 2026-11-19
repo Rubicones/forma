@@ -154,13 +154,17 @@ export const forkCampaign = (id, {styleIndex, name} = {}) =>
 export const fetchCampaign = id =>
   apiJson(`/api/campaigns/${encodeURIComponent(id)}`);
 
-export const listCampaigns = ({before, limit = 30, author, excludeAuthor} = {}) => {
+export const listCampaigns = ({before, limit = 30, author, excludeAuthor, archived = false} = {}) => {
   const q = new URLSearchParams({limit: String(limit)});
+  if (archived) q.set('archived', '1');
   if (before) q.set('before', before);
   if (author) q.set('author', author);
   if (excludeAuthor) q.set('excludeAuthor', excludeAuthor);
   return apiJson('/api/campaigns?' + q);
 };
+
+export const archiveCampaign = (id, archived = true) =>
+  apiJson(`/api/campaigns/${encodeURIComponent(id)}/archive`, {method: 'POST', body: JSON.stringify({archived})});
 
 export const fetchActiveRuns = () =>
   apiJson('/api/runs/active');

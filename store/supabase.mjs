@@ -526,7 +526,8 @@ export function createSupabaseStore({
   }
 
   // §3.2 list({type, project, path, campaign, before, limit, author, excludeAuthor})
-  async function list({type, project, path: outputPath, campaign, before, limit = 30, author, excludeAuthor} = {}) {
+  // archived (campaigns only): 'only' lists archived campaigns; anything else hides them.
+  async function list({type, project, path: outputPath, campaign, before, limit = 30, author, excludeAuthor, archived} = {}) {
     const client = await db();
     const pageSize = Math.min(Math.max(Number(limit) || 30, 1), 200);
 
@@ -541,6 +542,7 @@ export function createSupabaseStore({
       if (outputPath) q = q.eq('output_path', outputPath);
       if (author) q = q.eq('author', author);
       if (excludeAuthor) q = q.neq('author', excludeAuthor);
+      if (type === 'campaign') q = archived === 'only' ? q.eq('status', 'archived') : q.or('status.is.null,status.neq.archived');
       return q;
     };
 
@@ -1023,6 +1025,8 @@ export function createSupabaseStore({
       // Run up to 6 downloads in parallel; write to .part, then rename (§2.1)
       await mapPool(indexedList, 6, async row => {
         if (!classifyProjectFile(row.path)) return;
+        // The art director's contact sheets are never read by a model; the preview server fetches them from R2 when shown.
+        if (row.path.startsWith('assets/review/')) return;
         const localFile = path.join(projectDir, row.path);
         try {
           const st = await fs.stat(localFile);

@@ -133,9 +133,10 @@ export async function get(id, {withLog = false} = {}) {
 }
 
 // Newest first. `before` is the updatedAt/createdAt of the last item of the previous page.
-export async function list({type, project, path: outputPath, campaign, author, excludeAuthor, before, limit = 30} = {}) {
+export async function list({type, project, path: outputPath, campaign, author, excludeAuthor, before, limit = 30, archived} = {}) {
   let items = [...index.values()];
   if (type) items = items.filter(e => e.type === type);
+  if (type === 'campaign') items = items.filter(e => (e.status === 'archived') === (archived === 'only'));
   if (campaign === 'none') items = items.filter(e => !e.campaign && e.type !== 'campaign');
   else if (campaign) items = items.filter(e => e.campaign === campaign);
   if (outputPath) items = items.filter(e => e.output?.path === outputPath);

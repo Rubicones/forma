@@ -266,7 +266,7 @@ export function validateScenario(scenario, setup = {}) {
 
         for (const lang of langs) {
           const texts = win.lines.map(lk => sc.lines[lk]?.text?.[lang] || '');
-          const need = windowNeed(texts, lang, {closing});
+          const need = windowNeed(texts, lang, {closing, picture: true});
           const v = verdict(have, need);
           byLang[lang] = {need, have, verdict: v};
           if (need > maxNeed) maxNeed = need;

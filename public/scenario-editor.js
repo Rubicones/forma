@@ -159,7 +159,7 @@ export function validateScenarioClient(scenario, setup) {
         let worstVerdict = 'ok';
         for (const lang of reqLangs) {
           const texts = (w.lines || []).map(k => lines[k]?.text?.[lang] || '');
-          const need = Number(windowNeed(texts, lang, {closing: isClosing}).toFixed(2));
+          const need = Number(windowNeed(texts, lang, {closing: isClosing, picture: true}).toFixed(2));
           const v = verdict(have, need);
           byLang[lang] = {need, have, verdict: v};
           if (need > maxNeed) maxNeed = need;
@@ -820,7 +820,7 @@ export function openCopyEditor({scenario, setup, currentLength, onSave}) {
     const rank = {ok: 0, tight: 1, fail: 2};
     for (const l of langs) {
       const texts = (win.lines || []).map(k => working[k]?.text?.[l] || '');
-      const need = windowNeed(texts, l, {closing: isClosing});
+      const need = windowNeed(texts, l, {closing: isClosing, picture: true});
       if (need > maxNeed) maxNeed = need;
       const v = verdict(have, need);
       if (rank[v] > rank[worst]) worst = v;

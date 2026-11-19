@@ -455,7 +455,8 @@ async function chainCost(entry) {
 }
 const withStepCost = (light, cost) => (light ? {...light, stepCost: cost} : null);
 
-export async function hydrateCampaign(rawCampaign) {
+// costs:false skips the step-cost chains (the campaign list does not show them).
+export async function hydrateCampaign(rawCampaign, {costs = true} = {}) {
   if (!rawCampaign) return null;
   const campaign = upgradeCampaign(rawCampaign);
   const entryIds = new Set();
@@ -555,10 +556,10 @@ export async function hydrateCampaign(rawCampaign) {
     activeVariant: activeVar.id,
     runningRequestId: runningJob.get(campaign.id) || null,
     entries: {
-      scenario: withStepCost(lightEntry(scenario), await chainCost(scenario)),
-      styles: withStepCost(lightEntry(activeStylesEntry), await chainCost(activeStylesEntry)),
-      preview: withStepCost(lightEntry(activePreviewEntry), await chainCost(activePreviewEntry)),
-      final: withStepCost(lightEntry(activeFinalEntry), await chainCost(activeFinalEntry)),
+      scenario: withStepCost(lightEntry(scenario), (costs ? await chainCost(scenario) : null)),
+      styles: withStepCost(lightEntry(activeStylesEntry), (costs ? await chainCost(activeStylesEntry) : null)),
+      preview: withStepCost(lightEntry(activePreviewEntry), (costs ? await chainCost(activePreviewEntry) : null)),
+      final: withStepCost(lightEntry(activeFinalEntry), (costs ? await chainCost(activeFinalEntry) : null)),
     },
   };
 }
@@ -608,7 +609,20 @@ const wait = (ms, signal) => new Promise((ok, no) => {
 // The brand notes are live: a campaign of a saved brand always reads the brand's latest notes (so an edit or an
 // answered question on the brand page reaches campaigns already running) and keeps a copy in its materials.
 // A campaign without a saved brand has only its own copy.
+// Times a stage that runs before the model is called and logs it when it takes noticeable time,
+// so a slow start shows where it hangs (sign-in check, cloud sync, brand notes).
+async function timed(log, label, fn) {
+  const t0 = Date.now();
+  const out = await fn();
+  const ms = Date.now() - t0;
+  if (ms >= 300) log(label + ' · ' + (ms / 1000).toFixed(1) + ' s', {level: ms >= 5000 ? 'warn' : 'info'});
+  return out;
+}
+
 async function brandNotesFor(campaign, assets, log = () => {}) {
+  return timed(log, 'Brand notes ready', () => brandNotesForInner(campaign, assets, log));
+}
+async function brandNotesForInner(campaign, assets, log) {
   const local = path.join(assets, BRAND_NOTES_FILE);
   const own = await fs.readFile(local, 'utf8').catch(() => '');
   if (!campaign.brandId) return own;
@@ -676,7 +690,7 @@ export function buildProportionalCuts(scenario, lengths = [], languages = scenar
     let max = 0.6;
     for (const lang of languages) {
       const texts = lineKeys.map(k => scenario.lines?.[k]?.text?.[lang] || '');
-      const n = windowNeed(texts, lang, {closing});
+      const n = windowNeed(texts, lang, {closing, picture: true});
       if (n > max) max = n;
     }
     return max;
@@ -685,7 +699,7 @@ export function buildProportionalCuts(scenario, lengths = [], languages = scenar
   for (const rawLen of lengths) {
     const L = Number(rawLen);
     let chosenScenes;
-    if (L <= 5 || scenes.length <= 2) {
+    if (L <= 6 || scenes.length <= 2) {
       const hLines = firstScene.lines.slice(0, 1);
       const ctaLines = lastScene.lines.filter(k => scenario.lines?.[k]?.role === 'cta');
       const offerLines = lastScene.lines.filter(k => scenario.lines?.[k]?.role === 'offer');
@@ -697,7 +711,7 @@ export function buildProportionalCuts(scenario, lengths = [], languages = scenar
         {id: firstScene.id, lines: hLines},
         {id: lastScene.id, lines: closeLines},
       ];
-    } else if (L <= 8) {
+    } else if (L <= 10) {
       const mid = midScenes[0];
       chosenScenes = [
         {id: firstScene.id, lines: firstScene.lines.slice(0, 1)},
@@ -731,20 +745,22 @@ export function buildProportionalCuts(scenario, lengths = [], languages = scenar
     }
 
     const extra = Math.max(0, L - sumNeed);
+    // When even the shortest plan needs more than L, every window gets the same share of its need (all tight, none failing).
+    const squeeze = sumNeed > L ? L / sumNeed : 1;
     let cursor = 0;
     const windows = chosenScenes.map((s, idx) => {
       const start = idx === 0 ? 0 : cursor;
       const share = sumNeed > 0 ? needs[idx] / sumNeed : 1 / chosenScenes.length;
-      const minEnd = Math.ceil((start + needs[idx]) * 100) / 100;
-      const propEnd = Math.round((start + needs[idx] + extra * share) * 10) / 10;
-      const end = idx === chosenScenes.length - 1 ? L : Math.min(L - 0.5, Math.max(minEnd, propEnd));
+      const minEnd = squeeze < 1 ? Math.round((start + needs[idx] * squeeze) * 100) / 100 : Math.ceil((start + needs[idx]) * 100) / 100;
+      const propEnd = Math.round((start + needs[idx] * squeeze + extra * share) * 10) / 10;
+      const end = idx === chosenScenes.length - 1 ? L : Math.min(L - 0.5, squeeze < 1 ? minEnd : Math.max(minEnd, propEnd));
       cursor = end;
       return {id: s.id, start, end, lines: s.lines};
     });
 
     cuts[String(L)] = {
       scenes: windows,
-      note: L <= 5 ? 'Short cut: hook → offer/CTA.' : L <= 8 ? 'Medium cut: 3 scenes.' : 'Full story.',
+      note: L <= 6 ? 'Short cut: hook → offer/CTA.' : L <= 10 ? 'Medium cut: 3 scenes.' : 'Full story.',
     };
   }
   return cuts;
@@ -877,12 +893,37 @@ export function registerCampaignRoutes(app, {
   });
 
   // GET /api/campaigns?limit&before
+  // A list item is rebuilt only when its campaign changed (updatedAt/version) or a run started or ended on it.
+  const listItemCache = new Map();
   app.get('/api/campaigns', async (req, res) => {
     const {before, limit, author, excludeAuthor} = req.query;
-    const page = await history.list({type: 'campaign', before, limit, author, excludeAuthor});
+    const archived = req.query.archived === '1' ? 'only' : undefined;
+    const page = await history.list({type: 'campaign', before, limit, author, excludeAuthor, archived});
     // Campaigns merged into another one by scripts/migrate-to-cloud.mjs --merge-style-forks live on as its variants.
     const items = await Promise.all(page.items.filter(c => c.status !== 'merged').map(async raw => {
-      const hydrated = await hydrateCampaign(raw);
+      const key = [raw.updatedAt, raw.version, runningJob.get(raw.id) || ''].join('|');
+      const hit = listItemCache.get(raw.id);
+      if (hit && hit.key === key) return hit.item;
+      const item = await listItem(raw);
+      listItemCache.set(raw.id, {key, item});
+      return item;
+    }));
+    res.set('Cache-Control', 'no-store').json({items, next: page.next, total: page.total});
+  });
+
+  // POST /api/campaigns/:id/archive {archived} — hides a campaign from the list (archived:false brings it back).
+  app.post('/api/campaigns/:id/archive', async (req, res) => {
+    const campaign = await requireCampaign(req.params.id);
+    if (runningJob.get(campaign.id)) throw conflict('Wait for the current step to finish before archiving.', 409);
+    const archived = req.body?.archived !== false;
+    await history.update(campaign.id, {status: archived ? 'archived' : null});
+    listItemCache.delete(campaign.id);
+    res.json({id: campaign.id, archived});
+  });
+
+  async function listItem(raw) {
+    {
+      const hydrated = await hydrateCampaign(raw, {costs: false});
       const scEntry = hydrated.entries?.scenario;
       let stEntry = hydrated.entries?.styles;
       let prevEntry = hydrated.entries?.preview;
@@ -919,9 +960,8 @@ export function registerCampaignRoutes(app, {
           final: finEntry ? {id: finEntry.id, path: finEntry.output?.path || null, formats: finEntry.output?.formats || [], logSize: finEntry.logSize ?? finEntry.log?.length ?? 0} : null,
         },
       };
-    }));
-    res.set('Cache-Control', 'no-store').json({items, next: page.next, total: page.total});
-  });
+    }
+  }
 
   // POST /api/campaigns/:id/fork {styleIndex?, name?} — clones a campaign ("Копия кампании", §4.2)
   app.post('/api/campaigns/:id/fork', async (req, res) => {
@@ -1134,8 +1174,8 @@ export function registerCampaignRoutes(app, {
     let runStatus = 'done';
     let entryId = null;
     try {
-      await checkProvider(sel.mode, sel.billing);
-      await store.sync.down(campaign.project, {dataDir});
+      await timed(log, 'Sign-in checked', () => checkProvider(sel.mode, sel.billing));
+      await timed(log, 'Project files ready', () => store.sync.down(campaign.project, {dataDir}));
       const files = await listAssets(assets).catch(() => []);
       const prevEntry = campaign.steps.scenario.entryId ? await history.get(campaign.steps.scenario.entryId) : null;
       const currentScenario = prevEntry?.output?.scenario || null;
@@ -1292,8 +1332,8 @@ export function registerCampaignRoutes(app, {
     let runStatus = 'done';
     let entryId = null;
     try {
-      await checkProvider(sel.mode, sel.billing);
-      await store.sync.down(campaign.project, {dataDir});
+      await timed(log, 'Sign-in checked', () => checkProvider(sel.mode, sel.billing));
+      await timed(log, 'Project files ready', () => store.sync.down(campaign.project, {dataDir}));
       const reqLangs = Array.isArray(req.body?.languages) && req.body.languages.length
         ? req.body.languages
         : missingLanguages(currentScenario, campaign.setup.languages);
@@ -1407,8 +1447,8 @@ export function registerCampaignRoutes(app, {
     let runStatus = 'done';
     let entryId = null;
     try {
-      await checkProvider(sel.mode, sel.billing);
-      await store.sync.down(campaign.project, {dataDir});
+      await timed(log, 'Sign-in checked', () => checkProvider(sel.mode, sel.billing));
+      await timed(log, 'Project files ready', () => store.sync.down(campaign.project, {dataDir}));
       const files = await listAssets(assets).catch(() => []);
       const missing = missingCuts(currentScenario, campaign.setup.lengths);
       const targetLengths = missing.length ? missing : campaign.setup.lengths;
@@ -1597,8 +1637,8 @@ export function registerCampaignRoutes(app, {
     let runStatus = 'done';
     let entryId = null;
     try {
-      await checkProvider(sel.mode, sel.billing);
-      await store.sync.down(campaign.project, {dataDir});
+      await timed(log, 'Sign-in checked', () => checkProvider(sel.mode, sel.billing));
+      await timed(log, 'Project files ready', () => store.sync.down(campaign.project, {dataDir}));
       const files = await listAssets(assets).catch(() => []);
       const scEntry = await history.get(campaign.steps.scenario.entryId);
       const scenarioObj = scEntry?.output?.scenario;
@@ -1823,8 +1863,8 @@ export function registerCampaignRoutes(app, {
     let runStatus = 'done';
     let entryId = null;
     try {
-      await checkProvider(sel.mode, sel.billing);
-      await store.sync.down(campaign.project, {dataDir});
+      await timed(log, 'Sign-in checked', () => checkProvider(sel.mode, sel.billing));
+      await timed(log, 'Project files ready', () => store.sync.down(campaign.project, {dataDir}));
       const files = await listAssets(assets).catch(() => []);
       const scEntry = await history.get(campaign.steps.scenario.entryId);
       const scenarioObj = scEntry?.output?.scenario;
@@ -1991,8 +2031,8 @@ export function registerCampaignRoutes(app, {
       if ((media.images || media.video) && sel.mode !== 'demo' && !mediaKey()) {
         throw conflict('To generate images, add OPENROUTER_API_KEY to .env and restart the server.', 503);
       }
-      await checkProvider(sel.mode, sel.billing);
-      await store.sync.down(campaign.project, {dataDir});
+      await timed(log, 'Sign-in checked', () => checkProvider(sel.mode, sel.billing));
+      await timed(log, 'Project files ready', () => store.sync.down(campaign.project, {dataDir}));
 
       const files = await listAssets(assets).catch(() => []);
       const previewEntry = await history.get(targetVarInit.preview.entryId);
@@ -2241,7 +2281,7 @@ export function registerCampaignRoutes(app, {
   const lightReview = r => r && ({
     id: r.id, createdAt: r.createdAt, stage: r.stage, author: r.author || null,
     for: r.input?.for || null, variantId: r.input?.variantId || null,
-    summary: r.output?.summary || '', notes: r.output?.notes || [], sheets: r.output?.sheets || [],
+    summary: r.output?.summary || '', notes: r.output?.notes || [], sheets: r.output?.sheets || [], problems: r.output?.problems || {errors: [], blank: []},
     applied: r.output?.applied || null, cost: r.cost || null, mode: r.mode, model: r.model,
   });
 
@@ -2279,13 +2319,14 @@ export function registerCampaignRoutes(app, {
     let runStatus = 'done';
     let entryId = null;
     try {
-      await checkProvider(sel.mode, sel.billing);
-      await store.sync.down(campaign.project, {dataDir});
+      await timed(log, 'Sign-in checked', () => checkProvider(sel.mode, sel.billing));
+      await timed(log, 'Project files ready', () => store.sync.down(campaign.project, {dataDir}));
       const variant = findVariantForEntry(campaign.variants, entry, campaign.activeVariant);
       const scenario = await entryScenario(campaign, entry);
       log(`Art director · looking at the ${stage}${sel.model ? ' · ' + sel.model : ''}`, {level: 'step'});
 
       let sheets = [];
+      let problems = {errors: [], blank: []};
       let result;
       if (sel.mode === 'demo') {
         await wait(300, controller.signal);
@@ -2299,6 +2340,7 @@ export function registerCampaignRoutes(app, {
           outDir, publicBase: assetURL(campaign.project, rel), log,
         });
         sheets = rendered.map(s => ({name: s.name, title: s.title, rel: rel + '/' + s.name + '.png', url: s.url, frames: s.frames}));
+        problems = rendered.problems || {errors: [], blank: []};
         let previewSheet = null;
         const approvedPreview = stage === 'final' && variant?.preview?.entryId ? await history.get(variant.preview.entryId) : null;
         if (approvedPreview?.output?.path) {
@@ -2313,7 +2355,7 @@ export function registerCampaignRoutes(app, {
         const raw = await runModelText({
           mode: sel.mode, billing: sel.billing, model: sel.model, effort: sel.effort, dir: assets,
           system: reviewPrompt({stage, kind: campaign.setup.kind}),
-          user: reviewMessage({stage, setup: campaign.setup, scenario, style: await chosenStyleOf(variant), brandNotes: await brandNotesFor(campaign, assets, log), sheets, previewSheet}),
+          user: reviewMessage({stage, setup: campaign.setup, scenario, style: await chosenStyleOf(variant), brandNotes: await brandNotesFor(campaign, assets, log), sheets, previewSheet, problems}),
           task: 'review', controller, log, onText: text => { job.text = text; },
         });
         result = parseReview(raw);
@@ -2326,7 +2368,7 @@ export function registerCampaignRoutes(app, {
         project: campaign.project, mode: sel.mode, model: sel.model, effort: sel.effort,
         durationMs: Date.now() - job.started,
         input: {for: entry.id, variantId: variant?.id || null},
-        output: {summary: result.summary, notes: result.notes, sheets, applied: null},
+        output: {summary: result.summary, notes: result.notes, sheets, problems, applied: null},
         cost: job.costs, log: job.events,
       });
       entryId = rec.id;
@@ -2392,13 +2434,18 @@ export function registerCampaignRoutes(app, {
     if ((media.images || media.video) && sel.mode !== 'demo' && !mediaKey()) {
       throw conflict('To generate images, add OPENROUTER_API_KEY to .env and restart the server.', 503);
     }
+    const startTimes = [];
+    const t0 = Date.now();
     await checkProvider(sel.mode, sel.billing);
+    startTimes.push(['Sign-in checked', Date.now() - t0]);
 
     const requestId = validId(req.body?.requestId) ? req.body.requestId : randomUUID();
     await startCampaignRun(campaign, requestId, stage);
 
     const dir = folder(parent.project), assets = path.join(dir, 'assets');
+    const t1 = Date.now();
     await store.sync.down(parent.project, {dataDir});
+    startTimes.push(['Project files ready', Date.now() - t1]);
     const files = await listAssets(assets).catch(() => []);
     for (const a of attachments) {
       if (!files.includes(a)) {
@@ -2421,6 +2468,7 @@ export function registerCampaignRoutes(app, {
 
     const job = createJob(requestId, {task: stage, mode: sel.mode, project: parent.project, campaign: campaign.id});
     const log = logger(job, {mediaURL: file => assetURL(parent.project, file)});
+    for (const [label, ms] of startTimes) if (ms >= 300) log(label + ' · ' + (ms / 1000).toFixed(1) + ' s', {level: ms >= 5000 ? 'warn' : 'info'});
     const controller = new AbortController();
     res.on('close', () => { if (!res.writableFinished) controller.abort(); });
 

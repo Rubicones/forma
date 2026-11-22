@@ -18,7 +18,7 @@ import {upgradeCampaign} from './campaigns.mjs';
 export const DIRECTIONS_PER_DELIVERY = 3;
 export const MAX_REBUILDS = 2;
 export const CONFLICT_MESSAGE = 'Someone just updated this. Refresh to see the latest.';
-const MIGRATION = 'supabase/migrations/20261120000001_client_dashboard.sql';
+const MIGRATION = 'the client dashboard migrations (in forma: npx supabase db push --remote)';
 
 export class TransitionError extends Error {
   constructor(code, message, details) {
@@ -268,7 +268,7 @@ export async function studioAvailability(store, {fresh = false} = {}) {
       const failed = results.map((r, i) => [CLIENT_TABLES[i], r.error]).filter(([, e]) => e);
       const missing = failed.filter(([, e]) => isMissingTable(e));
       value = missing.length
-        ? {enabled: false, reason: `The client tables are missing (${missing.map(([t]) => t).join(', ')}): apply ${MIGRATION} (npx supabase db push).`}
+        ? {enabled: false, reason: `The client tables are missing (${missing.map(([t]) => t).join(', ')}): apply ${MIGRATION}.`}
         : failed.length
           ? {enabled: false, reason: 'The cloud database refused the check: ' + (failed[0][1].message || failed[0][1].code)}
           : {enabled: true};

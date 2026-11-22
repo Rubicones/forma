@@ -20,6 +20,12 @@ export function parseFigmaUrl(raw) {
   return {key: branch || m[1], nodeId: node ? node.replace(/-/g, ':') : null, url: u.href};
 }
 
+// Two links to the same Figma file (another page, frame or tracking parameter) are the same file.
+export const sameFigmaFile = (a, b) => {
+  const x = parseFigmaUrl(a), y = parseFigmaUrl(b);
+  return Boolean(x && y && x.key === y.key);
+};
+
 // Figma links in a questionnaire's answers for one scope (null: a brand account; 'c1'…: an agency client).
 export function figmaLinksIn(answers = {}, scope = null) {
   const found = new Set();
@@ -32,7 +38,9 @@ export function figmaLinksIn(answers = {}, scope = null) {
     const own = scope ? key.startsWith(scope + ':') : !/^c[\w-]*:/.test(key);
     if (own) walk(value);
   }
-  return [...found];
+  // One link per file: a read takes the whole file (or the part linked first), and a second read of it replaces the first.
+  const keys = new Set();
+  return [...found].filter(url => { const k = parseFigmaUrl(url).key; return !keys.has(k) && keys.add(k); });
 }
 
 function waitText(seconds) {

@@ -5,7 +5,8 @@
 // half of the dashboard's lib/state-machine.ts: same rules, same events, same messages. Keep them in step.
 // Works only on the cloud store; on the file store the studio is off and says why.
 
-import {contentTypeForPath, streamToBuffer} from './store/supabase.mjs';
+import {contentTypeForPath} from './store/supabase.mjs';
+import {blobCache, sendBytes} from './serve-bytes.mjs';
 import {buildQuestionnaireView, normalizeState, brandsForApproval, validQuestionKey} from './studio-questionnaire.mjs';
 import {startBrandCreation, brandCreation} from './studio-brand.mjs';
 import {loadCampaignDetail, acceptCampaign, cancelCampaign, directionsDetail, sendDirections, responseDetail, feedbackText, resolveComments, finalDetail, sendFinal} from './studio-campaign.mjs';
@@ -369,6 +370,7 @@ export async function approveQuestionnaire(db, id, expectedVersion, names) {
 }
 
 const INLINE = /\.(png|jpe?g|gif|webp|svg|pdf|mp4|mov|webm|txt|md)$/i;
+const clientFiles = blobCache({maxBytes: 256 * 2 ** 20});
 
 // ---------- routes ----------
 
@@ -516,17 +518,17 @@ export function registerStudioRoutes(app, {store, deps = {}}) {
   app.get('/api/studio/files/:id', async (req, res) => {
     const db = await requireStudio();
     if (!uuid.test(req.params.id)) throw invalid('File not found.', 404);
-    const {data: file, error} = await db.from('client_files').select('name, r2_key, status').eq('id', req.params.id).maybeSingle();
+    const {data: file, error} = await db.from('client_files').select('name, size, r2_key, status').eq('id', req.params.id).maybeSingle();
     if (error) fail(error);
     if (!file || file.status !== 'ready' || !String(file.r2_key).startsWith('clients/')) throw invalid('File not found.', 404);
-    const body = await store.blobs.get(file.r2_key);
-    if (!body) throw invalid('The file is missing from storage.', 404);
-    const buf = await streamToBuffer(body);
+    // Upload keys are never reused for other bytes; the size in the key guards against a replaced upload all the same.
+    const buf = await clientFiles.get(file.r2_key + '#' + file.size, () => store.blobs.get(file.r2_key));
+    if (!buf) throw invalid('The file is missing from storage.', 404);
     const disposition = INLINE.test(file.name) && req.query.download !== '1' ? 'inline' : 'attachment';
     const type = /\.pdf$/i.test(file.name) ? 'application/pdf' : /\.(txt|md)$/i.test(file.name) ? 'text/plain; charset=utf-8' : contentTypeForPath(file.name);
-    res.set({'Content-Type': type, 'Content-Length': String(buf.length), 'Cache-Control': 'private, max-age=300',
+    res.set({'Content-Type': type, 'Cache-Control': 'private, max-age=300',
       'Content-Disposition': `${disposition}; filename*=UTF-8''${encodeURIComponent(file.name)}`, 'X-Content-Type-Options': 'nosniff'});
     if (/\.svg$/i.test(file.name)) res.set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox");
-    res.end(buf);
+    sendBytes(req, res, buf);
   });
 }

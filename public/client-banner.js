@@ -7,6 +7,11 @@ import {openSendFinal} from './send-final.js';
 
 let live = {id: null, data: null, at: 0};
 let current = {root: null, campaign: null, actions: {}};
+let drawn = '';          // what the banner shows now: it is drawn again only when that changes
+let files = {id: null, node: null};   // the exports line lives across redraws (it polls on its own)
+
+const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+const reload = () => { live.at = 0; drawn = ''; if (current.root) renderClientBanner(current.root, current.campaign, current.actions); };
 
 function draw(root, client, data) {
   const head = el('div', 'client-banner-head');
@@ -18,24 +23,18 @@ function draw(root, client, data) {
   if (data) {
     state.append(el('span', 'client-status', data.label));
     if (data.round) state.append(el('span', 'client-tag', 'Round ' + data.round));
-    if (data.canCancel) state.append(el('span', 'client-tag', data.rebuildsLeft + (data.rebuildsLeft === 1 ? ' rebuild left' : ' rebuilds left')));
+    if (data.canCancel) state.append(el('span', 'client-tag', plural(data.rebuildsLeft, 'rebuild left', 'rebuilds left')));
   }
   if (data?.status === 'in_progress') {
     const send = el('button', 'btn primary small', 'Send directions…');
     send.type = 'button';
-    send.onclick = () => openSendDirections(client.requestId, {onSent: () => {
-      live.at = 0;
-      if (current.root) renderClientBanner(current.root, current.campaign, current.actions);
-    }});
+    send.onclick = () => openSendDirections(client.requestId, {onSent: reload});
     state.append(send);
   }
   if (data?.status === 'in_production') {
     const send = el('button', 'btn primary small', 'Send the final…');
     send.type = 'button';
-    send.onclick = () => openSendFinal(client.requestId, {onSent: () => {
-      live.at = 0;
-      if (current.root) renderClientBanner(current.root, current.campaign, current.actions);
-    }});
+    send.onclick = () => openSendFinal(client.requestId, {onSent: reload});
     state.append(send);
   }
   const answered = (data?.deliveries || []).filter(x => x.stage === 'directions').sort((a, b) => b.round - a.round)[0];
@@ -47,8 +46,11 @@ function draw(root, client, data) {
     read.onclick = () => openClientResponse(client.requestId, current.actions);
     state.append(read);
   }
-  if (data?.status === 'delivered') state.append(exportsLine(client.requestId));
-  const link = el('a', 'btn secondary small', 'View request');
+  if (data?.status === 'delivered') {
+    if (files.id !== client.requestId || !files.node) files = {id: client.requestId, node: exportsLine(client.requestId)};
+    state.append(files.node);
+  }
+  const link = el('a', 'link', 'View request');
   link.href = '/clients/campaigns/' + encodeURIComponent(client.requestId);
   state.append(link);
   head.append(who, state);
@@ -64,7 +66,6 @@ function draw(root, client, data) {
   root.replaceChildren(head, brief);
 }
 
-// actions: {onUseComments(text, variantId), onUseRebuild(text)} from app.js, to put the client's answer to work.
 // The final's files for the client (export.mjs): how many are ready, being made or failed, and "Export again".
 function exportsLine(requestId) {
   const box = el('span', 'client-banner-exports note', 'Files: checking…');
@@ -72,7 +73,8 @@ function exportsLine(requestId) {
   let timer = null;
   const load = async () => {
     clearTimeout(timer);
-    if (!box.isConnected && timer !== null) return;
+    if (files.node !== box) return;   // the banner moved on to another request
+    if (!box.isConnected) { timer = setTimeout(load, 5000); return; }   // another page is open: look again later
     try {
       const res = await fetch(url, {cache: 'no-store'});
       if (!res.ok) throw Error();
@@ -89,7 +91,12 @@ function exportsLine(requestId) {
         again.type = 'button';
         again.onclick = async () => {
           again.disabled = true;
-          await fetch(url, {method: 'POST', headers: {'x-forma': 'studio', 'Content-Type': 'application/json'}, body: '{}'}).catch(() => {});
+          again.textContent = 'Starting…';
+          const res = await fetch(url, {method: 'POST', headers: {'x-forma': 'studio', 'Content-Type': 'application/json'}, body: '{}'}).catch(() => null);
+          if (!res?.ok) {
+            const body = await res?.json().catch(() => ({}));
+            box.replaceChildren(el('span', 'is-error', body?.error || 'Could not start the export.'));
+          }
           setTimeout(load, 1500);
         };
         box.append(' ', again);
@@ -97,29 +104,38 @@ function exportsLine(requestId) {
       if (busy || c.pending || c.missing) timer = setTimeout(load, 5000);
     } catch {
       box.textContent = 'Files: status unavailable';
+      timer = setTimeout(load, 15000);
     }
   };
-  timer = 0;
   setTimeout(load, 0);
   return box;
 }
 
+// actions: {onUseComments(text, variantId), onUseRebuild(text)} from app.js, to put the client's answer to work.
 export async function renderClientBanner(root, campaign, actions = {}) {
   current = {root, campaign, actions};
   const client = campaign?.client;
   root.hidden = !client;
-  if (!client) { root.replaceChildren(); delete root.dataset.request; return; }
+  if (!client) { root.replaceChildren(); delete root.dataset.request; drawn = ''; files = {id: null, node: null}; return; }
   const id = client.requestId;
-  const fresh = live.id === id && Date.now() - live.at < 30000;
-  if (root.dataset.request !== id || !root.childElementCount || fresh) draw(root, client, live.id === id ? live.data : null);
+  const show = () => {
+    const data = live.id === id ? live.data : null;
+    const key = JSON.stringify([id, client.brand, client.account, client.test, client.briefText, client.refsSkipped?.length || 0,
+      data && [data.status, data.label, data.round, data.rebuildsLeft, data.canCancel, (data.deliveries || []).map(x => [x.id, x.status, x.response?.decision])]]);
+    if (key === drawn && root.childElementCount) return;
+    drawn = key;
+    draw(root, client, data);
+  };
   root.dataset.request = id;
-  if (fresh) return;
+  show();
+  // The live status is asked for at most every 30 s; the campaign page renders far more often than that.
+  if (live.id === id && Date.now() - live.at < 30000) return;
   live = {id, data: live.id === id ? live.data : null, at: Date.now()};
   try {
     const res = await fetch('/api/studio/campaigns/' + encodeURIComponent(id), {cache: 'no-store'});
     if (!res.ok) return;
     live = {id, data: await res.json(), at: Date.now()};
-    if (root.dataset.request === id) draw(root, client, live.data);
+    if (root.dataset.request === id) show();
   } catch { /* the banner works without the live status */ }
 }
 

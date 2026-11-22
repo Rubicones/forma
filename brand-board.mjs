@@ -1,6 +1,7 @@
 // The brand book as people see it: the brand's files sorted into what an art director looks for first
 // (colours, logos, type, pictures, video, documents). For the team only: no step and no model ever reads this.
 import path from 'node:path';
+import {sameFigmaFile} from './figma.mjs';
 
 export const BOARD_TEXT_LIMIT = 2 * 2 ** 20;   // colours are read from text files up to this size
 const ext = name => path.posix.extname(name).toLowerCase();
@@ -56,7 +57,7 @@ export function buildBoard(brand, {colours = [], figmaConfigured = false} = {}) 
   const skipped = Array.isArray(brand.origin?.skipped) ? brand.origin.skipped : [];
   // Figma files: the ones read (still present in the brand) and the links from the questionnaire not read yet.
   const read = (brand.figma || []).filter(f => (brand.files || []).some(x => x.name.startsWith(f.folder + '/')));
-  const links = (brand.origin?.figma || []).filter(url => !read.some(f => f.url === url));
+  const links = (brand.origin?.figma || []).filter(url => !read.some(f => sameFigmaFile(f.url, url)));
   const figma = {configured: figmaConfigured,
     files: read.map(f => ({url: f.url, fileName: f.fileName, at: f.at, frames: f.frames, styles: f.styles, skipped: f.skipped || []})),
     links};

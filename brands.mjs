@@ -9,6 +9,7 @@ import {store} from './store/index.mjs';
 import {classifyProjectFile, streamToBuffer, contentTypeForPath} from './store/supabase.mjs';
 import {buildBoard, extractColours, readsColours, BOARD_TEXT_LIMIT} from './brand-board.mjs';
 import {readFigma, figmaStatus, figmaToken} from './figma.mjs';
+import {blobCache, sendBytes} from './serve-bytes.mjs';
 import {tmpdir} from 'node:os';
 import {createJob, logger, finishJob} from './jobs.mjs';
 import {settings} from './models.mjs';
@@ -18,6 +19,7 @@ const manifests = 'brands/versions/';
 const files = 'brands/files/';
 const uuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
 const invalid = (message, status = 400) => Object.assign(Error(message), {status});
+const fileCache = blobCache();   // brand files shown on the brand book board
 // OS and VCS clutter that folder drops bring along (.DS_Store, __MACOSX, Thumbs.db, hidden dirs): dropped, not rejected.
 export const isJunkPath = name => name.split('/').some(seg => (seg.startsWith('.') && seg !== '.' && seg !== '..') || seg === '__MACOSX' || /^(thumbs\.db|desktop\.ini)$/i.test(seg));
 
@@ -422,11 +424,10 @@ export function registerBrandRoutes(app, deps = {}) {
     const brand = await latestBrand(req.params.id);
     if (!brand) throw invalid('Brand not found.', 404);
     const texts = [];
-    for (const f of brand.files.filter(f => readsColours(f.name)).slice(0, 200)) {
-      const body = await store.blobs.get(files + f.hash);
-      if (!body) continue;
-      const buf = await streamToBuffer(body);
-      if (buf.length <= BOARD_TEXT_LIMIT) texts.push({name:f.name, text:buf.toString('utf8')});
+    const sources = brand.files.filter(f => readsColours(f.name)).slice(0, 200);
+    for (let i = 0; i < sources.length; i += 8) {   // a few at a time: R2 answers in parallel
+      const bufs = await Promise.all(sources.slice(i, i + 8).map(f => fileCache.get(files + f.hash, () => store.blobs.get(files + f.hash)).catch(() => null)));
+      bufs.forEach((buf, k) => { if (buf && buf.length <= BOARD_TEXT_LIMIT) texts.push({name:sources[i + k].name, text:buf.toString('utf8')}); });
     }
     res.set('Cache-Control','no-store').json(buildBoard(brand, {colours:extractColours(texts), figmaConfigured:Boolean(figmaToken())}));
   });
@@ -452,22 +453,15 @@ export function registerBrandRoutes(app, deps = {}) {
     const brand = await readBrand(req.params.id, Number(req.query.v));
     const file = brand.files.find(f => f.name === name);
     if (!file) throw invalid('File not found.', 404);
-    const body = await store.blobs.get(files + file.hash);
-    if (!body) throw invalid('The file is missing from storage.', 404);
-    const buf = await streamToBuffer(body);
+    // Brand files are stored by content hash, so a cached copy is always right.
+    const buf = await fileCache.get(files + file.hash, () => store.blobs.get(files + file.hash));
+    if (!buf) throw invalid('The file is missing from storage.', 404);
     const type = /\.pdf$/i.test(name) ? 'application/pdf' : /\.(md|txt)$/i.test(name) ? 'text/plain; charset=utf-8' : contentTypeForPath(name);
     const inline = /\.(png|jpe?g|gif|webp|avif|svg|pdf|mp4|mov|webm|m4v|md|txt|ttf|otf|woff2?)$/i.test(name) && req.query.download !== '1';
-    res.set({'Content-Type':type, 'Accept-Ranges':'bytes', 'Cache-Control':'private, max-age=86400, immutable', 'X-Content-Type-Options':'nosniff',
+    res.set({'Content-Type':type, 'Cache-Control':'private, max-age=86400, immutable', 'X-Content-Type-Options':'nosniff',
       'Content-Disposition':`${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(path.posix.basename(name))}`});
     if (/\.svg$/i.test(name)) res.set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox");
-    const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '');
-    if (range && (range[1] || range[2])) {
-      let start = range[1] ? Number(range[1]) : Math.max(0, buf.length - Number(range[2]));
-      let end = range[1] && range[2] ? Math.min(Number(range[2]), buf.length - 1) : buf.length - 1;
-      if (start >= buf.length || start > end) return res.status(416).set('Content-Range', `bytes */${buf.length}`).end();
-      return res.status(206).set({'Content-Range':`bytes ${start}-${end}/${buf.length}`, 'Content-Length':String(end - start + 1)}).end(buf.subarray(start, end + 1));
-    }
-    res.set('Content-Length', String(buf.length)).end(buf);
+    sendBytes(req, res, buf);
   });
 
   app.get('/api/brands/:id/notes', async (req,res) => {

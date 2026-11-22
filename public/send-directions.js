@@ -2,142 +2,157 @@
 // without Forma's Native/World/Bold, one-line ideas, an optional note each) and sends them (studio-campaign.mjs).
 import {apiJson} from './campaign.js';
 import {el} from './dom.js';
+import {openModal, button, busy, message, confirmAction} from './ui.js';
 
 const PICKS = 3;
 const svgSrc = svg => 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
 
 export async function openSendDirections(requestId, {onSent = () => {}} = {}) {
   const url = '/api/studio/campaigns/' + encodeURIComponent(requestId) + '/directions';
-  const dialog = el('dialog', 'q-dialog card send-dialog');
-  dialog.append(el('p', 'note', 'Loading the directions…'));
-  dialog.addEventListener('close', () => dialog.remove());
-  document.body.append(dialog);
-  dialog.showModal();
-  let data;
-  try {
-    data = await apiJson(url);
-  } catch (err) {
-    dialog.replaceChildren(el('p', 'q-flash is-error', err.message), closeRow(dialog));
-    return;
-  }
-
+  const m = openModal({key: 'send-directions:' + requestId, className: 'is-wide send-dialog', title: 'Send three directions'});
+  if (!m) return;
+  // What the studio typed survives a reload after a conflict (someone else moved the request meanwhile).
+  const typed = new Map();
   const picked = [];   // ids, in the order the client will see them
-  const fields = new Map();
-  const head = el('div', 'send-head');
-  head.append(el('h2', '', `Send three directions to ${data.brand}`));
-  head.append(el('p', 'note', `Round ${data.round} · ${data.rebuildsLeft} ${data.rebuildsLeft === 1 ? 'rebuild' : 'rebuilds'} left after this. The client sees the title, the idea and your note, plays each preview, comments and approves one or asks for a rebuild.`));
-  const nodes = [head];
-  if (data.lastRound?.response?.decision === 'rebuild') {
-    nodes.push(el('p', 'q-flash', `Round ${data.lastRound.round}: the client asked for a rebuild${data.lastRound.response.reason ? ' · “' + data.lastRound.response.reason + '”' : ''}.`));
-  }
-  if (!data.canSend) nodes.push(el('p', 'q-flash is-error', 'Directions can be sent only while the campaign is in progress (now: ' + data.label + ').'));
-  if (data.available.length < PICKS) {
-    nodes.push(el('p', 'q-flash is-error', `Only ${data.available.length} of the directions have a preview. Build previews until there are at least three.`));
-  }
 
-  const list = el('ol', 'send-list');
-  const count = el('span', 'note');
-  const send = el('button', 'btn primary', 'Send to ' + data.brand);
-  send.type = 'button';
-  const refresh = () => {
-    for (const [id, f] of fields) {
-      const n = picked.indexOf(id);
-      f.item.classList.toggle('is-picked', n >= 0);
-      f.badge.textContent = n >= 0 ? String(n + 1) : '';
-      f.box.checked = n >= 0;
-      f.box.disabled = n < 0 && picked.length >= PICKS;
-    }
-    count.textContent = `${picked.length} of ${PICKS} picked`;
-    send.disabled = !data.canSend || picked.length !== PICKS;
-  };
-  for (const d of data.available) {
-    const item = el('li', 'send-item');
-    const pick = el('label', 'send-pick');
-    const box = el('input');
-    box.type = 'checkbox';
-    box.setAttribute('aria-label', 'Send ' + d.title);
-    const badge = el('span', 'send-badge');
-    pick.append(box, badge);
-    const thumb = el('div', 'send-thumb');
-    if (d.keyframeSvg) {
-      const img = el('img');
-      img.src = svgSrc(d.keyframeSvg);
-      img.alt = '';
-      thumb.append(img);
-    }
-    const open = el('a', 'link', 'Open preview');
-    open.href = d.url;
-    open.target = '_blank';
-    open.rel = 'noopener';
-    thumb.append(open);
-    const body = el('div', 'send-body');
-    const title = el('input');
-    title.type = 'text';
-    title.maxLength = 80;
-    title.value = d.title;
-    title.setAttribute('aria-label', 'Title for the client');
-    const idea = el('textarea');
-    idea.rows = 2;
-    idea.maxLength = 300;
-    idea.value = d.idea;
-    idea.placeholder = 'One line the client understands';
-    idea.setAttribute('aria-label', 'Idea for the client');
-    const note = el('textarea');
-    note.rows = 2;
-    note.maxLength = 600;
-    note.placeholder = 'A note from us (optional)';
-    note.setAttribute('aria-label', 'Note for the client');
-    const flags = el('div', 'client-item-meta');
-    flags.append(el('span', 'client-tag', d.label || 'Variant'));
-    if (d.stale) flags.append(el('span', 'client-tag is-warn', 'Script changed since this preview'));
-    if (d.approved) flags.append(el('span', 'client-tag', 'Preview approved'));
-    if (data.lastRound?.ids.includes(d.id)) flags.append(el('span', 'client-tag', 'Sent in round ' + data.lastRound.round));
-    body.append(title, idea, note, flags);
-    item.append(pick, thumb, body);
-    fields.set(d.id, {item, box, badge, title, idea, note});
-    box.onchange = () => {
-      const n = picked.indexOf(d.id);
-      if (n >= 0) picked.splice(n, 1); else if (picked.length < PICKS) picked.push(d.id);
-      refresh();
-    };
-    list.append(item);
-  }
-  nodes.push(list);
-
-  const status = el('p', 'note');
-  status.setAttribute('aria-live', 'polite');
-  const cancel = el('button', 'btn secondary', 'Cancel');
-  cancel.type = 'button';
-  cancel.onclick = () => dialog.close();
-  send.onclick = async () => {
-    if (!confirm(`Send these three directions to ${data.brand} now? They see them at once and can’t be unsent.`)) return;
-    send.disabled = true;
-    send.classList.add('is-loading');
+  const load = async () => {
+    m.body.replaceChildren(el('p', 'modal-loading', 'Loading the directions…'));
+    m.foot.replaceChildren();
+    let data;
     try {
-      await apiJson(url, {method: 'POST', body: JSON.stringify({
-        version: data.version,
-        picks: picked.map(id => { const f = fields.get(id); return {id, title: f.title.value, idea: f.idea.value, note: f.note.value}; }),
-      })});
-      dialog.close();
-      onSent();
+      data = await apiJson(url);
     } catch (err) {
-      send.classList.remove('is-loading');
-      status.textContent = err.message;
-      refresh();
+      m.body.replaceChildren(el('p', 'q-flash is-error', err.message));
+      m.foot.replaceChildren(button('Close', 'btn secondary', m.close), button('Try again', 'btn primary', load));
+      return;
     }
+    if (!m.dialog.isConnected) return;
+    draw(data);
   };
-  const foot = el('div', 'send-foot');
-  const buttons = el('div', 'q-askbar-actions');
-  buttons.append(cancel, send);
-  foot.append(count, buttons);
-  nodes.push(status, foot);
-  dialog.replaceChildren(...nodes);
-  refresh();
-}
 
-function closeRow(dialog) {
-  const b = el('button', 'btn secondary', 'Close');
-  b.type = 'button';
-  b.onclick = () => dialog.close();
-  return b;
+  const draw = data => {
+    m.setTitle(`Send three directions to ${data.brand}`);
+    for (let i = picked.length - 1; i >= 0; i--) if (!data.available.some(d => d.id === picked[i])) picked.splice(i, 1);
+    const nodes = [el('p', 'note', `Round ${data.round}. The client sees each title, idea and note, plays the previews, comments, and approves one or asks for a rebuild (${plural(data.rebuildsLeft, 'rebuild', 'rebuilds')} left).`)];
+    if (data.lastRound?.response?.decision === 'rebuild') {
+      nodes.push(el('p', 'q-flash', `Round ${data.lastRound.round}: the client asked for a rebuild${data.lastRound.response.reason ? ' · “' + data.lastRound.response.reason + '”' : ''}.`));
+    }
+    if (!data.canSend) nodes.push(el('p', 'q-flash is-error', 'Directions can be sent only while the campaign is in progress (now: ' + data.label + ').'));
+    else if (data.available.length < PICKS) {
+      nodes.push(el('p', 'q-flash is-error', `${data.available.length ? 'Only ' + plural(data.available.length, 'direction has', 'directions have') : 'No direction has'} a preview yet. Build previews until there are at least three.`));
+    }
+
+    const fields = new Map();
+    const count = el('span', 'send-count');
+    const send = button('Send to ' + data.brand, 'btn primary');
+    const refresh = () => {
+      error.textContent = '';
+      for (const [id, f] of fields) {
+        const n = picked.indexOf(id);
+        f.item.classList.toggle('is-picked', n >= 0);
+        f.badge.textContent = n >= 0 ? String(n + 1) : '';
+        f.box.checked = n >= 0;
+        f.box.disabled = !data.canSend || (n < 0 && picked.length >= PICKS);
+        f.item.classList.toggle('is-off', f.box.disabled && n < 0);
+      }
+      count.textContent = `${picked.length} of ${PICKS} picked` + (picked.length === PICKS ? ' · the client sees them in this order' : '');
+      send.disabled = !data.canSend || picked.length !== PICKS || [...fields.values()].some(f => picked.includes(f.id) && !f.title.value.trim());
+    };
+
+    const list = el('ol', 'send-list');
+    for (const d of data.available) {
+      const was = typed.get(d.id) || {};
+      const item = el('li', 'send-item');
+      const pick = el('label', 'send-pick');
+      const box = el('input');
+      box.type = 'checkbox';
+      box.setAttribute('aria-label', 'Send “' + d.title + '”');
+      const badge = el('span', 'send-badge');
+      badge.setAttribute('aria-hidden', 'true');
+      pick.append(box, badge);
+      const thumb = el('div', 'send-thumb');
+      if (d.keyframeSvg) {
+        const img = el('img');
+        img.src = svgSrc(d.keyframeSvg);
+        img.alt = '';
+        thumb.append(img);
+      } else thumb.append(el('span', 'send-thumb-empty', d.format.replace('x', ':')));
+      const open = el('a', 'link', 'Open preview ↗');
+      open.href = d.url;
+      open.target = '_blank';
+      open.rel = 'noopener';
+      thumb.append(open);
+      const body = el('div', 'send-body');
+      const title = el('input');
+      title.type = 'text';
+      title.maxLength = 80;
+      title.value = was.title ?? d.title;
+      title.placeholder = 'Title for the client';
+      title.setAttribute('aria-label', 'Title for the client');
+      const idea = el('textarea');
+      idea.rows = 2;
+      idea.maxLength = 300;
+      idea.value = was.idea ?? d.idea;
+      idea.placeholder = 'The idea in one line the client understands';
+      idea.setAttribute('aria-label', 'Idea for the client');
+      const note = el('textarea');
+      note.rows = 2;
+      note.maxLength = 600;
+      note.value = was.note ?? '';
+      note.placeholder = 'A note from us (optional)';
+      note.setAttribute('aria-label', 'Note for the client');
+      const flags = el('div', 'client-item-meta');
+      flags.append(el('span', 'client-tag', d.label || 'Variant'));
+      if (d.stale) flags.append(el('span', 'client-tag is-warn', 'Script changed since this preview'));
+      if (d.approved) flags.append(el('span', 'client-tag', 'Preview approved'));
+      if (data.lastRound?.ids.includes(d.id)) flags.append(el('span', 'client-tag', 'Sent in round ' + data.lastRound.round));
+      body.append(title, idea, note, flags);
+      item.append(pick, thumb, body);
+      const f = {id: d.id, item, box, badge, title, idea, note};
+      fields.set(d.id, f);
+      // Typing in a direction's fields picks it, when there is room: the studio rarely words one it will not send.
+      title.oninput = idea.oninput = note.oninput = () => {
+        typed.set(d.id, {title: title.value, idea: idea.value, note: note.value});
+        if (data.canSend && !picked.includes(d.id) && picked.length < PICKS) picked.push(d.id);
+        refresh();
+      };
+      box.onchange = () => {
+        const n = picked.indexOf(d.id);
+        if (n >= 0) picked.splice(n, 1); else if (picked.length < PICKS) picked.push(d.id);
+        refresh();
+      };
+      list.append(item);
+    }
+    if (data.available.length) nodes.push(list);
+
+    const status = el('p', 'note modal-status');
+    const error = el('span', 'modal-error');
+    status.setAttribute('aria-live', 'polite');
+    status.append(count, error);
+    send.onclick = async () => {
+      const ok = await confirmAction({title: `Send to ${data.brand}?`, confirm: 'Send now',
+        text: 'They see the three directions at once, in this order. A round can’t be unsent.'});
+      if (!ok) return;
+      busy(send);
+      try {
+        await apiJson(url, {method: 'POST', body: JSON.stringify({
+          version: data.version,
+          picks: picked.map(id => { const f = fields.get(id); return {id, title: f.title.value, idea: f.idea.value, note: f.note.value}; }),
+        })});
+        m.close();
+        onSent();
+      } catch (err) {
+        busy(send, false);
+        if (err.status === 409) { await load(); m.body.prepend(el('p', 'q-flash', 'Someone updated this meanwhile. This is the latest now: check it and send again.')); return; }   // reloaded with the latest state; the typing is kept
+        refresh();
+        message(error, err.message, {error: true});
+      }
+    };
+    m.body.replaceChildren(...nodes);
+    m.foot.replaceChildren(status, button('Cancel', 'btn secondary', m.close), send);
+    refresh();
+  };
+
+  await load();
 }

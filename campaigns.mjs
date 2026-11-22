@@ -903,7 +903,15 @@ export function registerCampaignRoutes(app, {
   // A campaign made for a client request (studio-campaign.mjs): the request id is the campaign id, so accepting twice
   // finds the campaign made the first time. `client` carries the request and its brief; `files` land in the project's
   // assets next to the brand's (the client's references for this campaign).
-  async function createClientCampaign({id, brandId, brandVersion, setup, name, client, files = []}) {
+  // Two accepts at once (a double click, two tabs) share one making instead of racing to write the same id.
+  const makingClientCampaign = new Map();
+  function createClientCampaign(args) {
+    if (makingClientCampaign.has(args.id)) return makingClientCampaign.get(args.id);
+    const p = makeClientCampaign(args).finally(() => makingClientCampaign.delete(args.id));
+    makingClientCampaign.set(args.id, p);
+    return p;
+  }
+  async function makeClientCampaign({id, brandId, brandVersion, setup, name, client, files = []}) {
     const existing = await history.get(id).catch(() => null);
     if (existing?.type === 'campaign') return hydrateCampaign(existing);
     const project = randomUUID();

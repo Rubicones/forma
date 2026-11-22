@@ -479,7 +479,9 @@ const clientActions = {
       try { await navigator.clipboard.writeText(text); } catch { /* shown below anyway */ }
       status.textContent = 'The feedback is copied. Open the visual directions of this campaign to rework them with it.';
     } else {
-      $('#styleFeedback').focus();
+      $('#styleReviseBox').scrollIntoView({block: 'center', behavior: 'smooth'});
+      $('#styleFeedback').focus({preventScroll: true});
+      $('#styleFeedback').dispatchEvent(new Event('input', {bubbles: true}));
       status.textContent = 'The client’s feedback is in “What should change”. Rework all three directions with it.';
     }
   },
@@ -521,6 +523,7 @@ function showBrandBoard(open) {
   $('#brandBoardToggle').setAttribute('aria-expanded', String(open));
   $('#brandBoardToggle').textContent = open ? 'Hide' : 'Show';
   $('#brandBoardBody').hidden = !open;
+  $('#brandFigma').hidden = !open;   // reading Figma belongs to the open brand book, not to every brand page
   if (open && boardData && !$('#brandBoardBody').childElementCount) $('#brandBoardBody').replaceChildren(renderBoard(boardData));
 }
 
@@ -788,7 +791,10 @@ async function openCampaign(id) {
 }
 
 $('#brandsHome').onclick = openBrands;
-$('#clientsOpen').onclick = () => { if (!busy) openClients(); };
+$('#clientsOpen').onclick = () => {
+  if (busy) { status.textContent = 'Wait for the current step to finish, then open Clients.'; return; }
+  openClients();
+};
 $('#brandBack').onclick = () => openBrand(activeBrandId);
 $('#legacyCampaigns').onclick = () => openBrand('');
 $('#addCampaign').onclick = () => { ++brandNavigation; beginCampaign(); };

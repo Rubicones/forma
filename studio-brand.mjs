@@ -7,7 +7,7 @@ import path from 'node:path';
 import {classifyProjectFile, streamToBuffer} from './store/supabase.mjs';
 import {unzip} from './zip.mjs';
 import {createBrandFromFiles, addFigmaFiles, notesAfterNewFiles, isJunkPath} from './brands.mjs';
-import {readFigma, figmaToken, figmaLinksIn} from './figma.mjs';
+import {readFigma, figmaToken, figmaLinksIn, sameFigmaFile} from './figma.mjs';
 import {normalizeState, scopedKey} from './studio-questionnaire.mjs';
 import {DECIDE} from './shared/questionnaire-schema.mjs';
 
@@ -151,7 +151,7 @@ export async function createBrandsForQuestionnaire(db, blobs, questionnaireId, {
       const figmaReads = [];
       if (token) {
         for (const url of links.slice(0, 3)) {
-          if ((brand.figma || []).some(f => f.url === url)) continue;
+          if ((brand.figma || []).some(f => sameFigmaFile(f.url, url))) continue;
           try {
             const read = await readFigma(url, {token, fetchImpl: figma.fetchImpl, log});
             if (!read.files.length) { figmaReads.push({url, error: 'Nothing could be read from this file.'}); continue; }

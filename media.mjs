@@ -217,8 +217,11 @@ export function mediaSession({dir, signal, log = () => {}, allow = {images:true,
     used.videos++;
     return {file, url:'assets/' + file, duration:body.duration, aspect_ratio:body.aspect_ratio, model, cost:state.usage?.cost, remaining:limits.videos - used.videos};
     } catch (error) {
+      // A stopped build is not a failed clip; and a DOMException's message cannot be rewritten, so the note is a new error.
+      if (signal?.aborted || error?.name === 'AbortError') throw error;
       used.videoFailures++;
-      throw Object.assign(error, {message: error.message + ' (This did not use the video budget: ' + (limits.videos - used.videos - pending.videos + 1) + ' left.)'});
+      const left = limits.videos - used.videos - pending.videos + 1;
+      throw Object.assign(Error(String(error?.message || error) + ' (This did not use the video budget: ' + left + ' left.)', {cause: error}), error?.status ? {status: error.status} : {});
     } finally {
       pending.videos--;
     }

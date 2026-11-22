@@ -67,12 +67,15 @@ export function unzip(buf, {maxEntry = 128 * MB, maxTotal = 1024 * MB, maxFiles 
     if (total + size > maxTotal) { skipped.push({name, reason: 'the archive is too large to unpack whole'}); continue; }
     if (local + 30 > buf.length || buf.readUInt32LE(local) !== 0x04034b50) { skipped.push({name, reason: 'damaged'}); continue; }
     const data = local + 30 + buf.readUInt16LE(local + 26) + buf.readUInt16LE(local + 28);
+    if (data + compSize > buf.length) { skipped.push({name, reason: 'damaged'}); continue; }
     const raw = buf.subarray(data, data + compSize);
     let bytes;
     try {
-      bytes = method === 0 ? Buffer.from(raw) : inflateRawSync(raw, {maxOutputLength: maxEntry});
-    } catch {
-      skipped.push({name, reason: 'damaged'});
+      // The sizes in the directory are the archive's word: inflating is capped by what may still be unpacked,
+      // so an entry that lies about its size cannot blow past the limits.
+      bytes = method === 0 ? Buffer.from(raw) : inflateRawSync(raw, {maxOutputLength: Math.max(1, Math.min(maxEntry, maxTotal - total))});
+    } catch (err) {
+      skipped.push({name, reason: err.code === 'ERR_BUFFER_TOO_LARGE' ? 'too large' : 'damaged'});
       continue;
     }
     total += bytes.length;

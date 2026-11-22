@@ -27,7 +27,7 @@ export async function api(url, init = {}) {
   const res = await fetch(url, {...init, headers});
   if (!res.ok) {
     const error = await res.json().catch(() => ({}));
-    throw Error(error.error || 'The request failed.');
+    throw Object.assign(Error(error.error || 'The request failed.'), {status: res.status});
   }
   return res;
 }

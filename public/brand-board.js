@@ -2,6 +2,7 @@
 // It is a view for people only; no step and no model reads it (brand-board.mjs on the server).
 import {apiJson} from './campaign.js';
 import {el} from './dom.js';
+import {message} from './ui.js';
 
 export const fetchBoard = id => apiJson('/api/brands/' + encodeURIComponent(id) + '/board');
 
@@ -14,6 +15,8 @@ export function boardSummary(board) {
   const parts = [];
   if (board.colours.length) parts.push(count(board.colours.length, ['colour', 'colours']));
   for (const [key, list] of Object.entries(board.groups)) if (list.length) parts.push(count(list.length, NAMES[key]));
+  const unread = board.figma?.links?.length || 0;
+  if (unread) parts.push(count(unread, ['Figma link', 'Figma links']) + ' from the questionnaire not read yet');
   return parts.join(' · ') || 'No brand files yet.';
 }
 
@@ -198,6 +201,10 @@ export function renderBoard(board) {
 export function figmaPanel(board, {provider = () => null, onRead = () => {}} = {}) {
   const f = board.figma || {configured: false, files: [], links: []};
   const box = el('div', 'board-figma-box');
+  const head = el('div', 'board-section-head');
+  head.append(el('h3', '', 'Figma'));
+  if (f.files.length) head.append(el('span', 'pill', String(f.files.length)));
+  box.append(head);
   const status = el('p', 'note');
   status.setAttribute('aria-live', 'polite');
   let busy = false;
@@ -207,7 +214,7 @@ export function figmaPanel(board, {provider = () => null, onRead = () => {}} = {
     busy = true;
     for (const b of buttons) b.disabled = true;
     button.classList.add('is-loading');
-    status.textContent = 'Reading the Figma file: frames and styles (up to a minute)…';
+    message(status, 'Reading the Figma file: frames and styles (up to a minute)…');
     try {
       const result = await apiJson('/api/brands/' + encodeURIComponent(board.brand.id) + '/figma', {
         method: 'POST', body: JSON.stringify({url, provider: provider()}),
@@ -223,7 +230,7 @@ export function figmaPanel(board, {provider = () => null, onRead = () => {}} = {
       busy = false;
       for (const b of buttons) b.disabled = !f.configured;
       button.classList.remove('is-loading');
-      status.textContent = err.message;
+      message(status, err.message, {error: true});
     }
   };
   const action = (label, url, cls = 'btn secondary small') => {
@@ -274,7 +281,7 @@ export function figmaPanel(board, {provider = () => null, onRead = () => {}} = {
   form.onsubmit = e => { e.preventDefault(); if (input.value.trim()) read(input.value.trim(), go); else input.focus(); };
   form.append(input, go);
   if (list.childElementCount) box.append(list);
-  box.append(form);
+  if (f.configured) box.append(form);
   box.append(el('p', 'note', f.configured
     ? 'A file, a page or a frame link. Frames come in as pictures, styles with exact values. The client shares the file with the studio’s Figma account; a file in a free Figma team must be duplicated into the studio’s team first.'
     : 'Reading Figma needs FIGMA_TOKEN in .env: a personal access token (scope file_content:read) from the studio’s Figma account with a Dev or Full seat on a paid plan.'));

@@ -386,7 +386,7 @@ export async function renderStill({url, format, lang, length = 0}) {
 export async function renderVideo({url, format, lang, length, fps = 30, ffmpeg, onProgress = () => {}, signal}) {
   const problems = {errors: []};
   const bin = ffmpeg || await findFfmpeg();
-  const {page, f} = await openForExport({url, format, lang, length, problems});
+  let page = null, f = fmtOf(format);
   const frames = Math.max(1, Math.round(length * fps));
   // MP4 with its index at the front needs a seekable output: a temporary file, read back at the end.
   const file = path.join(tmpdir(), 'forma-export-' + process.pid + '-' + Date.now() + '-' + Math.random().toString(36).slice(2) + '.mp4');
@@ -400,17 +400,26 @@ export async function renderVideo({url, format, lang, length, fps = 30, ffmpeg, 
       ? 'ffmpeg was not found: run npm install in the project folder, or set FORMA_FFMPEG in .env.' : 'ffmpeg failed: ' + err.message), {status: 503})));
     proc.on('close', code => (code === 0 ? resolve() : reject(Error('ffmpeg stopped (' + code + '): ' + stderr.trim().slice(-300)))));
   });
-  done.catch(() => {});
+  // ffmpeg that quits early (not found, bad input) stops the export at once instead of after every frame is drawn.
+  let quit = null;
+  done.catch(err => { quit = err; });
   proc.stderr.on('data', c => { stderr += c; });
   proc.stdin.on('error', () => {});   // ffmpeg quit early: its own error says why
   try {
+    // ffmpeg starts first, so a missing one is known before the page spends minutes getting ready.
+    await new Promise(r => setImmediate(r));
+    if (quit) throw quit;
+    ({page, f} = await openForExport({url, format, lang, length, problems}));
     for (let i = 0; i < frames; i++) {
       if (signal?.aborted) throw Error('Export stopped.');
+      if (quit) throw quit;
       await drawAt(page, i / fps);
       const jpg = await page.screenshot({type: 'jpeg', quality: 92});
-      if (!proc.stdin.write(jpg)) await new Promise(r => proc.stdin.once('drain', r));
+      if (quit) throw quit;
+      if (!proc.stdin.write(jpg)) await Promise.race([new Promise(r => proc.stdin.once('drain', r)), done.catch(() => {})]);
       if (i % fps === 0) onProgress(i / frames);
     }
+    if (quit) throw quit;
     proc.stdin.end();
     await done;
     return {bytes: await fs.readFile(file), width: f.w - (f.w % 2), height: f.h - (f.h % 2), problems};
@@ -418,7 +427,7 @@ export async function renderVideo({url, format, lang, length, fps = 30, ffmpeg, 
     proc.kill('SIGKILL');
     throw err;
   } finally {
-    await page.close().catch(() => {});
+    await page?.close().catch(() => {});
     await fs.rm(file, {force: true}).catch(() => {});
   }
 }

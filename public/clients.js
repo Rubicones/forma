@@ -1,6 +1,7 @@
 // Clients: the studio's inbox for the client dashboard (questionnaires and campaign requests).
 // Data comes from /api/studio/* (studio.mjs): moderation of questionnaires, and the brands made from them.
 import {$, el} from './dom.js';
+import {openModal, button, busy, message, confirmAction} from './ui.js';
 
 const TURNS = [
   {id: 'studio', label: 'Waiting for us'},
@@ -9,7 +10,11 @@ const TURNS = [
 ];
 
 const view = {status: null, inbox: null, turn: 'studio', includeTest: true, loading: false, error: '', timer: null,
-  detail: null, detailId: null, detailKind: 'questionnaire', detailError: '', part: null, selected: new Set(), pending: [], busy: false};
+  detail: null, detailId: null, detailKind: 'questionnaire', detailError: '', part: null, selected: new Set(), pending: [], busy: false,
+  busyAction: null, flash: null, draft: ''};
+const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+// The inbox list is on screen (not a questionnaire or a campaign, not another page of Forma).
+const inboxVisible = () => !view.detailId && !$('#clientsPage')?.hidden;
 let onCount = () => {};
 let onRoute = () => {};
 let providerFor = () => null;   // app.js: the model settings, so the brand notes are written with the chosen model
@@ -37,7 +42,7 @@ function ago(iso) {
 async function getJSON(url) {
   const res = await fetch(url, {cache: 'no-store'});
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw Error(body.error || 'The request failed.');
+  if (!res.ok) throw Object.assign(Error(body.error || 'The request failed.'), {status: res.status});
   return body;
 }
 
@@ -47,9 +52,12 @@ export async function loadStudioStatus({fresh = false} = {}) {
   return view.status;
 }
 
-async function loadInbox() {
+// quiet: the 30-second refresh. It keeps the counter fresh and redraws only the inbox list, never a questionnaire or
+// a campaign being read (that would lose the scroll, the selection and what is being typed).
+async function loadInbox({quiet = false} = {}) {
+  if (view.loading) return;
   view.loading = true;
-  renderClients();
+  if (!quiet && inboxVisible()) renderClients();
   try {
     view.inbox = await getJSON('/api/studio/inbox?test=' + (view.includeTest ? '1' : '0'));
     view.error = '';
@@ -59,7 +67,7 @@ async function loadInbox() {
     view.loading = false;
   }
   updateCount();
-  renderClients();
+  if (inboxVisible()) renderClients();
 }
 
 function updateCount() {
@@ -78,7 +86,11 @@ export async function startClientsPolling({onWaiting} = {}) {
   if (!status.enabled) return;
   await loadInbox();
   clearInterval(view.timer);
-  view.timer = setInterval(() => { if (document.visibilityState === 'visible') loadInbox(); }, 30000);
+  view.timer = setInterval(() => {
+    if (document.visibilityState !== 'visible') return;
+    loadInbox({quiet: true});
+    refreshDetailQuietly();
+  }, 30000);
 }
 
 // parts: the path after /clients, e.g. ['questionnaires', '<id>']. onUrl: called when the address should change.
@@ -94,7 +106,20 @@ export async function openClientsPage(parts = [], {onUrl, provider} = {}) {
   if (view.status?.enabled) await loadInbox();
 }
 
+// A questionnaire or campaign left open picks up the client's moves, unless the studio is in the middle of something
+// there (typing, a selection, questions not sent yet, an action running, a dialog open).
+async function refreshDetailQuietly() {
+  const id = view.detailId;
+  const idle = () => view.detailId === id && !view.busy && !view.selected.size && !view.pending.length
+    && !document.querySelector('dialog[open]') && !document.activeElement?.matches?.('input, textarea, select') && !$('#clientsPage')?.hidden;
+  if (!id || !view.detail || !idle()) return;
+  const before = JSON.stringify(view.detail);
+  try { await reloadDetail(id); } catch { return; }
+  if (idle() && JSON.stringify(view.detail) !== before) renderClients();
+}
+
 function goInbox() {
+  view.flash = null;
   view.detailId = null;
   view.detail = null;
   onRoute();
@@ -104,7 +129,7 @@ function goInbox() {
 }
 
 async function openQuestionnaire(id, {push = true} = {}) {
-  if (view.detailId !== id) { view.selected = new Set(); view.pending = []; view.part = null; }
+  if (view.detailId !== id) { view.selected = new Set(); view.pending = []; view.part = null; view.flash = null; view.draft = ''; }
   view.detailKind = 'questionnaire';
   view.detailId = id;
   view.detailError = '';
@@ -112,11 +137,11 @@ async function openQuestionnaire(id, {push = true} = {}) {
   if (push) onRoute();
   renderClients();
   window.scrollTo(0, 0);
-  try {
-    view.detail = await getJSON('/api/studio/questionnaires/' + encodeURIComponent(id));
-  } catch (err) {
-    view.detailError = err.message;
-  }
+  let detail = null, error = '';
+  try { detail = await getJSON('/api/studio/questionnaires/' + encodeURIComponent(id)); } catch (err) { error = err.message; }
+  if (view.detailId !== id || view.detailKind !== 'questionnaire') return;   // the studio moved on meanwhile
+  view.detail = detail;
+  view.detailError = error;
   renderClients();
   watchBrands();
 }
@@ -124,8 +149,42 @@ async function openQuestionnaire(id, {push = true} = {}) {
 async function postJSON(url, body) {
   const res = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json', 'x-forma': 'studio'}, body: JSON.stringify(body)});
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw Error(data.error || 'The request failed.');
+  if (!res.ok) throw Object.assign(Error(data.error || 'The request failed.'), {status: res.status});
   return data;
+}
+
+// Runs one action of the page (accept, cancel, send questions…) with its button busy and the outcome in the flash.
+// A conflict (someone moved it meanwhile) reloads what is on screen, so the next try starts from the latest state.
+async function act(name, run, {done = '', reload = null} = {}) {
+  if (view.busy) return false;
+  view.busy = true;
+  view.busyAction = name;
+  view.flash = null;
+  renderClients();
+  let ok = false;
+  try {
+    await run();
+    if (done) flash(done);
+    ok = true;
+  } catch (err) {
+    if (err.status === 409 && reload) {
+      await reload().catch(() => {});
+      flash('Someone updated this meanwhile. This is the latest now: check it and try again.', true);
+    } else flash(err.message, true);
+  } finally {
+    view.busy = false;
+    view.busyAction = null;
+    renderClients();
+  }
+  return ok;
+}
+
+// A page button that shows the spinner while its own action runs and is off while any other does.
+function actionButton(label, cls, name, onClick) {
+  const b = button(label, cls, onClick);
+  b.disabled = view.busy;
+  if (view.busyAction === name) busy(b);
+  return b;
 }
 
 function tag(text, cls = '') {
@@ -150,6 +209,7 @@ function questionnaireItem(q) {
 }
 
 async function openCampaign(id, {push = true} = {}) {
+  if (view.detailId !== id) view.flash = null;
   view.detailKind = 'campaign';
   view.detailId = id;
   view.detailError = '';
@@ -157,11 +217,11 @@ async function openCampaign(id, {push = true} = {}) {
   if (push) onRoute();
   renderClients();
   window.scrollTo(0, 0);
-  try {
-    view.detail = await getJSON('/api/studio/campaigns/' + encodeURIComponent(id));
-  } catch (err) {
-    view.detailError = err.message;
-  }
+  let detail = null, error = '';
+  try { detail = await getJSON('/api/studio/campaigns/' + encodeURIComponent(id)); } catch (err) { error = err.message; }
+  if (view.detailId !== id || view.detailKind !== 'campaign') return;
+  view.detail = detail;
+  view.detailError = error;
   renderClients();
 }
 
@@ -250,7 +310,11 @@ export function renderClients() {
     const list = el('ol', 'client-activity-list');
     for (const a of inbox.activity) {
       const li = el('li');
-      li.append(el('span', '', a.text), el('time', 'client-time', ago(a.at)));
+      // A line opens what it is about: the campaign request, or the account's questionnaire.
+      const q = !a.campaignId ? inbox.questionnaires.find(x => x.accountId === a.accountId) : null;
+      const open = a.campaignId ? () => openCampaign(a.campaignId) : q ? () => openQuestionnaire(q.id) : null;
+      const text = open ? button(a.text, 'client-activity-link', open) : el('span', '', a.text);
+      li.append(text, el('time', 'client-time', ago(a.at)));
       list.append(li);
     }
     aside.append(list);
@@ -420,26 +484,20 @@ function askBar(d) {
     view.draft = '';
     renderClients();
   };
-  const send = el('button', 'btn primary', view.pending.length ? `Send ${view.pending.length} to the client` : 'Send to the client');
-  send.type = 'button';
-  send.disabled = !view.pending.length || view.busy;
-  send.onclick = async () => {
+  // ⌘/Ctrl+Enter adds the question, as in a chat.
+  input.onkeydown = e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !add.disabled) { e.preventDefault(); add.click(); } };
+  const send = actionButton(view.pending.length ? `Send ${view.pending.length} to the client` : 'Send to the client', 'btn primary', 'questions', async () => {
     const n = view.pending.length;
-    if (!confirm(`Send ${n} question${n === 1 ? '' : 's'}? The client gets the questionnaire back with only these answers unlocked.`)) return;
-    view.busy = true;
-    renderClients();
-    try {
-      view.detail = await postJSON('/api/studio/questionnaires/' + d.id + '/questions', {version: d.version, notes: view.pending});
+    const ok = await confirmAction({title: `Send ${plural(n, 'question', 'questions')}?`, confirm: 'Send',
+      text: 'The client gets the questionnaire back with only these answers unlocked, and sees your questions next to them.'});
+    if (!ok) return;
+    await act('questions', async () => {
+      setDetail(d.id, await postJSON('/api/studio/questionnaires/' + d.id + '/questions', {version: d.version, notes: view.pending}));
       view.pending = [];
       view.selected = new Set();
-      flash('Questions sent. The client sees them in their dashboard.');
-    } catch (err) {
-      flash(err.message, true);
-    } finally {
-      view.busy = false;
-      renderClients();
-    }
-  };
+    }, {done: 'Questions sent. The client sees them in their dashboard.', reload: () => reloadDetail(d.id)});
+  });
+  if (!view.pending.length) send.disabled = true;
   const actions = el('div', 'q-askbar-actions');
   actions.append(add, send);
   bar.append(input, actions);
@@ -461,53 +519,83 @@ function timelineNode(items = []) {
   return box;
 }
 
-function flash(message, error = false) {
-  view.flash = {message, error};
-  setTimeout(() => { if (view.flash?.message === message) { view.flash = null; renderClients(); } }, 5000);
+function flash(text, error = false) {
+  const shown = {message: text, error};
+  view.flash = shown;
+  // Errors stay until the next action; good news fades after a few seconds.
+  if (!error) setTimeout(() => { if (view.flash === shown) { view.flash = null; renderClients(); } }, 6000);
 }
 
-function approveDialog(d) {
-  const dialog = el('dialog', 'q-dialog card');
-  dialog.append(el('h2', '', 'Approve the questionnaire'));
-  dialog.append(el('p', 'note', d.kind === 'agency'
-    ? 'Each agency client becomes a brand in their dashboard. Check the names; they can start campaigns right after.'
-    : 'The brand appears in their dashboard and they can start campaigns right after. Check the name.'));
+// What a request or an action returned, kept only while that questionnaire or campaign is still the one on screen.
+function setDetail(id, detail) {
+  if (view.detailId === id) view.detail = detail;
+}
+
+async function reloadDetail(id) {
+  const path = view.detailKind === 'campaign' ? '/api/studio/campaigns/' : '/api/studio/questionnaires/';
+  setDetail(id, await getJSON(path + encodeURIComponent(id)));
+}
+
+function flashNode() {
+  if (!view.flash) return null;
+  const p = el('p', 'q-flash' + (view.flash.error ? ' is-error' : ''), view.flash.message);
+  p.setAttribute('role', view.flash.error ? 'alert' : 'status');
+  return p;
+}
+
+function openApprove(d) {
+  const m = openModal({key: 'approve:' + d.id, title: 'Approve the questionnaire'});
+  if (!m) return;
+  m.body.append(el('p', 'note', d.kind === 'agency'
+    ? 'Each agency client becomes a brand in their dashboard and in Forma. Check the names: the client sees them as written here.'
+    : 'The brand appears in their dashboard and in Forma, and they can start campaigns right after. Check the name: the client sees it as written here.'));
   const inputs = [];
   for (const b of d.brands) {
-    const label = el('label', 'q-brand-name');
-    label.append(el('span', 'note', d.kind === 'agency' ? 'Client brand' : 'Brand name'));
+    const label = el('label', 'field');
+    label.append(el('span', '', d.kind === 'agency' ? 'Client brand' : 'Brand name'));
     const input = el('input');
     input.type = 'text';
     input.maxLength = 160;
     input.value = b.name;
+    input.required = true;
     inputs.push([b.questionnaire_scope || 'brand', input]);
     label.append(input);
-    dialog.append(label);
+    m.body.append(label);
   }
-  const actions = el('div', 'q-askbar-actions');
-  const cancel = el('button', 'btn secondary', 'Cancel');
-  cancel.type = 'button';
-  cancel.onclick = () => dialog.close();
-  const ok = el('button', 'btn primary', 'Approve');
-  ok.type = 'button';
+  const status = el('p', 'note modal-status');
+  status.setAttribute('aria-live', 'polite');
+  const ok = button('Approve', 'btn primary');
+  const check = () => { ok.disabled = inputs.some(([, i]) => !i.value.trim()); };
+  for (const [, i] of inputs) {
+    i.oninput = check;
+    i.onkeydown = e => { if (e.key === 'Enter' && !ok.disabled) { e.preventDefault(); ok.click(); } };
+  }
   ok.onclick = async () => {
-    ok.disabled = true;
-    ok.classList.add('is-loading');
+    busy(ok);
+    message(status, '');
     try {
-      view.detail = await postJSON('/api/studio/questionnaires/' + d.id + '/approve', {version: d.version, provider: providerFor(), names: Object.fromEntries(inputs.map(([k, i]) => [k, i.value]))});
-      dialog.close();
+      setDetail(d.id, await postJSON('/api/studio/questionnaires/' + d.id + '/approve', {version: d.version, provider: providerFor(), names: Object.fromEntries(inputs.map(([k, i]) => [k, i.value.trim()]))}));
+      m.close();
       flash('Approved. The client can start campaigns now; Forma is making the brand.');
+      renderClients();
       watchBrands();
     } catch (err) {
-      flash(err.message, true);
-      dialog.close();
+      busy(ok, false);
+      if (err.status === 409) {
+        // Someone moved it meanwhile (the client edited, or another tab answered): show the latest instead.
+        m.close();
+        flash(err.message, true);
+        await reloadDetail(d.id).catch(() => {});
+        renderClients();
+        return;
+      }
+      message(status, err.message, {error: true});
     }
-    renderClients();
   };
-  actions.append(cancel, ok);
-  dialog.append(actions);
-  dialog.addEventListener('close', () => dialog.remove());
-  return dialog;
+  m.foot.append(status, button('Cancel', 'btn secondary', m.close), ok);
+  check();
+  inputs[0]?.[1].focus();
+  inputs[0]?.[1].select();
 }
 
 // While Forma makes the brands (studio-brand.mjs), the page asks every 3 s how it goes.
@@ -550,21 +638,12 @@ function formaBrandsNode(d) {
   }
   box.append(list);
   if (fb.status === 'failed' || fb.status === 'pending') {
-    const retry = el('button', 'btn primary small', fb.status === 'failed' ? 'Try again' : 'Make the brand');
-    retry.type = 'button';
-    retry.disabled = view.busy;
-    retry.onclick = async () => {
-      view.busy = true;
-      renderClients();
-      try {
-        view.detail = await postJSON('/api/studio/questionnaires/' + d.id + '/brands', {provider: providerFor()});
-      } catch (err) {
-        flash(err.message, true);
-      }
-      view.busy = false;
-      renderClients();
+    const retry = actionButton(fb.status === 'failed' ? 'Try again' : 'Make the brand', 'btn primary small', 'brands', async () => {
+      await act('brands', async () => {
+        setDetail(d.id, await postJSON('/api/studio/questionnaires/' + d.id + '/brands', {provider: providerFor()}));
+      });
       watchBrands();
-    };
+    });
     box.append(retry);
   }
   return box;
@@ -592,11 +671,8 @@ function renderQuestionnaire(root) {
   titles.append(meta);
   const actions = el('div', 'library-actions');
   if (canAsk) {
-    const approve = el('button', 'btn primary', 'Approve');
-    approve.type = 'button';
-    approve.disabled = view.busy || view.pending.length > 0;
-    approve.title = view.pending.length ? 'Send or remove your questions first' : '';
-    approve.onclick = () => { const dlg = approveDialog(d); document.body.append(dlg); dlg.showModal(); };
+    const approve = actionButton('Approve…', 'btn primary', 'approve', () => openApprove(d));
+    if (view.pending.length) { approve.disabled = true; approve.title = 'Send or remove your questions first'; }
     actions.append(approve);
   }
   head.append(titles, actions);
@@ -666,7 +742,7 @@ function renderQuestionnaire(root) {
   layout.append(main, aside);
   const nodes = [back, head, status];
   if (d.formaBrands) nodes.push(formaBrandsNode(d));
-  if (view.flash) nodes.push(el('p', 'q-flash' + (view.flash.error ? ' is-error' : ''), view.flash.message));
+  if (view.flash) nodes.push(flashNode());
   if (d.parts.length > 1) nodes.push(tabs);
   nodes.push(layout);
   if (canAsk && (view.selected.size || view.pending.length)) nodes.push(askBar(d));
@@ -721,56 +797,34 @@ function renderCampaign(root) {
   titles.append(meta);
 
   const actions = el('div', 'library-actions');
+  if (d.canCancel) {
+    actions.append(actionButton('Cancel campaign…', 'btn secondary is-danger', 'cancel', async () => {
+      const ok = await confirmAction({title: `Cancel “${d.name}”?`, confirm: 'Cancel the campaign', cancel: 'Keep it', danger: true,
+        text: 'The client sees it as cancelled, and it can’t be reopened. The Forma campaign stays as it is.'});
+      if (!ok) return;
+      await act('cancel', async () => {
+        setDetail(d.id, await postJSON('/api/studio/campaigns/' + d.id + '/cancel', {version: d.version}));
+      }, {done: 'Cancelled. The client sees it in their dashboard.', reload: () => reloadDetail(d.id)});
+    }));
+  }
   if (d.formaCampaignId) {
     const open = el('a', 'btn ' + (d.canAccept ? 'secondary' : 'primary'), 'Open in Forma →');
     open.href = '/campaigns/' + encodeURIComponent(d.formaCampaignId);
     actions.append(open);
   }
-  if (d.canCancel) {
-    const cancel = el('button', 'btn secondary', 'Cancel campaign');
-    cancel.type = 'button';
-    cancel.disabled = view.busy;
-    cancel.onclick = async () => {
-      if (!confirm(`Cancel “${d.name}”? The client sees it as cancelled, and it can’t be reopened.`)) return;
-      view.busy = true;
-      renderClients();
-      try {
-        view.detail = await postJSON('/api/studio/campaigns/' + d.id + '/cancel', {version: d.version});
-        flash('Cancelled.');
-      } catch (err) {
-        flash(err.message, true);
-      }
-      view.busy = false;
-      renderClients();
-    };
-    actions.append(cancel);
-  }
   if (d.canAccept) {
-    const accept = el('button', 'btn primary', 'Accept');
-    accept.type = 'button';
-    accept.disabled = view.busy || !d.brand.formaBrandId;
-    accept.title = d.brand.formaBrandId ? '' : 'The brand is not in Forma yet';
-    accept.onclick = async () => {
-      view.busy = true;
-      accept.classList.add('is-loading');
-      renderClients();
-      try {
-        const res = await postJSON('/api/studio/campaigns/' + d.id + '/accept', {version: d.version, provider: providerFor()});
-        view.detail = res.detail;
-        flash('Accepted. The campaign is in Forma with the client’s setup and brief.');
-      } catch (err) {
-        flash(err.message, true);
-      }
-      view.busy = false;
-      renderClients();
-    };
+    const accept = actionButton('Accept', 'btn primary', 'accept', () => act('accept', async () => {
+      const res = await postJSON('/api/studio/campaigns/' + d.id + '/accept', {version: d.version, provider: providerFor()});
+      setDetail(d.id, res.detail);
+    }, {done: 'Accepted. The campaign is in Forma with the client’s setup and brief.', reload: () => reloadDetail(d.id)}));
+    if (!d.brand.formaBrandId) { accept.disabled = true; accept.title = 'The brand is not in Forma yet'; }
     actions.append(accept);
   }
   head.append(titles, actions);
 
   const nodes = [back, head, el('p', 'q-status note', CAMPAIGN_STATUS[d.status] || '')];
   if (d.canAccept && !d.brand.formaBrandId) nodes.push(el('p', 'q-flash is-error', 'This client’s brand is not in Forma yet. Open their questionnaire and use “Make the brand”, then accept.'));
-  if (view.flash) nodes.push(el('p', 'q-flash' + (view.flash.error ? ' is-error' : ''), view.flash.message));
+  if (view.flash) nodes.push(flashNode());
 
   const b = d.brief;
   const want = el('section', 'q-section card');

@@ -61,7 +61,11 @@ export async function exportDelivery({db, blobs, delivery, previewURL, all = fal
   const url = String(previewURL || '').replace(/\/$/, '') + final.path;
   const ffmpeg = work.some(f => f.fileType === 'mp4') ? await findFfmpeg() : null;
   log(`Exporting ${work.length} files of “${final.title}”`);
-  for (const f of work) {
+  const failRow = async f => {
+    tries.set(fileKey(f), (tries.get(fileKey(f)) || 0) + 1);
+    await db.from('delivery_exports').upsert(row(delivery.id, f, {status: 'failed'}), {onConflict: 'delivery_id,format,lang,length,file_type'});
+  };
+  for (const [index, f] of work.entries()) {
     const label = `${f.format.replace('x', ':')} · ${f.lang}${f.length ? ' · ' + f.length + ' s' : ' · still'}`;
     run.current = label;
     try {
@@ -77,11 +81,16 @@ export async function exportDelivery({db, blobs, delivery, previewURL, all = fal
       if (out.problems?.errors?.length) log(`${label}: the browser reported ${out.problems.errors[0].message}`);
     } catch (err) {
       run.failed++;
-      tries.set(fileKey(f), (tries.get(fileKey(f)) || 0) + 1);
       log(`${label} failed: ${err.message}`);
       run.error = err.message;
-      await db.from('delivery_exports').upsert(row(delivery.id, f, {status: 'failed'}), {onConflict: 'delivery_id,format,lang,length,file_type'});
-      if (err.status === 503) break;   // no Chrome or no ffmpeg: every next file would fail the same way
+      await failRow(f);
+      if (err.status === 503) {
+        // No Chrome or no ffmpeg: every next file would fail the same way. They are marked failed too, so the client
+        // does not see them "being prepared" for ever and the worker stops after its attempts.
+        for (const rest of work.slice(index + 1)) { await failRow(rest); run.failed++; run.done++; }
+        run.done++;
+        break;
+      }
     }
     run.done++;
   }
@@ -98,13 +107,14 @@ export async function finalsToExport(db) {
   if (error) fail(error);
   const latest = new Map();
   for (const d of data || []) if (!latest.has(d.campaign_request_id)) latest.set(d.campaign_request_id, d);
-  const out = [];
-  for (const d of latest.values()) {
-    const {data: rows, error: e} = await db.from('delivery_exports').select('format, lang, length, file_type, status').eq('delivery_id', d.id);
-    if (e) fail(e);
-    if (todo(expectedExports(d.items?.final), rows || [], {attempts: ATTEMPTS.get(d.id)}).length) out.push(d);
-  }
-  return out;
+  const finals = [...latest.values()].filter(d => d.items?.final?.path);
+  if (!finals.length) return [];
+  // One query for the files of all of them: this runs every minute.
+  const {data: rows, error: e} = await db.from('delivery_exports').select('delivery_id, format, lang, length, file_type, status').in('delivery_id', finals.map(d => d.id));
+  if (e) fail(e);
+  const byDelivery = new Map();
+  for (const r of rows || []) byDelivery.set(r.delivery_id, [...(byDelivery.get(r.delivery_id) || []), r]);
+  return finals.filter(d => todo(expectedExports(d.items.final), byDelivery.get(d.id) || [], {attempts: ATTEMPTS.get(d.id)}).length);
 }
 
 // One export at a time, oldest request first. kick() runs a pass now (after a final is sent, or asked from the UI).

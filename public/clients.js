@@ -48,7 +48,9 @@ async function getJSON(url) {
 
 export async function loadStudioStatus({fresh = false} = {}) {
   view.status = await getJSON('/api/studio/status' + (fresh ? '?fresh=1' : '')).catch(err => ({enabled: false, reason: err.message}));
-  $('#clientsOpen').hidden = !view.status.enabled;
+  // On the cloud store the button shows even when client work is off, so the page can say why (a missing migration…).
+  $('#clientsOpen').hidden = !(view.status.enabled || view.status.cloud);
+  $('#clientsOpen').classList.toggle('is-off', !view.status.enabled);
   return view.status;
 }
 
@@ -97,7 +99,12 @@ export async function startClientsPolling({onWaiting} = {}) {
 export async function openClientsPage(parts = [], {onUrl, provider} = {}) {
   if (onUrl) onRoute = onUrl;
   if (provider) providerFor = provider;
-  if (!view.status) await loadStudioStatus();
+  if (!view.status?.enabled) {
+    // Off before (the migration was missing, the database unreachable): look again, and start the counter if it is on now.
+    const wasOff = Boolean(view.status);
+    await loadStudioStatus({fresh: true});
+    if (wasOff && view.status.enabled) startClientsPolling();
+  }
   if (parts[0] === 'questionnaires' && parts[1]) return openQuestionnaire(parts[1], {push: false});
   if (parts[0] === 'campaigns' && parts[1]) return openCampaign(parts[1], {push: false});
   view.detailId = null;

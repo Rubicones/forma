@@ -118,9 +118,9 @@ test('availability: the studio is off on the file store and says why', async () 
   const state = await studioAvailability({driver: 'file'}, {fresh: true});
   assert.equal(state.enabled, false);
   assert.match(state.reason, /FORMA_STORE=supabase/);
-  const missing = await studioAvailability({driver: 'supabase', db: async () => ({from: () => ({select: () => ({eq: () => ({maybeSingle: async () => ({data: null, error: null})})})})})}, {fresh: true});
+  const missing = await studioAvailability({driver: 'supabase', db: async () => ({from: t => ({select: () => ({limit: async () => (t === 'delivery_exports' ? {data: null, error: {code: 'PGRST205', message: "Could not find the table 'public.delivery_exports' in the schema cache"}} : {data: [], error: null})})})})}, {fresh: true});
   assert.match(missing.reason, /20261120000001_client_dashboard\.sql/);
-  const ready = await studioAvailability({driver: 'supabase', db: async () => ({from: () => ({select: () => ({eq: () => ({maybeSingle: async () => ({data: {value: '1'}, error: null})})})})})}, {fresh: true});
+  const ready = await studioAvailability({driver: 'supabase', db: async () => ({from: t => ({select: () => ({limit: async () => ({data: [], error: null})})})})}, {fresh: true});
   assert.equal(ready.enabled, true);
 });
 

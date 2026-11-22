@@ -251,6 +251,10 @@ export function buildInbox({questionnaires = [], campaigns = [], deliveries = []
 // ---------- availability and loading ----------
 
 let availability = {at: 0, value: null};
+const CLIENT_TABLES = ['client_accounts', 'brand_questionnaires', 'campaign_requests', 'deliveries', 'delivery_comments', 'delivery_exports', 'client_events'];
+// Postgres "undefined table", PostgREST "table not in the schema cache".
+const isMissingTable = e => e?.code === '42P01' || e?.code === 'PGRST205' || /does not exist|could not find the table/i.test(e?.message || '');
+
 export async function studioAvailability(store, {fresh = false} = {}) {
   if (!fresh && availability.value && Date.now() - availability.at < 60000) return availability.value;
   let value;
@@ -258,16 +262,23 @@ export async function studioAvailability(store, {fresh = false} = {}) {
     value = {enabled: false, reason: 'Client work needs the cloud store: set FORMA_STORE=supabase in .env and restart.'};
   } else {
     try {
+      // The migration adds tables only (no schema_meta row), so the check is that the tables the studio reads answer.
       const db = await store.db();
-      const {data, error} = await db.from('schema_meta').select('value').eq('key', 'client_dashboard').maybeSingle();
-      value = error || data?.value !== '1'
-        ? {enabled: false, reason: `The client tables are missing: apply ${MIGRATION} (npx supabase db push).`}
-        : {enabled: true};
+      const results = await Promise.all(CLIENT_TABLES.map(t => db.from(t).select('id').limit(1)));
+      const failed = results.map((r, i) => [CLIENT_TABLES[i], r.error]).filter(([, e]) => e);
+      const missing = failed.filter(([, e]) => isMissingTable(e));
+      value = missing.length
+        ? {enabled: false, reason: `The client tables are missing (${missing.map(([t]) => t).join(', ')}): apply ${MIGRATION} (npx supabase db push).`}
+        : failed.length
+          ? {enabled: false, reason: 'The cloud database refused the check: ' + (failed[0][1].message || failed[0][1].code)}
+          : {enabled: true};
     } catch (err) {
       value = {enabled: false, reason: 'The cloud database is unreachable: ' + err.message};
     }
   }
-  availability = {at: Date.now(), value};
+  // cloud: the Clients page is worth opening even when off, to read why.
+  value = {...value, cloud: store.driver === 'supabase'};
+  availability = {at: value.enabled ? Date.now() : Date.now() - 50000, value};   // an "off" is looked at again after 10 s
   return value;
 }
 

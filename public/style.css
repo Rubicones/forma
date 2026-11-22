@@ -838,3 +838,4 @@ campaign-thumbnail img{width:100%;height:100%;min-height:0;object-fit:contain}
 .client-timeline li.is-final::before,.client-timeline li.is-direction::before,.client-timeline li.is-directions::before{background:var(--brand-2)}
 .client-activity-link{border:0;background:none;padding:0;text-align:left;color:var(--ink-2);font-size:13px;line-height:1.45}
 .client-activity-link:hover{color:var(--brand-2);text-decoration:underline;text-underline-offset:3px}
+.clients-open.is-off{opacity:.6}

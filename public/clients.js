@@ -281,7 +281,7 @@ export function renderClients() {
     return;
   }
   const count = turn => inbox.questionnaires.filter(q => q.turn === turn).length + inbox.campaigns.filter(c => c.turn === turn).length;
-  const tabs = el('div', 'chips small client-tabs');
+  const tabs = el('div', 'chips client-tabs');
   tabs.setAttribute('role', 'tablist');
   for (const t of TURNS) {
     const b = el('button', '', t.label);
@@ -336,7 +336,9 @@ export function renderClients() {
 // ---------- one questionnaire ----------
 
 const MODE = {self: 'Filled in by the client', call: 'Pre-filled after our call', ai: 'Filled in with an AI assistant'};
-const FLAG = {file: 'From their AI file', prefill: 'From our call'};
+// Where an answer came from, said once in the header and marked by a small sign on the answer.
+const FLAG = {file: {sign: '✦', text: 'from their AI file'}, prefill: {sign: '◆', text: 'from our call'}};
+const IMAGE = /\.(png|jpe?g|gif|webp|avif)$/i;
 const when = iso => (iso ? new Date(iso).toLocaleString('en-GB', {day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'}) : '');
 const size = n => (n > 1e6 ? (n / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1e3)) + ' KB');
 
@@ -393,10 +395,18 @@ function questionRow(q, d, canAsk) {
   const row = el('div', 'q-row' + (view.selected.has(q.key) ? ' is-selected' : '') + (canAsk ? ' is-selectable' : ''));
   row.id = 'q-' + q.key.replace(/[^\w-]/g, '_');
   const label = el('div', 'q-label');
-  label.append(el('span', '', q.label));
-  if (q.req && !q.answered) label.append(el('span', 'client-tag is-warn', 'Missing'));
-  if (q.flag) label.append(el('span', 'client-tag', FLAG[q.flag] || q.flag));
-  if (q.unlocked) label.append(el('span', 'client-tag is-open', 'Unlocked for the client'));
+  label.append(el('span', 'q-label-text', q.label));
+  const flags = [];
+  if (q.req && !q.answered) flags.push(el('span', 'q-flag is-warn', 'Missing'));
+  if (q.unlocked) flags.push(el('span', 'q-flag is-open', 'Unlocked for the client'));
+  if (q.flag) {
+    const f = FLAG[q.flag] || {sign: '•', text: q.flag};
+    const mark = el('span', 'q-flag is-source', f.sign);
+    mark.title = 'Answer ' + f.text;
+    mark.setAttribute('aria-label', 'Answer ' + f.text);
+    label.querySelector('.q-label-text').append(' ', mark);
+  }
+  if (flags.length) { const line = el('span', 'q-flags'); line.append(...flags); label.append(line); }
   const body = el('div', 'q-value');
   body.append(valueNode(q.value));
   const replies = d.notes.filter(n => n.authorRole === 'client');
@@ -427,22 +437,43 @@ function filesNode(files) {
   if (!files.length) { box.append(el('p', 'note', 'No files.')); return box; }
   const groups = new Map();
   for (const f of files) groups.set(f.category, [...(groups.get(f.category) || []), f]);
+  const link = (f, cls) => {
+    const a = el('a', cls);
+    a.href = f.url; a.target = '_blank'; a.rel = 'noopener';
+    a.title = f.name + ' · ' + size(f.size);
+    return a;
+  };
   for (const [cat, list] of groups) {
     const g = el('div', 'q-file-group');
-    g.append(el('h4', '', cat + ' · ' + list.length));
-    const grid = el('div', 'q-file-grid');
-    for (const f of list) {
-      const a = el('a', 'q-file');
-      a.href = f.url; a.target = '_blank'; a.rel = 'noopener';
-      if (/\.(png|jpe?g|gif|webp)$/i.test(f.name)) {
+    const h = el('h4', '', cat);
+    h.append(el('span', 'client-count', String(list.length)));
+    g.append(h);
+    // Pictures as thumbnails; everything else as a line with its type: a wall of empty tiles helps no one.
+    const pictures = list.filter(f => IMAGE.test(f.name));
+    const others = list.filter(f => !IMAGE.test(f.name));
+    if (pictures.length) {
+      const grid = el('div', 'q-file-grid');
+      for (const f of pictures) {
+        const a = link(f, 'q-thumb');
         const img = el('img');
-        img.src = f.url; img.alt = ''; img.loading = 'lazy';
+        img.src = f.url; img.alt = f.name; img.loading = 'lazy'; img.decoding = 'async';
         a.append(img);
-      } else a.append(el('span', 'q-file-ext', (f.name.split('.').pop() || 'file').toUpperCase()));
-      a.append(el('span', 'q-file-name', f.name), el('span', 'q-file-size', size(f.size)));
-      grid.append(a);
+        grid.append(a);
+      }
+      g.append(grid);
     }
-    g.append(grid);
+    if (others.length) {
+      const ul = el('ul', 'q-file-list');
+      for (const f of others) {
+        const li = el('li');
+        const a = link(f, 'q-file');
+        const ext = (f.name.includes('.') ? f.name.split('.').pop() : 'file').slice(0, 4).toUpperCase();
+        a.append(el('span', 'q-file-ext', ext), el('span', 'q-file-name', f.name), el('span', 'q-file-size', size(f.size)));
+        li.append(a);
+        ul.append(li);
+      }
+      g.append(ul);
+    }
     box.append(g);
   }
   return box;
@@ -684,14 +715,15 @@ function renderQuestionnaire(root) {
   }
   head.append(titles, actions);
 
-  const status = el('p', 'q-status note', {
-    submitted: 'Read it through. Tick answers to ask about them, or approve.',
+  const source = d.mode === 'ai' ? ' ✦ marks answers taken from their AI file.' : d.mode === 'call' ? ' ◆ marks answers we pre-filled after the call.' : '';
+  const status = el('p', 'q-status note', ({
+    submitted: 'Read it through. Click answers to ask about them, or approve.',
     changes_requested: 'Waiting for the client to answer. Only the unlocked answers can change.',
     approved: 'Approved' + (d.approvedAt ? ' ' + when(d.approvedAt) : '') + '.',
     draft: 'The client is still filling it in.',
-  }[d.status] || '');
+  }[d.status] || '') + source);
 
-  const tabs = el('div', 'chips small q-parts');
+  const tabs = el('div', 'chips q-parts');
   if (d.parts.length > 1) {
     if (!view.part || !d.parts.some(p => p.id === view.part)) view.part = d.parts[0].id;
     for (const p of d.parts) {
@@ -719,7 +751,9 @@ function renderQuestionnaire(root) {
 
   const aside = el('aside', 'q-aside');
   const files = el('section', 'card');
-  files.append(el('h2', 'collection-heading', 'Files' + (part.files.length ? ' · ' + part.files.length : '')), filesNode(part.files));
+  const filesHead = el('h2', 'collection-heading', 'Files');
+  if (part.files.length) filesHead.append(el('span', 'client-count', String(part.files.length)));
+  files.append(filesHead, filesNode(part.files));
   const legal = el('section', 'card');
   legal.append(el('h2', 'collection-heading', 'NDA & terms'), legalNode(d.legal));
   aside.append(files, legal);

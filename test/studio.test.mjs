@@ -122,6 +122,10 @@ test('availability: the studio is off on the file store and says why', async () 
   assert.match(missing.reason, /delivery_exports.*supabase db push/);
   const ready = await studioAvailability({driver: 'supabase', db: async () => ({from: t => ({select: () => ({limit: async () => ({data: [], error: null})})})})}, {fresh: true});
   assert.equal(ready.enabled, true);
+  // A column error is not a missing table (the first version of this check asked delivery_exports for an id it has not got).
+  const column = await studioAvailability({driver: 'supabase', db: async () => ({from: () => ({select: () => ({limit: async () => ({data: null, error: {code: '42703', message: 'column delivery_exports.id does not exist'}})})})})}, {fresh: true});
+  assert.doesNotMatch(column.reason, /tables are missing/);
+  assert.match(column.reason, /column delivery_exports\.id/);
 });
 
 import {timeline} from '../studio.mjs';

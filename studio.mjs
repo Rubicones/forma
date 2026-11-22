@@ -253,7 +253,8 @@ export function buildInbox({questionnaires = [], campaigns = [], deliveries = []
 let availability = {at: 0, value: null};
 const CLIENT_TABLES = ['client_accounts', 'brand_questionnaires', 'campaign_requests', 'deliveries', 'delivery_comments', 'delivery_exports', 'client_events'];
 // Postgres "undefined table", PostgREST "table not in the schema cache".
-const isMissingTable = e => e?.code === '42P01' || e?.code === 'PGRST205' || /does not exist|could not find the table/i.test(e?.message || '');
+// Only a missing table counts: "column … does not exist" is another problem and is reported as it is.
+const isMissingTable = e => e?.code === '42P01' || e?.code === 'PGRST205' || /relation .* does not exist|could not find the table/i.test(e?.message || '');
 
 export async function studioAvailability(store, {fresh = false} = {}) {
   if (!fresh && availability.value && Date.now() - availability.at < 60000) return availability.value;
@@ -264,7 +265,7 @@ export async function studioAvailability(store, {fresh = false} = {}) {
     try {
       // The migration adds tables only (no schema_meta row), so the check is that the tables the studio reads answer.
       const db = await store.db();
-      const results = await Promise.all(CLIENT_TABLES.map(t => db.from(t).select('id').limit(1)));
+      const results = await Promise.all(CLIENT_TABLES.map(t => db.from(t).select('*').limit(0)));   // any columns: delivery_exports has no id
       const failed = results.map((r, i) => [CLIENT_TABLES[i], r.error]).filter(([, e]) => e);
       const missing = failed.filter(([, e]) => isMissingTable(e));
       value = missing.length

@@ -3,13 +3,8 @@
 import {$, el} from './dom.js';
 import {openModal, button, busy, message, confirmAction} from './ui.js';
 
-const TURNS = [
-  {id: 'studio', label: 'Waiting for us'},
-  {id: 'client', label: 'With the client'},
-  {id: 'done', label: 'Done'},
-];
 
-const view = {status: null, inbox: null, turn: 'studio', includeTest: true, loading: false, error: '', timer: null,
+const view = {status: null, inbox: null, includeTest: true, loading: false, error: '', timer: null,
   detail: null, detailId: null, detailKind: 'questionnaire', detailError: '', part: null, selected: new Set(), pending: [], busy: false,
   busyAction: null, flash: null, draft: ''};
 const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
@@ -35,7 +30,7 @@ function ago(iso) {
   if (s < 60) return 'just now';
   if (s < 3600) return Math.round(s / 60) + ' min ago';
   if (s < 86400) return Math.round(s / 3600) + ' h ago';
-  if (s < 86400 * 7) return Math.round(s / 86400) + ' d ago';
+  if (s < 86400 * 7) { const d = Math.round(s / 86400); return d + (d === 1 ? ' day ago' : ' days ago'); }
   return new Date(iso).toLocaleDateString('en-GB', {day: 'numeric', month: 'short'});
 }
 
@@ -198,71 +193,81 @@ function tag(text, cls = '') {
   return el('span', 'client-tag' + (cls ? ' ' + cls : ''), text);
 }
 
-function questionnaireItem(q) {
-  const li = el('li', 'client-item is-link turn-' + q.turn);
-  li.tabIndex = 0;
-  li.setAttribute('role', 'link');
-  li.onclick = () => openQuestionnaire(q.id);
-  li.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openQuestionnaire(q.id); } };
-  const head = el('div', 'client-item-head');
-  head.append(el('strong', 'client-item-title', q.name), el('span', 'client-status', q.label));
-  const meta = el('div', 'client-item-meta');
-  meta.append(tag(q.kind === 'agency' ? 'Agency' + (q.clients ? ' · ' + q.clients + (q.clients === 1 ? ' client' : ' clients') : '') : 'Brand'));
-  if (q.test) meta.append(tag('Test', 'is-test'));
-  const time = q.status === 'approved' ? q.approvedAt : q.status === 'submitted' ? q.submittedAt : q.updatedAt;
-  meta.append(el('time', 'client-time', (q.status === 'submitted' ? 'Sent ' : 'Updated ') + ago(time || q.updatedAt)));
-  li.append(head, meta);
-  return li;
-}
+// ---------- the inbox: what the studio owes its clients ----------
 
-async function openCampaign(id, {push = true} = {}) {
-  if (view.detailId !== id) view.flash = null;
-  view.detailKind = 'campaign';
-  view.detailId = id;
-  view.detailError = '';
-  if (view.detail?.id !== id) view.detail = null;
-  if (push) onRoute();
-  renderClients();
-  window.scrollTo(0, 0);
-  let detail = null, error = '';
-  try { detail = await getJSON('/api/studio/campaigns/' + encodeURIComponent(id)); } catch (err) { error = err.message; }
-  if (view.detailId !== id || view.detailKind !== 'campaign') return;
-  view.detail = detail;
-  view.detailError = error;
-  renderClients();
-}
+const DAY = 86400000;
+const quote = name => '“' + name + '”';
+const possessive = name => name + (/s$/i.test(name) ? '’' : '’s');
+const setupLine = c => [c.brand, c.formats.map(formatLabel).join(' and '), c.languages.map(l => l.toUpperCase()).join(', '),
+  c.kind === 'poster' ? 'still' : c.lengths.length ? c.lengths.join(' and ') + ' s' : ''].filter(Boolean).join(', ');
 
-function campaignItem(c) {
-  const li = el('li', 'client-item is-link turn-' + c.turn);
-  li.tabIndex = 0;
-  li.setAttribute('role', 'link');
-  li.onclick = () => openCampaign(c.id);
-  li.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openCampaign(c.id); } };
-  const head = el('div', 'client-item-head');
-  head.append(el('strong', 'client-item-title', c.name), el('span', 'client-status', c.label));
-  const sub = el('p', 'client-item-sub', [c.brand, KIND[c.kind] || '', c.formats.map(formatLabel).join(' '), c.languages.map(l => l.toUpperCase()).join(', '), c.kind !== 'poster' && c.lengths.length ? c.lengths.join(' / ') + ' s' : ''].filter(Boolean).join(' · '));
-  const meta = el('div', 'client-item-meta');
-  if (c.round) meta.append(tag('Round ' + c.round));
-  if (c.status !== 'delivered' && c.status !== 'cancelled') meta.append(tag(c.rebuildsLeft + (c.rebuildsLeft === 1 ? ' rebuild left' : ' rebuilds left')));
-  if (c.formaCampaignId) meta.append(tag('In Forma'));
-  if (c.test) meta.append(tag('Test', 'is-test'));
-  meta.append(el('time', 'client-time', (c.status === 'submitted' ? 'Requested ' : 'Updated ') + ago(c.status === 'submitted' ? c.createdAt : c.updatedAt)));
-  li.append(head, sub, meta);
-  return li;
+// How long something has waited, in words that fit a column ("23 min", "2 days").
+function waited(iso) {
+  if (!iso) return '';
+  const ms = Math.max(0, Date.now() - new Date(iso).getTime());
+  if (ms < 60000) return 'just now';
+  if (ms < 3600000) return Math.round(ms / 60000) + ' min';
+  if (ms < DAY) return Math.round(ms / 3600000) + ' h';
+  const d = Math.round(ms / DAY);
+  return d + (d === 1 ? ' day' : ' days');
 }
+// Fresh, over a day, over three days: the studio sees at a glance what has waited too long.
+const age = iso => { const ms = Date.now() - new Date(iso || Date.now()).getTime(); return ms > 3 * DAY ? 'is-late' : ms > DAY ? 'is-old' : ''; };
 
-function section(title, items, render, empty) {
-  const box = el('section', 'client-section');
-  const h = el('h2', 'collection-heading', title);
-  if (items.length) h.append(el('span', 'client-count', String(items.length)));
-  box.append(h);
-  if (!items.length) box.append(el('p', 'library-empty', empty));
-  else {
-    const list = el('ul', 'client-list');
-    for (const item of items) list.append(render(item));
-    box.append(list);
+// A queue line said as what happens next: {title, sub, note?, since, label, test, open | href}.
+function queueItem(x) {
+  if (x.kind === 'questionnaire') {
+    const q = x.q, who = q.name;
+    const sub = q.kind === 'agency' ? 'Agency' + (q.clients ? ' with ' + q.clients + (q.clients === 1 ? ' client' : ' clients') : '') : 'Brand';
+    const map = {
+      submitted: {title: `Review ${possessive(who)} questionnaire`, since: q.submittedAt || q.updatedAt, label: 'sent'},
+      changes_requested: {title: `${who} is answering our questions`, since: q.updatedAt, label: 'asked'},
+      draft: {title: `${who} is filling in the questionnaire`, since: q.updatedAt, label: 'started'},
+      approved: {title: `${possessive(who)} questionnaire approved`, since: q.approvedAt || q.updatedAt, label: ''},
+    }[q.status] || {title: who, since: q.updatedAt, label: ''};
+    return {...map, sub, test: q.test, open: () => openQuestionnaire(q.id)};
   }
-  return box;
+  const c = x.c, name = quote(c.name);
+  // The work itself happens on the Forma campaign; the request page is for accepting and reading.
+  const inForma = c.formaCampaignId ? '/campaigns/' + encodeURIComponent(c.formaCampaignId) : null;
+  const rebuild = c.status === 'in_progress' && /^Rebuild/.test(c.label);
+  const map = {
+    submitted: {title: `Accept or decline ${name}`, since: c.createdAt || c.updatedAt, label: 'requested'},
+    in_progress: rebuild
+      ? {title: `Rework the directions for ${name}`, note: `${c.brand} asked for a rebuild. Round ${c.round + 1} is next.`, since: c.updatedAt, label: 'asked', href: inForma}
+      : {title: `Send three directions for ${name}`, since: c.updatedAt, label: 'accepted', href: inForma},
+    review_directions: {title: `${c.brand} is choosing a direction in ${name}`, since: c.updatedAt, label: 'sent'},
+    in_production: {title: `Build and send the final for ${name}`, since: c.updatedAt, label: 'approved', href: inForma},
+    delivered: {title: `${name} delivered`, since: c.updatedAt, label: ''},
+    cancelled: {title: `${name} cancelled`, since: c.updatedAt, label: ''},
+  }[c.status] || {title: name, since: c.updatedAt, label: ''};
+  return {...map, sub: setupLine(c), test: c.test, open: map.href ? null : () => openCampaign(c.id)};
+}
+
+function queueRow(item, {mine = false} = {}) {
+  const li = el('li', 'queue-row' + (mine ? ' is-mine' : ''));
+  const target = item.href ? el('a', 'queue-target') : el('button', 'queue-target');
+  if (item.href) target.href = item.href; else { target.type = 'button'; target.onclick = item.open; }
+  const text = el('span', 'queue-text');
+  text.append(el('span', 'queue-title', item.title));
+  if (item.note) text.append(el('span', 'queue-note', item.note));
+  const sub = el('span', 'queue-sub', item.sub);
+  if (item.test) sub.append(tag('Test', 'is-test'));
+  text.append(sub);
+  const time = el('time', 'queue-time' + (mine ? ' ' + age(item.since) : ''));
+  if (item.since) time.dateTime = item.since;
+  time.textContent = mine ? waited(item.since) : item.label ? item.label + ' ' + ago(item.since) : ago(item.since);
+  if (mine && item.since) time.title = 'Waiting for us since ' + new Date(item.since).toLocaleString('en-GB', {day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'});
+  target.append(text, time);
+  li.append(target);
+  return li;
+}
+
+function queueList(items, opts = {}) {
+  // Our move sits on its own surface; what waits on clients is a quieter list.
+  const ul = el('ul', 'queue' + (opts.mine ? '' : ' is-quiet'));
+  for (const item of items) ul.append(queueRow(item, opts));
+  return ul;
 }
 
 export function renderClients() {
@@ -280,56 +285,61 @@ export function renderClients() {
     root.replaceChildren(el('p', 'library-empty', view.error || 'Loading clients…'));
     return;
   }
-  const count = turn => inbox.questionnaires.filter(q => q.turn === turn).length + inbox.campaigns.filter(c => c.turn === turn).length;
-  const tabs = el('div', 'chips client-tabs');
-  tabs.setAttribute('role', 'tablist');
-  for (const t of TURNS) {
-    const b = el('button', '', t.label);
-    b.type = 'button';
-    b.setAttribute('role', 'tab');
-    b.setAttribute('aria-pressed', String(view.turn === t.id));
-    b.setAttribute('aria-selected', String(view.turn === t.id));
-    const n = count(t.id);
-    if (n) b.append(el('small', '', String(n)));
-    b.onclick = () => { view.turn = t.id; renderClients(); };
-    tabs.append(b);
+  const all = [...inbox.questionnaires.map(q => ({kind: 'questionnaire', q, turn: q.turn})), ...inbox.campaigns.map(c => ({kind: 'campaign', c, turn: c.turn}))]
+    .map(x => ({...queueItem(x), turn: x.turn}));
+  const by = (turn, order) => all.filter(x => x.turn === turn).sort((a, b) => order * String(a.since || '').localeCompare(String(b.since || '')));
+  const mine = by('studio', 1);      // what has waited longest comes first
+  const theirs = by('client', 1);    // the client silent longest comes first
+  const done = by('done', -1);       // latest first
+
+  // The header says what the page holds today.
+  const summary = $('#clientsHead .note');
+  if (summary) {
+    const n = mine.length, m = theirs.length;
+    summary.textContent = (n ? (n === 1 ? 'One thing waits for you.' : n + ' things wait for you.') : 'Nothing waits for you.')
+      + (m ? ' ' + (m === 1 ? 'One is with a client.' : m + ' are with clients.') : '');
   }
+
+  const heading = (title, count, tagName = 'h2') => {
+    const h = el(tagName, 'queue-heading', title);
+    if (count) h.append(el('span', 'client-count', String(count)));
+    return h;
+  };
+  const nodes = [heading('Your move', mine.length)];
+  nodes.push(mine.length ? queueList(mine, {mine: true})
+    : el('p', 'queue-empty', 'You’re all caught up. New questionnaires, campaign requests and client answers will show up here.'));
+  if (theirs.length) nodes.push(heading('With clients', theirs.length), queueList(theirs));
+  if (done.length) {
+    const more = el('details', 'queue-more');
+    more.append(heading('Finished', done.length, 'summary'), queueList(done));
+    nodes.push(more);
+  }
+  if (inbox.activity.length) {
+    const recent = el('details', 'queue-more');
+    const list = el('ol', 'queue-log');
+    for (const a of inbox.activity.slice(0, 12)) {
+      const li = el('li');
+      const q = !a.campaignId ? inbox.questionnaires.find(x => x.accountId === a.accountId) : null;
+      const open = a.campaignId ? () => openCampaign(a.campaignId) : q ? () => openQuestionnaire(q.id) : null;
+      li.append(open ? button(a.text, 'queue-log-link', open) : el('span', '', a.text), el('time', 'queue-log-time', ago(a.at)));
+      list.append(li);
+    }
+    recent.append(heading('Recent activity', 0, 'summary'), list);
+    nodes.push(recent);
+  }
+  const foot = el('div', 'queue-foot');
   const testToggle = el('label', 'client-test-toggle');
   const box = el('input');
   box.type = 'checkbox';
   box.checked = view.includeTest;
   box.onchange = () => { view.includeTest = box.checked; loadInbox(); };
-  testToggle.append(box, document.createTextNode(' Show test accounts'));
-  const toolbar = el('div', 'client-toolbar');
-  toolbar.append(tabs, testToggle);
-
-  const qs = inbox.questionnaires.filter(q => q.turn === view.turn);
-  const cs = inbox.campaigns.filter(c => c.turn === view.turn);
-  const emptyQ = {studio: 'No questionnaires waiting.', client: 'No questionnaires with clients.', done: 'No approved questionnaires yet.'}[view.turn];
-  const emptyC = {studio: 'No campaigns waiting.', client: 'No campaigns with clients.', done: 'No finished campaigns yet.'}[view.turn];
-  const main = el('div', 'client-main');
-  main.append(section('Questionnaires', qs, questionnaireItem, emptyQ), section('Campaigns', cs, campaignItem, emptyC));
-
-  const aside = el('aside', 'client-activity card');
-  aside.append(el('h2', 'collection-heading', 'Activity'));
-  if (!inbox.activity.length) aside.append(el('p', 'note', 'Nothing has happened yet.'));
-  else {
-    const list = el('ol', 'client-activity-list');
-    for (const a of inbox.activity) {
-      const li = el('li');
-      // A line opens what it is about: the campaign request, or the account's questionnaire.
-      const q = !a.campaignId ? inbox.questionnaires.find(x => x.accountId === a.accountId) : null;
-      const open = a.campaignId ? () => openCampaign(a.campaignId) : q ? () => openQuestionnaire(q.id) : null;
-      const text = open ? button(a.text, 'client-activity-link', open) : el('span', '', a.text);
-      li.append(text, el('time', 'client-time', ago(a.at)));
-      list.append(li);
-    }
-    aside.append(list);
-  }
-  const layout = el('div', 'client-layout');
-  layout.append(main, aside);
-  const note = el('p', 'note client-refresh', view.loading ? 'Refreshing…' : view.error ? view.error : 'Updates every 30 seconds.');
-  root.replaceChildren(toolbar, layout, note);
+  testToggle.append(box, document.createTextNode('Include test accounts'));
+  foot.append(testToggle);
+  if (view.error) foot.append(el('span', 'note is-error', view.error));
+  nodes.push(foot);
+  const page = el('div', 'queue-page');
+  page.append(...nodes);
+  root.replaceChildren(page);
 }
 
 

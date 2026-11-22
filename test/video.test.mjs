@@ -48,3 +48,33 @@ test('dated model slugs share the capabilities of their model', () => {
   assert.ok(videoCaps('minimax/hailuo-3-max-20260901'));
   assert.equal(videoCaps('some/unknown-video'), null);
 });
+
+test('H3 Max: one keyframe; refused and failed requests do not use the budget', async () => {
+  const saved = {...process.env};
+  Object.assign(process.env, {OPENROUTER_API_KEY: 'test', MEDIA_VIDEO_POLL_MS: '1', OPENROUTER_VIDEO_MODEL: 'minimax/hailuo-3-max', MEDIA_MAX_VIDEOS: '1'});
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'forma-video-'));
+  await fs.writeFile(path.join(dir, 'a.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+  await fs.writeFile(path.join(dir, 'b.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+  const realFetch = globalThis.fetch;
+  let posts = 0, fail = true;
+  globalThis.fetch = async (url, init = {}) => {
+    if (init.method === 'POST') { posts++; return new Response(JSON.stringify({id: 'job' + posts, status: 'pending'})); }
+    if (String(url).includes('/content')) return new Response(new Uint8Array([0, 0, 0, 24]));
+    return new Response(JSON.stringify(fail ? {status: 'failed', error: {message: 'bad frame'}} : {status: 'completed', usage: {cost: 0.4}}));
+  };
+  try {
+    const session = mediaSession({dir, allow: {images: false, video: true}});
+    const ask = extra => session.video({prompt: 'Two fast upward swipes on the phone, locked-off camera.', name: 'swipe', ...extra});
+    await assert.rejects(ask({first_frame: 'a.png', last_frame: 'b.png'}), /one keyframe/);
+    assert.equal(posts, 0, 'refused before any request');
+    await assert.rejects(ask({first_frame: 'a.png'}), /did not use the video budget: 1 left/);
+    fail = false;
+    const out = await ask({first_frame: 'a.png'});
+    assert.equal(out.remaining, 0);
+    await assert.rejects(ask({first_frame: 'a.png'}), /budget for this build is used up/);
+  } finally {
+    globalThis.fetch = realFetch;
+    process.env = saved;
+    await fs.rm(dir, {recursive: true, force: true});
+  }
+});

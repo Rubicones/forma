@@ -58,3 +58,41 @@ test('runtime exposes FORMA.pin and FORMA.findSurface', () => {
   assert.match(html, /findSurface\(img/);
   assert.match(html, /pin\(el, quad\)/);
 });
+
+import {hardProblems, fixMessage} from '../campaigns.mjs';
+
+test('check after build: hard problems are breakage, not taste; the fix message names causes', () => {
+  const problems = {
+    errors: [{message: 'Script error: SecurityError: Failed to execute getImageData: The canvas has been tainted', where: ['9:16 · en']}, {message: 'Console error: deprecated API', where: ['1:1']}],
+    blank: ['9:16 · first frame'], green: ['1:1 · s1 in'],
+  };
+  const hard = hardProblems(problems);
+  assert.equal(hard.length, 3);
+  assert.match(hard[0], /^1 browser error \(Script error: SecurityError/);
+  assert.deepEqual(hardProblems({errors: [{message: 'Console error: deprecated API', where: []}], blank: [], green: []}), []);
+  const msg = fixMessage(problems);
+  assert.match(msg, /change nothing else/);
+  assert.match(msg, /tainted canvas means a picture or clip was read without CORS/);
+  assert.match(msg, /#00FF00 is visible in: 1:1 · s1 in/);
+  assert.doesNotMatch(msg, /deprecated API/);
+});
+
+import {stageRevisionPrompt, revisionMessage} from '../creative.mjs';
+
+test('revisions: sizes as numbers, no new lines of text, the frames of the current version', () => {
+  const p = stageRevisionPrompt({stage: 'final', kind: 'multi', setup: {kind: 'multi', formats: ['9x16'], languages: ['en'], lengths: [10]}});
+  assert.match(p, /at least a quarter for a size/);
+  assert.match(p, /A revision cannot add a new line/);
+  const m = revisionMessage({workFile: 'w.html', files: [], message: 'make the offer bigger', frames: [{rel: 'review/check-1/format-9x16.png', title: '9:16 · en · 10 s'}]});
+  assert.match(m, /Frames of the current version[^\n]*review\/check-1\/format-9x16\.png/);
+});
+
+import {scenarioMessage, scenarioPrompt as scenarioPromptFor} from '../creative.mjs';
+
+test('script step: the brand’s used ideas travel with a fresh script, not with a revision of one', () => {
+  const setup = {kind: 'multi', formats: ['9x16'], languages: ['en'], lengths: [10]};
+  const used = [{campaign: 'Spring', theme: 'Many versions of one idea', idea: 'One ad becomes a wall of variants', pictures: ['a contact sheet of ads']}];
+  assert.deepEqual(JSON.parse(scenarioMessage({setup, usedIdeas: used})).used_ideas, used);
+  assert.equal(JSON.parse(scenarioMessage({setup, usedIdeas: used, current: {theme: 'x'}})).used_ideas, undefined);
+  assert.match(scenarioPromptFor(setup), /"used_ideas", when present/);
+});

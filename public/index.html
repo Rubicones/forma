@@ -19,6 +19,7 @@
         <ul id="activeRunsList" class="active-runs-list"></ul>
       </div>
     </div>
+    <button type="button" id="clientsOpen" class="clients-open" hidden>Clients <span id="clientsCount" class="clients-count"></span></button>
     <button type="button" id="historyOpen" aria-expanded="false" aria-controls="history">History <span id="historyCount"></span></button>
     <div id="storeStatusPill" class="local"><b id="storeStatusDot"></b> <span id="storeStatusText">Local storage</span></div>
   </div>
@@ -63,6 +64,11 @@
     <div id="brandCards" class="brand-grid" aria-live="polite"><p class="library-empty">Loading brands…</p></div>
     <button type="button" id="legacyCampaigns" class="btn secondary" hidden>Unassigned campaigns →</button>
   </section>
+  <section id="clientsPage" class="library-page" aria-labelledby="clientsHeading" hidden>
+    <header id="clientsHead" class="library-head"><h1 id="clientsHeading">Clients</h1>
+      <p class="note">Questionnaires and campaign requests from the client dashboard.</p></header>
+    <div id="clientsBody" aria-live="polite"></div>
+  </section>
   <section id="campaignsPage" class="library-page" aria-labelledby="brandHeading" hidden>
     <header class="library-head"><h1 id="brandHeading"></h1>
       <div class="library-actions">
@@ -91,6 +97,15 @@
         <button type="button" id="brandNotesCancel" class="btn secondary small">Cancel</button>
       </div>
     </section>
+    <section id="brandBoard" class="brand-notes brand-board" aria-labelledby="brandBoardHeading" hidden>
+      <div class="brand-notes-head">
+        <h2 id="brandBoardHeading" class="collection-heading">Brand book</h2>
+        <button type="button" id="brandBoardToggle" class="btn secondary small" aria-expanded="false" aria-controls="brandBoardBody">Show</button>
+      </div>
+      <p id="brandBoardSummary" class="note" aria-live="polite"></p>
+      <div id="brandFigma" class="board-figma"></div>
+      <div id="brandBoardBody" hidden></div>
+    </section>
     <h2 class="collection-heading">Campaigns</h2>
     <div id="campaignCards" class="campaign-list" aria-live="polite"></div>
   </section>
@@ -116,6 +131,8 @@
     <p id="brandMessage" role="status" aria-live="polite"></p>
   <div id="pipelinePage" hidden>
   <button type="button" id="importBrand" class="btn secondary small" hidden>Create brand from campaign</button>
+
+  <section id="clientBanner" class="client-banner card" aria-label="Client request" hidden></section>
 
   <!-- Campaign bar (§8.1) -->
   <section id="campaignBar" class="campaign-bar card" hidden aria-label="Campaign settings">

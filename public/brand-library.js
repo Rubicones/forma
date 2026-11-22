@@ -75,6 +75,7 @@ customElements.define('campaign-thumbnail', CampaignThumbnail);
 
 export function campaignCard(campaign, detail, config, open) {
   const card = el('article', 'campaign-card');
+  card.dataset.campaignId = campaign.id;
   const cover = campaign.cover;
   const thumb = document.createElement('campaign-thumbnail');
   thumb.setAttribute('aria-hidden', 'true');

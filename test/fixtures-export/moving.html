@@ -1,0 +1,8 @@
+<!doctype html><html><body style="margin:0;background:#123">
+<div id="box" style="position:absolute;width:100px;height:100px;background:#ff4f17;left:0;top:40%"></div>
+<script>
+window.FORMA = {kind: 'multi', length: 1};
+window.renderFrame = t => { document.getElementById('box').style.left = Math.round(t * 400) + 'px'; };
+renderFrame(0);
+setTimeout(() => postMessage({type: 'forma:time', t: 0}, '*'), 50);
+</script></body></html>

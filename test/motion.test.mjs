@@ -359,5 +359,23 @@ describe('motion.mjs: inject & legacy parity', () => {
     const chosen = F.fitGroup([el1, el2], {max: 64, min: 16, step: 0.5});
     assert.ok(chosen <= 32 && chosen >= 31.5);
     assert.equal(el1.style.fontSize, el2.style.fontSize);
+
+    // Paused (review, export): every 30 fps frame seeks the clip to its own moment, none is skipped.
+    const seeks = [];
+    const video = {paused: true, duration: 10, _t: 0, get currentTime() { return this._t; }, set currentTime(v) { seeks.push(v); this._t = v; }, pause() {}, play() {}};
+    F.playing = false;
+    for (let i = 0; i < 30; i++) F.syncVideo(video, i / 30, 0);
+    assert.equal(seeks.length, 29, 'frame 0 is already there; each of the 29 next ones seeks');
+
+    // ?pr= sets the pixel density, capped so the long side stays within 4096 px.
+    const sandbox2 = {location: {search: '?f=9x16&l=en&d=10&pr=3'}, URLSearchParams, document: {documentElement: {dataset: {}, style: {setProperty() {}}}}, window: {}};
+    vm.runInNewContext(match[1], sandbox2);
+    assert.equal(sandbox2.window.FORMA.pixelRatio, 4096 / 1920);
+  });
+
+  it('asks for CORS on pictures and clips in the markup', () => {
+    const out = inject('<html><head></head><body><img src="assets/a.png"><video src="assets/b.mp4" crossorigin="anonymous"></video></body></html>', {stage: 'final', kind: 'single', formats: pickFormats(['1x1']), langs: ['en'], lengths: [6]});
+    assert.match(out, /<img crossorigin="anonymous" src="assets\/a.png">/);
+    assert.equal((out.match(/crossorigin=/g) || []).length, 2);
   });
 });

@@ -18,7 +18,8 @@ export function notesStatusText(n) {
   const base = {
     writing: 'Forma is reading the brand and writing the notes (usually 1–3 minutes). You can start a campaign meanwhile.',
     failed: 'Could not write the notes: ' + (n.error || 'unknown error') + (n.text ? ' The previous notes are kept.' : ''),
-    missing: 'No notes yet. “Write notes” reads the brand files and writes them (1–3 minutes).',
+    missing: n.text ? 'So far only the client decisions from the questionnaire. “Write notes” reads the brand files and writes the rest (1–3 minutes).'
+      : 'No notes yet. “Write notes” reads the brand files and writes them (1–3 minutes).',
     ready: n.source === 'edited' ? 'Edited by hand.' : n.source === 'supplied' ? 'Supplied with the brand files.'
       : 'Written by Forma from the brand files' + (n.model ? ' · ' + n.model : '') + (typeof n.cost === 'number' && n.cost > 0 ? ' · ≈ $' + n.cost.toFixed(2) + ' at API rates' : '') + '.',
   }[n.status] || '';

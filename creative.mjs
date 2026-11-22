@@ -1,7 +1,7 @@
 // Prompts shared by the Claude and Codex generators (legacy + Flow v2 P0–P9).
 import {language} from './shared/languages.mjs';
 import {formats as allFormats, defaultFormats} from './motion.mjs';
-import {imageModel, videoCaps} from './media.mjs';
+import {imageModel, videoCaps, mediaLimits} from './media.mjs';
 
 // ---- Legacy prompts (kept intact for POST /api/projects/:id/render and legacy revisions) ----
 
@@ -121,7 +121,7 @@ export function revisionInstructions({formats = [], duration = 8, media, editing
   ].filter(Boolean).join('\n\n');
 }
 
-export function revisionMessage({workFile, brief, files, thread, message, attachments, formats = [], duration, current, setup, scenario, style, stage, brandNotes}) {
+export function revisionMessage({workFile, brief, files, thread, message, attachments, formats = [], duration, current, setup, scenario, style, stage, brandNotes, frames = []}) {
   const lines = ['REVISION REQUEST'];
   if (workFile) lines.push('Working file with the current ad: ' + workFile);
   if (typeof brandNotes === 'string' && brandNotes.trim()) lines.push('Brand notes (approved by the client; their Client decisions override everything else):\n' + brandNotes.trim());
@@ -144,6 +144,7 @@ export function revisionMessage({workFile, brief, files, thread, message, attach
   }
   lines.push('New message from the user: ' + JSON.stringify(message || '(no text, see attachments)'));
   lines.push('Attachments with this message: ' + (attachments?.length ? JSON.stringify(attachments.map(assetEntry)) : 'none'));
+  if (frames.length) lines.push('Frames of the current version, rendered after it was built (open them before changing layout or sizes): ' + JSON.stringify(frames.map(f => ({file: f.rel, title: f.title}))));
   if (current) lines.push('Current document:\n' + current);
   return lines.join('\n');
 }
@@ -317,6 +318,8 @@ export const SCENARIO_SCHEMA = `{
 const P2 = `TASK: WRITE THE SCENARIO as structured JSON. This is story structure and copy only: no visual decisions.
 
 INPUT: the setup (kind, languages with the primary first, clip lengths in seconds, aspect formats), the brand materials manifest, optional notes from the user and an optional current scenario to revise.
+- "used_ideas", when present, are the ideas this brand's earlier campaigns already used (their theme, idea and the pictures chosen for them). Do not repeat their human truth, their turn or their central image, even in new words; find a different angle, unless the brief or the notes ask for a sequel.
+- "brief", when present, is the client's own campaign brief: what to promote, the goal, the offer, the button text, links and a note. Build the scenario on it. The offer's exact wording goes into the offer line word for word, and the button text into the CTA as given (translated only for other languages). "Up to you" leaves that choice to you. Files under client-references/ are the client's references for this campaign: look at them for what they show and say, not as a style to copy. "notes" come from the studio on top of the brief and win where the two differ.
 
 STORY
 - Theme: the human truth or tension and the promise, in one line. Idea: the tension and how the product resolves it, said in words, in one line. Both are in the primary language.
@@ -403,15 +406,17 @@ export function scenarioPrompt({kind = 'multi'} = {}) {
 }
 
 // JSON user message for scenario generation / revision / cuts planning (P4)
-export function scenarioMessage({files = [], brief, notes, current, setup = {}, missingCuts, brandNotes} = {}) {
+export function scenarioMessage({files = [], brief, notes, current, setup = {}, missingCuts, brandNotes, usedIdeas = []} = {}) {
   const effectiveNotes = Array.isArray(missingCuts) && missingCuts.length
     ? `Add cuts for these lengths: ${missingCuts.join(', ')} s. Keep all existing lines, translations and cuts unchanged.`
-    : (notes ?? brief ?? undefined);
+    : (notes ?? undefined);
   const payload = {
     setup: serializeSetup(setup),
     ...withBrandNotes(brandNotes),
     files: assetManifest(files),
   };
+  if (brief && !(Array.isArray(missingCuts) && missingCuts.length)) payload.brief = brief;
+  if (usedIdeas.length && !(Array.isArray(missingCuts) && missingCuts.length) && !current) payload.used_ideas = usedIdeas;
   if (current) payload.current = current;
   if (effectiveNotes) payload.notes = effectiveNotes;
   return JSON.stringify(payload);
@@ -507,7 +512,7 @@ KEYFRAMES
 
 DIRECTION TEXT
 - "idea": one sentence a stranger could retell: what the picture shows and its turn.
-- "direction": start with one line, "Approach: <what the picture shows> · <way of making> · <world> · Turn: <the turn>" (after the line with its step: "Native: …", "World: …" or "Bold: …"). Then the full production notes: ${kind === 'multi' ? 'for each beat of the scenario, what is in the frame and how it shows what the viewer should understand there, with the one subject or world that carries through all beats; ' : ''}hero, grid and composition per orientation; typography (faces, weights, scale, and its role in this world); colour beyond the brand anchors; the brand's devices used and their role; how every visual element is produced (supplied asset, generated picture, code) ${kind === 'poster' ? 'and the finishing details.' : kind === 'single' ? 'and a plan for the loop in a line or two: what moves, how it returns to its start, and what stays still.' : 'and a plan for motion in a line or two: per scene, what moves and the transition into the next scene.'}
+- "direction": start with one line, "Approach: <what the picture shows> · <way of making> · <world> · Turn: <the turn>" (after the line with its step: "Native: …", "World: …" or "Bold: …"). Then the full production notes: ${kind === 'multi' ? 'for each beat of the scenario, what is in the frame and how it shows what the viewer should understand there, with the one subject or world that carries through all beats; ' : ''}hero, grid and composition per orientation; typography (faces, weights, scale, and its role in this world); colour beyond the brand anchors; the brand's devices used and their role; how every visual element is produced (supplied asset, generated picture, a generated video clip for a moment pictures and code cannot make, code) ${kind === 'poster' ? 'and the finishing details.' : kind === 'single' ? 'and a plan for the loop in a line or two: what moves, how it returns to its start, and what stays still.' : 'and a plan for motion in a line or two: per scene, what moves and the transition into the next scene.'}
 - Read the core guidelines and representative references first. Skip license texts, font binaries and redundant screenshots.
 OUTPUT: only JSON {"styles":[{"name":"short distinctive name","idea":"one sentence: what the picture shows and its turn","direction":"Approach: … · Turn: …\\n\\n…","svg":"<svg xmlns=…>…</svg>"}]} with exactly three entries. Escape markup as valid JSON.`;
   return [P0, P1[kind] || P1.multi, p6].join('\n\n');
@@ -572,7 +577,7 @@ SCOPE
 - The preview must already carry the chosen direction's idea, light, colour, scale and turn. A tame layout with grey boxes would get a timid direction approved. Build for real everything code makes well: type, marks, interfaces, flat graphics and graphic worlds, in CSS, SVG, Canvas or a static WebGL/Three.js render drawn once in FORMA.setup.
 - Things with material, light and depth that the final will make as pictures (an object, a place, a moment, a device) get a placeholder, never an imitation in CSS or SVG shapes: an object built in code looks drawn, and the final would have to keep it.
 - The exception: when the direction says "3D in code:", build that object for real now in Three.js, as the final will (simple geometry, real materials, lit like the direction's world, its interface as a canvas texture), rendered once in FORMA.setup at the angle of the keyframe. The final keeps it and moves it.
-- 3D in code (Three.js from the import map: import * as THREE from 'three', helpers from 'three/addons/'): one WebGLRenderer({antialias: true, alpha: true, preserveDrawingBuffer: true}) sized to FORMA.width × FORMA.height, built in FORMA.setup and rendered once at the end of setup (the preview is static). Load image textures from their manifest URL with await new THREE.TextureLoader().loadAsync(url) inside FORMA.setup. Draw an interface texture on a 2D canvas with Canvas 2D calls (fillRect, roundRect, fillText) and use THREE.CanvasTexture; never through an SVG foreignObject, an <img> of an SVG that holds HTML, or html2canvas: those taint the canvas and WebGL refuses it ("Tainted canvases may not be loaded"), leaving the frame empty. The object is visible and lit from frame 0.
+- 3D in code (Three.js from the import map: import * as THREE from 'three', helpers from 'three/addons/'): one WebGLRenderer({antialias: true, alpha: true, preserveDrawingBuffer: true}) sized to FORMA.width × FORMA.height, built in FORMA.setup and rendered once at the end of setup (the preview is static). Load image textures from their manifest URL with await new THREE.TextureLoader().loadAsync(url) inside FORMA.setup. Draw an interface texture on a 2D canvas with Canvas 2D calls (fillRect, roundRect, fillText) and use THREE.CanvasTexture; never through an SVG foreignObject, an <img> of an SVG that holds HTML, or html2canvas: those taint the canvas and WebGL refuses it ("Tainted canvases may not be loaded"), leaving the frame empty. The object is visible and lit from frame 0. renderer.setPixelRatio(FORMA.pixelRatio) before setSize; no coincident faces (at least 0.05 units between surfaces not joined), a camera near/far fitted to the scene, bevelled thin edges, mipmaps and full anisotropy on every texture, a shadow camera fitted tightly around the object with PCFSoftShadowMap (not VSM): the final moves this object, and these keep it clean in motion.
 - ${hero ? 'ONE generated picture: the hero. Make the one picture the idea rests on (its main scene or main object) with generate_image, exactly once, as the final would: in the light, colour and taste of the direction and the brand notes, at the ratio of its largest crop with margins every format can survive, the real product in references when it appears. Use it in the composition with its final crop. Everything else the final will generate stays a placeholder: the' : 'NO generated imagery. The'} preview exists to judge composition, light and idea before the expensive final. Use the supplied brand assets freely. Use a placeholder wherever the final needs photography, footage or a generated image that the kit lacks${hero ? ' (beyond the one hero picture)' : ''}. Give it the exact size, crop, mask and position the final image will have; tint and light it in the direction's palette with a subtle 45° hatch (repeating-linear-gradient, 1px lines, ~8% contrast); and put a 11–12px monospace caption inside describing the intended image (e.g. "PHOTO · hand holding the card at checkout, macro, warm window light"). Where code will later set words or an interface on a surface of that picture (a screen, a sheet, a panel), say in the caption that the surface will be filled flat green for the interface layer, and draw that content in place at the surface's angle so the composition can be judged${hero ? '; in the hero picture, ask for the surface in #00FF00 and pin the interface with FORMA.findSurface and FORMA.pin as described under SCREENS' : ''}.
 - Static: no animation, no timers, no renderFrame.
 
@@ -583,7 +588,7 @@ MOTION NOTES (videos only)
 - Include <script type="application/json" id="forma-motion">…</script> with the intended motion, so the final can implement it: ${kind === 'single' ? '{"loop":"what moves and how it returns","still":["what never moves"]}' : '{"scenes":{"<id>":{"in":"entrance","hold":"living hold","out":"transition into the next scene"}},"recurring":"the element that carries through"}'}.
 
 RUNTIME AND COPY
-- window.FORMA exists before your code: format, width, height, short, long, orientation, safe {top,bottom,left,right}, lang, dir, copy {lineKey: text}, lines {lineKey: {role, scene}}, scenes [{id, beat, lines}], scene, setup(fn), fit(el,{max,min}), pin(el, quad), findSurface(img), fitGroup(elements,{max,min}). CSS variables --w, --h, --s (1% of the short side), --l and --safe-* are set. <html lang dir data-format data-orientation data-kind data-stage> are set.
+- window.FORMA exists before your code: format, width, height, short, long, orientation, safe {top,bottom,left,right}, lang, dir, copy {lineKey: text}, lines {lineKey: {role, scene}}, scenes [{id, beat, lines}], scene, pixelRatio, setup(fn), fit(el,{max,min}), pin(el, quad), findSurface(img), fitGroup(elements,{max,min}). CSS variables --w, --h, --s (1% of the short side), --l and --safe-* are set. <html lang dir data-format data-orientation data-kind data-stage> are set.
 - Read every string from FORMA.copy[key]. Never hardcode copy. A line missing from FORMA.copy is hidden in this format: lay out without it.
 - Put measuring and FORMA.fit / FORMA.fitGroup calls inside FORMA.setup(() => …). Fonts and images are loaded by then.
 - Every asset has a local URL in the manifest, starting with "assets/". Use that URL exactly in src, href and url(). You read files from inside the assets folder, so the path you see on disk is not the URL. No network and no CDN. Load fonts with @font-face from supplied files, or use a strong system stack.
@@ -636,7 +641,7 @@ const MOTION_V2 = {
 const formatRulesV2 = (formats, primaryFormat) =>
   formatRules(formats).replace(
     'It defines window.FORMA = {format, width, height, short, long, ratio, orientation, safe:{top,bottom,left,right}, duration, playing, setup(fn), fit(el,{max,min}), syncVideo(video,t,offset), random(seed)}.',
-    'It defines window.FORMA = {format, width, height, short, long, orientation, safe:{top,bottom,left,right}, lang, dir, copy:{lineKey: text}, lines:{lineKey: {role, scene}}, scenes:[{id, beat, lines}], scene, setup(fn), fit(el,{max,min}), pin(el, quad), findSurface(img), fitGroup(elements,{max,min}), cut, loop, length, playing, syncVideo, random}.'
+    'It defines window.FORMA = {format, width, height, short, long, orientation, safe:{top,bottom,left,right}, lang, dir, copy:{lineKey: text}, lines:{lineKey: {role, scene}}, scenes:[{id, beat, lines}], scene, pixelRatio, setup(fn), fit(el,{max,min}), pin(el, quad), findSurface(img), fitGroup(elements,{max,min}), cut, loop, length, playing, syncVideo, random}.'
   ) + `\n- Design every format deliberately: same elements, same story and timing, different arrangement and scale. The primary format (${primaryFormat.id}) is the approved preview; match it exactly there.`;
 
 const languagesRules = languages => `LANGUAGES & ALIGNMENT
@@ -653,7 +658,9 @@ const contractV2 = kind => `TECHNICAL CONTRACT
 - No loops, timers, CSS animations or transitions, autoplaying media or requestAnimationFrame of your own. Use FORMA.random(seed) instead of Math.random; never use Date.now. Play muted <video> through FORMA.syncVideo(video, t, startSecond) from renderFrame.
 - Put async preparation (measuring, FORMA.fit / fitGroup, texture loading, building the timeline) inside FORMA.setup(async () => { … }). renderFrame(0) must look finished enough to be a thumbnail.
 - 3D in code (Three.js from the import map: import * as THREE from 'three', helpers from 'three/addons/'): one WebGLRenderer({antialias: true, alpha: true, preserveDrawingBuffer: true}) sized to FORMA.width × FORMA.height, built in FORMA.setup and drawn on every renderFrame(t) call with the scene set from t alone (rotation, camera, light), so any frame can be drawn in any order. Load image textures from their manifest URL with await new THREE.TextureLoader().loadAsync(url) inside FORMA.setup. Draw an interface texture on a 2D canvas with Canvas 2D calls (fillRect, roundRect, fillText) and use THREE.CanvasTexture; never through an SVG foreignObject, an <img> of an SVG that holds HTML, or html2canvas: those taint the canvas and WebGL refuses it ("Tainted canvases may not be loaded"), leaving the frame empty. The object is visible and lit from frame 0.
-- Every asset has a local URL in the manifest, starting with "assets/". Use that URL exactly in src, href and url(). You read files from inside the assets folder, so the path you see on disk is not the URL. No network and no CDN. GSAP is the global gsap, lottie the global lottie; Three.js and three/addons/ are available through an import map. SVG, Canvas and WebGL work.`;
+- 3D craft: renderer.setPixelRatio(FORMA.pixelRatio) before setSize(FORMA.width, FORMA.height) (Forma sets the density: 2 on a real GPU for smooth edges, 1 in headless checks). Parts move like real things and in order (a lid opens before what is inside rises; a plate lifts clear before it slides or turns), and no two solid parts pass through each other at any moment: in setup, step the timeline every 0.1 s and test their THREE.Box3 bounds, and fix the motion, not the camera. No coincident faces (keep at least 0.05 units between surfaces that are not joined) and a camera near/far fitted to the scene (near about 1% of the distance to the object, far just past the scene), so nothing flickers. Bevel thin edges; give every texture, CanvasTexture and bump map included, mipmaps and anisotropy = renderer.capabilities.getMaxAnisotropy(); nothing thinner than 2 px on screen. Fit the shadow camera tightly around the object with a small margin and use PCFSoftShadowMap with a soft radius, not VSM (VSM bands on real GPUs). The check after the build renders in software WebGL, which hides some artefacts of real GPUs: follow these rules even when its frames look clean.
+- Every asset has a local URL in the manifest, starting with "assets/". Use that URL exactly in src, href and url(). You read files from inside the assets folder, so the path you see on disk is not the URL. No network and no CDN. GSAP is the global gsap, lottie the global lottie; Three.js and three/addons/ are available through an import map. SVG, Canvas and WebGL work.
+- Reading pixels (FORMA.findSurface, getImageData, a picture or <video> drawn into a canvas or a WebGL texture) works because every <img>, <video> and new Image() already asks for CORS: never set crossOrigin to anything else and never remove it. Never hide an error in an empty catch: let it reach the console (console.error) so the check after the build sees it and the frame is not silently empty or green.`;
 
 // Generated media for the flow v2 final and its revisions. Built around one rule from the art director's
 // compositing notes: a scene is one picture; layers only when the frame really needs them.
@@ -680,7 +687,9 @@ SCREENS, SIGNS AND SHEETS IN A PICTURE
 MULTI-FORMAT AND QUALITY
 - Generate a hero once at the ratio of its largest crop, with the subject placed to survive every format's crop and extendable margins, so object-fit: cover works everywhere. A separate plate only when one composition truly cannot serve a format.
 - After every generation, open the file and check it against the brief: the real product (shape, colour, label), the light, the crop and calm space, scale against its neighbours, and artifacts (warped hands, garbled text, doubled or mirrored objects, repeated patterns). If it misses, regenerate with a corrected prompt and the previous file in references. A few strong pictures beat many weak ones.${media.video ? `
-- Video is paid per second of clip: generate at most one clip, where code cannot do the move: a hero shot, or the change between two scenes that pictures cannot make (day turns to evening, an object transforms, the camera passes through a space). Generate and approve a still first, then pass it as first_frame (and the next scene's still as last_frame) with one simple camera move or action.${videoCaps() ? ' This model makes ' + videoCaps().durations[0] + '–' + videoCaps().durations.at(-1) + ' s clips at ' + (process.env.OPENROUTER_VIDEO_RESOLUTION && videoCaps().resolutions.includes(process.env.OPENROUTER_VIDEO_RESOLUTION) ? process.env.OPENROUTER_VIDEO_RESOLUTION : videoCaps().resolutions[0]) + ': ask for the shortest that covers the move and use the part you need; at this resolution the clip is one layer of the frame or a moving plate under the type, cropped with object-fit: cover, not something to enlarge further.' : ''} Treat the clip as a layer of the composition, muted, driven by FORMA.syncVideo.` : ''}`;
+- Video is paid per second of clip, so it goes where nothing else can make the moment. A clip is REQUIRED when the approved direction makes a moment as a video clip, or when its plan has a move that pictures and code cannot make: time visibly passing (light crossing a room, the sky turning to evening, windows lighting up), a gesture (a thumb swiping, a hand pouring), liquid, steam or smoke, people moving. Generate it then; a still with a zoom or pan does not replace it. One clip per such moment, within this build's limit of ${mediaLimits().videos}.
+- Generate and approve a still first, then animate it: pass it as first_frame${videoCaps()?.keyframes === 1 ? ' (this model takes one keyframe, first_frame or last_frame, never both)' : ' (and the next scene\'s still as last_frame for a change between scenes)'}.
+- Brief the motion like a director: the exact action with a verb, its tempo and count ("two fast upward swipes, about 0.4 s each, the third stops halfway"), never just "moves"; for time passing, the signs that show it in the frame (the sun patch crawling up the wall, the sky going from day to dusk, lamps warming, the cat turning over); "locked-off camera" unless the move is the point; for a screen to be filled by code, "the screen stays solid #00FF00 the whole time" and "the hand stays fully in frame, never over the screen". These cut the morphing that ruins a clip.${videoCaps() ? ' This model makes ' + videoCaps().durations[0] + '–' + videoCaps().durations.at(-1) + ' s clips at ' + (process.env.OPENROUTER_VIDEO_RESOLUTION && videoCaps().resolutions.includes(process.env.OPENROUTER_VIDEO_RESOLUTION) ? process.env.OPENROUTER_VIDEO_RESOLUTION : videoCaps().resolutions[0]) + ': ask for the shortest that covers the move and use the part you need; at this resolution the clip is one layer of the frame or a moving plate under the type, cropped with object-fit: cover, not something to enlarge further.' : ''} Treat the clip as a layer of the composition, muted, driven by FORMA.syncVideo.` : ''}`;
 };
 
 // P8 — FINAL (system = P0 + P1[kind] + MOTION[kind] + FORMATS + LANGUAGES + CONTRACT + mediaRules(media) + TASK + SELF-CHECK)
@@ -776,6 +785,9 @@ export function stageRevisionPrompt({stage = 'final', kind: rawKind, setup = {},
   {"<lineKey>": {"<lang>": "<new text>", …}}
   \`\`\`
   Include every language for each changed key, transcreated, within the line's character budget. The host applies it.
+- Text on screen comes only from the script's lines, the keys of FORMA.copy. A revision cannot add a new line: use an existing key that fits, or say in your reply that the line has to be added to the script in step 1.
+- SIZES AND AMOUNTS: when a note asks for bigger, smaller, more or less without a number, change it by an amount the eye sees at once (at least a quarter for a size), set type in units of the short side (var(--s) is 1% of it), and say the new value in your reply (for example "headline 7% → 9% of the short side"). A number in the note is followed exactly.
+- When "frames" of the current version are listed, open them with the Read tool before you change layout, sizes or crops: they show what the client sees in every format, which the code alone does not.
 - Preserve the technical contract: pure window.renderFrame(t), setup in FORMA.setup, no timers or CSS animations.
 - ${editing ? 'When done, reply in one to three sentences, in the user\'s language, saying what you changed (plus the forma-copy block if any). Do not paste the HTML.' : 'Return only the HTML document with the forma-reply comment (and any forma-copy block inside that comment).'}`;
 
@@ -831,7 +843,7 @@ export function validateCopyPatch(patch, scenario, campaignLanguages = []) {
 
   for (const [lineKey, langMap] of entries) {
     if (!validLines.has(lineKey)) {
-      throw err(`Unknown line key: "${lineKey}".`);
+      throw err(`Unknown line key: "${lineKey}". Text on screen comes only from the script's lines: add the line in step 1 (Script), or use one of ${[...validLines].join(', ') || 'its keys'}.`);
     }
     if (!langMap || typeof langMap !== 'object' || Array.isArray(langMap)) {
       throw err(`Invalid translations for line "${lineKey}".`);
@@ -967,6 +979,9 @@ export function splitClientDecisions(text = '') {
   return {decisions, rest: rest.replace(/\n{3,}/g, '\n\n').trim()};
 }
 
+// Notes that hold only the title and the client decisions (a brand made from a questionnaire) are not written yet.
+export const notesHaveBody = (text = '') => splitClientDecisions(text).rest.split('\n').some(l => l.trim() && !/^#\s/.test(l));
+
 export function composeBrandNotes(body = '', decisions = []) {
   const {rest} = splitClientDecisions(body);
   const lines = rest.split('\n');
@@ -995,7 +1010,7 @@ export function reviewPrompt({stage = 'final', kind = 'multi'} = {}) {
 LOOK FIRST
 - Open every sheet listed in "sheets" with the Read tool before you write a word${preview ? '' : ', and the approved preview sheet when one is given'}. Judge only what you can see in them, using "brand_notes", "idea" and "copy" to know what was intended.
 - Sheets named "Text close-ups" show the text of a frame at full size: read every word and number there for clipping, breaks inside a number or price, and type too small to read on a phone.
-- "render_problems", when present, is what the browser itself reported while rendering: script errors, failed loads, frames that came out a single flat colour. These are facts, not taste. A script error or a flat frame that leaves the frame empty, missing its hero or missing its copy is a P0, and your first note names it with the error text so the designer can fix the cause.
+- "render_problems", when present, is what the browser itself reported while rendering: script errors, failed loads, frames that came out a single flat colour, frames that still show pure chroma green. These are facts, not taste. A script error or a flat frame that leaves the frame empty, missing its hero or missing its copy is a P0, and your first note names it with the error text so the designer can fix the cause.
 
 ${preview ? `WHAT YOU JUDGE (the style can still move at this stage)
 - The aim of every frame: an attractive picture, in the brand's own style, that shows the idea as vividly as it can be shown. Attractive: a stranger wants to look. In the brand's style: made as its own designers would make it, in the world and taste the brand notes describe, not the parts of its kit side by side. Vivid: the idea is seen at once, before the words are read.
@@ -1034,7 +1049,7 @@ export function reviewMessage({stage = 'final', setup = {}, scenario, style, bra
     copy,
     sheets: sheets.map(s => ({file: s.rel, title: s.title})),
     ...(previewSheet ? {approved_preview_sheet: {file: previewSheet.rel, title: previewSheet.title}} : {}),
-    ...(problems?.errors?.length || problems?.blank?.length ? {render_problems: {browser_errors: problems.errors || [], flat_frames: problems.blank || []}} : {}),
+    ...(problems?.errors?.length || problems?.blank?.length || problems?.green?.length ? {render_problems: {browser_errors: problems.errors || [], flat_frames: problems.blank || [], chroma_green_left: problems.green || []}} : {}),
   });
 }
 

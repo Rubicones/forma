@@ -8,13 +8,14 @@ const API = 'https://openrouter.ai/api/v1';
 export const mediaKey = () => process.env.OPENROUTER_API_KEY;
 // Nano Banana 2: the lite tier gave mirrored corridors and badly fitted objects in the lab round; its cost is small next to the LLM.
 export const imageModel = () => process.env.OPENROUTER_IMAGE_MODEL || 'google/gemini-3.1-flash-image';
-// MiniMax H3 Max: 768p at about $0.08 a second, seconds to generate, first and last frame. H3 (minimax/hailuo-3) is 2K only at $0.13 a second.
+// MiniMax H3 Max: 768p at about $0.08 a second, seconds to generate, one keyframe (first or last frame: both together are refused).
+// H3 (minimax/hailuo-3) is 2K only at $0.13 a second.
 export const videoModel = () => process.env.OPENROUTER_VIDEO_MODEL || 'minimax/hailuo-3-max';
 const range = (a, b) => Array.from({length: b - a + 1}, (_, i) => a + i);
 // What OpenRouter accepts per model (from its /videos/models listing); it rejects any other value or field.
-// Models not listed here get the request as asked.
+// Models not listed here get the request as asked. keyframes: how many of first_frame / last_frame one request may carry.
 const VIDEO_CAPS = {
-  'minimax/hailuo-3-max': {durations: range(5, 15), resolutions: ['768p', '480p'], ratios: ['21:9', '16:9', '4:3', '1:1', '3:4', '9:16'], audio: false},
+  'minimax/hailuo-3-max': {durations: range(5, 15), resolutions: ['768p', '480p'], ratios: ['21:9', '16:9', '4:3', '1:1', '3:4', '9:16'], audio: false, keyframes: 1},
   'minimax/hailuo-3': {durations: range(5, 15), resolutions: ['2K'], ratios: ['21:9', '16:9', '4:3', '1:1', '3:4', '9:16'], audio: true},
 };
 export const videoCaps = (model = videoModel()) => VIDEO_CAPS[model.replace(/-\d{8}$/, '')] || null;
@@ -43,7 +44,7 @@ export const videoShape = {
   aspect_ratio: z.enum(['16:9','9:16','1:1','4:3','3:4','21:9']).default('9:16').describe('Not every video model supports every ratio; 16:9 and 9:16 are the safest.'),
   duration: z.number().int().min(3).max(15).default(5).describe('Clip length in seconds. The current model takes 5–15 s; a shorter ask is rounded up, so plan a clip at least 5 s long and use the part you need.'),
   first_frame: refPath.optional().describe('Image to start from (image-to-video). Best results: generate and inspect a still first, then animate it.'),
-  last_frame: refPath.optional().describe('Optional image to end on.'),
+  last_frame: refPath.optional().describe('Optional image to end on. Models that take one keyframe refuse first_frame and last_frame together: pass one of them.'),
   references: z.array(refPath).max(3).default([]).describe('Style or product references when no first_frame is given.'),
 };
 export const toolText = {
@@ -111,7 +112,7 @@ const wait = (ms, signal) => new Promise((ok, no) => {
 // log(message, {level, detail, media:{kind,file,name}, quiet})
 export function mediaSession({dir, signal, log = () => {}, allow = {images:true, video:false}}) {
   // A step may allow fewer pictures than the build limit (the preview gets one hero picture).
-  const limits = {...mediaLimits(), ...(Number.isInteger(allow.maxImages) ? {images: allow.maxImages} : {})}, used = {images:0, videos:0};
+  const limits = {...mediaLimits(), ...(Number.isInteger(allow.maxImages) ? {images: allow.maxImages} : {})}, used = {images:0, videos:0, videoFailures:0}, pending = {videos:0};
   const refs = list => list.length ? ' · references: ' + list.join(', ') : '';
 
   async function image(input) {
@@ -159,10 +160,16 @@ export function mediaSession({dir, signal, log = () => {}, allow = {images:true,
     try { args = z.object(videoShape).parse(input); }
     catch (error) { log('generate_video: invalid arguments', {level:'warn', detail:error.message}); throw error; }
     if (!allow.video) throw Error('Video generation is disabled for this build.');
-    if (used.videos >= limits.videos) { log('Video limit reached (' + limits.videos + ')', {level:'warn'}); throw Error('Video budget for this build is used up (' + limits.videos + ').'); }
-    used.videos++;
+    // Only a clip that comes back counts against the budget: a refused or failed request costs a retry, not a clip.
+    if (used.videos + pending.videos >= limits.videos) { log('Video limit reached (' + limits.videos + ')', {level:'warn'}); throw Error('Video budget for this build is used up (' + limits.videos + ').'); }
+    if (used.videoFailures >= 3) throw Error('Three video requests failed in this build. Continue without the clip and say why in your reply.');
     const model = videoModel(), started = Date.now();
     const caps = videoCaps(model);
+    if (caps?.keyframes === 1 && args.first_frame && args.last_frame) {
+      throw Error(model + ' takes one keyframe: pass first_frame or last_frame, not both. This did not use the video budget; ask again with one.');
+    }
+    pending.videos++;
+    try {
     // Fit the request to what the model accepts: the nearest allowed length at or above the ask, a ratio and resolution it lists,
     // and generate_audio only where the model has audio (the clip plays muted anyway).
     const duration = caps ? (caps.durations.find(d => d >= args.duration) ?? caps.durations.at(-1)) : args.duration;
@@ -207,7 +214,14 @@ export function mediaSession({dir, signal, log = () => {}, allow = {images:true,
     await fs.writeFile(path.join(dir, file), buf);
     log('OpenRouter ✓ ' + file + ' · ' + kb(buf.length) + ' · ' + Math.round((Date.now() - started) / 1000) + ' s' + usd(state.usage?.cost),
       {level:'done', media:{kind:'video', file, name:args.name, cost:state.usage?.cost}, cost:{kind:'video', usd:state.usage?.cost ?? null}});
+    used.videos++;
     return {file, url:'assets/' + file, duration:body.duration, aspect_ratio:body.aspect_ratio, model, cost:state.usage?.cost, remaining:limits.videos - used.videos};
+    } catch (error) {
+      used.videoFailures++;
+      throw Object.assign(error, {message: error.message + ' (This did not use the video budget: ' + (limits.videos - used.videos - pending.videos + 1) + ' left.)'});
+    } finally {
+      pending.videos--;
+    }
   }
 
   return {image, video, used, limits};

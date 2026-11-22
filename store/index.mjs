@@ -34,6 +34,8 @@ export const store = {
   },
   status: (...args) => currentDriver.status(...args),
   registerProject: (...args) => currentDriver.registerProject?.(...args),
+  // Supabase client of the cloud driver; null on the file driver.
+  db: () => (currentDriver.db ? currentDriver.db() : null),
   history: {
     open: (...args) => currentDriver.history.open(...args),
     openHistory: (...args) => currentDriver.history.open(...args),

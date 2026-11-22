@@ -2,6 +2,7 @@ import {materializeBrand, latestBrand, brandNotesText, brandNotesWriting, rememb
 // Campaign state, invalidation (§2.5), concurrency gating (§6.2), cost roll-up and HTTP routes (§6).
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import {EventEmitter} from 'node:events';
 import {randomUUID} from 'node:crypto';
 import {tmpdir} from 'node:os';
 import * as history from './history.mjs';
@@ -61,6 +62,30 @@ export function addCost(base = emptyCost(), delta = {}) {
     unknown: Boolean(base.unknown || delta.unknown),
   };
 }
+
+// Problems from the check after a build that break the frame (not taste): fixed on their own, once.
+const HARD_ERROR = /script error|securityerror|tainted|webgl|shader|did not load|never reported|failed to load|http 40[34]/i;
+export function hardProblems(problems = {}) {
+  const out = [];
+  const errors = (problems.errors || []).filter(e => HARD_ERROR.test(e.message));
+  if (errors.length) out.push(errors.length + (errors.length === 1 ? ' browser error' : ' browser errors') + ' (' + errors[0].message.slice(0, 120) + ')');
+  if (problems.blank?.length) out.push('flat frames: ' + problems.blank.join(', '));
+  if (problems.green?.length) out.push('chroma green left in: ' + problems.green.join(', '));
+  return out;
+}
+
+// The message of the fix: what the browser and the pixels showed, causes to fix, nothing else to change.
+export function fixMessage(problems = {}) {
+  const lines = ['The check after the build found frames that are broken. Fix the causes and change nothing else: composition, copy, timing and pictures stay as they are.'];
+  for (const e of (problems.errors || []).filter(e => HARD_ERROR.test(e.message))) lines.push(`- ${e.message} (${(e.where || []).join(', ')})`);
+  if (problems.blank?.length) lines.push(`- These frames came out a single flat colour (nothing drawn, or a scene failed): ${problems.blank.join(', ')}.`);
+  if (problems.green?.length) lines.push(`- Pure chroma green #00FF00 is visible in: ${problems.green.join(', ')}. The surface must be covered by the interface layer (keyed or pinned) in every frame, from the first one.`);
+  if ((problems.errors || []).some(e => /securityerror|tainted/i.test(e.message))) lines.push('- A tainted canvas means a picture or clip was read without CORS: keep crossorigin="anonymous" on it (the runtime sets it) and read it only after it has loaded.');
+  lines.push('- Never hide an error in an empty catch; let it reach the console.');
+  return lines.join('\n');
+}
+
+const withoutCheck = (output = {}) => { const {check, ...rest} = output; return rest; };
 
 export function validateSetup(raw = {}) {
   if (!raw || typeof raw !== 'object') {
@@ -875,6 +900,26 @@ export function registerCampaignRoutes(app, {
     return variants.find(v => v.id === activeVariantId) || variants[0];
   }
 
+  // A campaign made for a client request (studio-campaign.mjs): the request id is the campaign id, so accepting twice
+  // finds the campaign made the first time. `client` carries the request and its brief; `files` land in the project's
+  // assets next to the brand's (the client's references for this campaign).
+  async function createClientCampaign({id, brandId, brandVersion, setup, name, client, files = []}) {
+    const existing = await history.get(id).catch(() => null);
+    if (existing?.type === 'campaign') return hydrateCampaign(existing);
+    const project = randomUUID();
+    const dir = folder(project);
+    await fs.mkdir(path.join(dir, 'assets'), {recursive: true});
+    await store.registerProject(project);
+    const rec = {...createCampaignRecord({project, setup, name}), id, client, brandId, brandVersion};
+    for (const file of files) {
+      const dest = path.join(dir, 'assets', file.name);
+      await fs.mkdir(path.dirname(dest), {recursive: true});
+      await fs.writeFile(dest, file.bytes);
+    }
+    await materializeBrand(brandId, brandVersion, project, dir);   // also uploads the references written above
+    return hydrateCampaign(await history.record(rec));
+  }
+
   // POST /api/campaigns {project, setup, name?}
   app.post('/api/campaigns', async (req, res) => {
     const {brandId, brandVersion, setup, name} = req.body || {};
@@ -1193,7 +1238,9 @@ export function registerCampaignRoutes(app, {
         log('Demo script generated', {level: 'done'});
       } else {
         const system = scenarioPrompt(campaign.setup);
-        const user = scenarioMessage({files, notes: notes || undefined, current: currentScenario, setup: campaign.setup, brandNotes: await brandNotesFor(campaign, assets, log)});
+        const usedIdeas = currentScenario ? [] : await usedIdeasForBrand(campaign);
+        if (usedIdeas.length) log(`Ideas this brand already used: ${usedIdeas.length} earlier campaign${usedIdeas.length === 1 ? '' : 's'}`);
+        const user = scenarioMessage({files, brief: campaign.client?.briefText || undefined, notes: notes || undefined, current: currentScenario, setup: campaign.setup, brandNotes: await brandNotesFor(campaign, assets, log), usedIdeas});
         const onText = text => { job.text = text; job.tail = text.slice(-600); };
         let rawText = await runModelText({
           mode: sel.mode, billing: sel.billing, model: sel.model, effort: sel.effort,
@@ -1862,6 +1909,7 @@ export function registerCampaignRoutes(app, {
 
     let runStatus = 'done';
     let entryId = null;
+    let pendingFix = null;
     try {
       await timed(log, 'Sign-in checked', () => checkProvider(sel.mode, sel.billing));
       await timed(log, 'Project files ready', () => store.sync.down(campaign.project, {dataDir}));
@@ -1980,6 +2028,7 @@ export function registerCampaignRoutes(app, {
         cost: addCost(campaign.cost, job.costs),
       });
 
+      pendingFix = await afterBuild({campaign, entry, stage: 'preview', sel, log});
       res.json({
         url: previewURL + rel,
         format: primaryFormatId,
@@ -1995,6 +2044,7 @@ export function registerCampaignRoutes(app, {
       throw error;
     } finally {
       await finishCampaignRun(campaign.id, requestId, job, {status: runStatus, entryId});
+      if (pendingFix && runStatus === 'done') startAutoFix(pendingFix);
     }
   });
 
@@ -2027,6 +2077,7 @@ export function registerCampaignRoutes(app, {
     let tempPreviewDir = null;
     let runStatus = 'done';
     let entryId = null;
+    let pendingFix = null;
     try {
       if ((media.images || media.video) && sel.mode !== 'demo' && !mediaKey()) {
         throw conflict('To generate images, add OPENROUTER_API_KEY to .env and restart the server.', 503);
@@ -2170,6 +2221,7 @@ export function registerCampaignRoutes(app, {
         cost: addCost(campaign.cost, job.costs),
       });
 
+      pendingFix = await afterBuild({campaign, entry, stage: 'final', sel, log});
       res.json({
         url: previewURL + rel,
         formats: campaign.setup.formats,
@@ -2186,6 +2238,7 @@ export function registerCampaignRoutes(app, {
     } finally {
       await finishCampaignRun(campaign.id, requestId, job, {status: runStatus, entryId});
       if (tempPreviewDir) await fs.rm(tempPreviewDir, {recursive: true, force: true}).catch(() => {});
+      if (pendingFix && runStatus === 'done') startAutoFix(pendingFix);
     }
   });
 
@@ -2334,13 +2387,23 @@ export function registerCampaignRoutes(app, {
       } else {
         const rel = 'review/' + requestId;
         const outDir = path.join(assets, rel);
-        log('Rendering frames in headless Chrome…');
-        const rendered = await renderSheets({
-          url: previewURL + entry.output.path, stage, setup: campaign.setup, scenario,
-          outDir, publicBase: assetURL(campaign.project, rel), log,
-        });
-        sheets = rendered.map(s => ({name: s.name, title: s.title, rel: rel + '/' + s.name + '.png', url: s.url, frames: s.frames}));
-        problems = rendered.problems || {errors: [], blank: []};
+        // The check after the build already rendered these frames: look at them instead of rendering again.
+        const checked = entry.output?.check;
+        const reuse = checked?.sheets?.length && !checked.error
+          && (await Promise.all(checked.sheets.map(sh => fs.access(path.join(assets, sh.rel)).then(() => true, () => false)))).every(Boolean);
+        if (reuse) {
+          log('Using the frames of the check after the build');
+          sheets = checked.sheets;
+          problems = {errors: [], blank: [], green: [], ...checked.problems};
+        } else {
+          log('Rendering frames in headless Chrome…');
+          const rendered = await renderSheets({
+            url: previewURL + entry.output.path, stage, setup: campaign.setup, scenario,
+            outDir, publicBase: assetURL(campaign.project, rel), log,
+          });
+          sheets = rendered.map(s => ({name: s.name, title: s.title, rel: rel + '/' + s.name + '.png', url: s.url, frames: s.frames}));
+          problems = rendered.problems || {errors: [], blank: []};
+        }
         let previewSheet = null;
         const approvedPreview = stage === 'final' && variant?.preview?.entryId ? await history.get(variant.preview.entryId) : null;
         if (approvedPreview?.output?.path) {
@@ -2393,6 +2456,93 @@ export function registerCampaignRoutes(app, {
     const full = await Promise.all(page.items.map(r => (r.output ? r : history.get(r.id))));
     res.set('Cache-Control', 'no-store').json(full.filter(Boolean).map(lightReview));
   });
+
+  // Ideas the brand's earlier campaigns already used, newest first: the script step is asked not to repeat them.
+  async function usedIdeasForBrand(campaign, limit = 8) {
+    if (!campaign.brandId) return [];
+    const others = [];
+    let before;
+    for (let page = 0; page < 3 && others.length < limit * 2; page++) {
+      const res = await history.list({type: 'campaign', before, limit: 200}).catch(() => ({items: []}));
+      others.push(...res.items.filter(c => c.id !== campaign.id && c.brandId === campaign.brandId && c.status !== 'merged' && c.status !== 'archived'));
+      before = res.next;
+      if (!before) break;
+    }
+    others.sort((a, b) => String(b.updatedAt || b.createdAt).localeCompare(String(a.updatedAt || a.createdAt)));
+    const out = [];
+    for (const c of others) {
+      if (out.length >= limit) break;
+      const sc = c.steps?.scenario?.entryId ? (await history.get(c.steps.scenario.entryId).catch(() => null))?.output?.scenario : null;
+      if (!sc?.theme && !sc?.idea) continue;
+      const pictures = [];
+      for (const v of c.variants || []) {
+        if (!v.preview?.entryId || !v.styles?.entryId) continue;
+        const style = (await history.get(v.styles.entryId).catch(() => null))?.output?.styles?.[v.styles.chosenIndex];
+        if (style?.idea && !pictures.includes(style.idea)) pictures.push(String(style.idea).slice(0, 200));
+      }
+      out.push({campaign: c.name, theme: String(sc.theme || '').slice(0, 200), idea: String(sc.idea || '').slice(0, 300), ...(pictures.length ? {pictures: pictures.slice(0, 4)} : {})});
+    }
+    return out;
+  }
+
+  // ---- The check after a build (no model): frames, browser errors, flat and green frames ----
+  // Runs on the server after every preview, final and revision, whoever started it (the app, a script, the lab).
+  // Hard problems are fixed once by a revision of its own; the art director's look (UI) reuses the frames.
+  const checkEnabled = sel => sel.mode !== 'demo' && process.env.FORMA_CHECK !== '0';
+  async function checkBuild(campaign, entry, stage, log) {
+    const assets = path.join(folder(campaign.project), 'assets');
+    const rel = 'review/check-' + entry.id;
+    const at = new Date().toISOString();
+    try {
+      log('Checking the frames in headless Chrome…');
+      const rendered = await renderSheets({
+        url: previewURL + entry.output.path, stage, setup: campaign.setup, scenario: await entryScenario(campaign, entry),
+        outDir: path.join(assets, rel), publicBase: assetURL(campaign.project, rel), log: () => {},
+      });
+      const sheets = rendered.map(sh => ({name: sh.name, title: sh.title, rel: rel + '/' + sh.name + '.png', url: sh.url, frames: sh.frames}));
+      const problems = {errors: [], blank: [], green: [], ...(rendered.problems || {})};
+      const hard = hardProblems(problems);
+      await store.sync.up(campaign.project, {dataDir}).catch(() => {});
+      log(hard.length ? 'The check found: ' + hard.join(' · ') : 'The check found no broken frames', {level: hard.length ? 'warn' : 'done'});
+      return {at, sheets, problems, hard};
+    } catch (err) {
+      log('The check could not render the frames: ' + err.message, {level: 'warn'});
+      return {at, error: err.message, sheets: [], problems: {errors: [], blank: [], green: []}, hard: []};
+    }
+  }
+
+  // Stores the check on the entry and decides on a fix: once per chain, never for a fix itself, unless turned off.
+  async function afterBuild({campaign, entry, stage, sel, log}) {
+    if (!checkEnabled(sel)) return null;
+    const check = await checkBuild(campaign, entry, stage, log);
+    const fix = check.hard.length && campaign.setup.review?.autoFix !== false && !entry.input?.autoFixOf
+      ? {requestId: randomUUID(), status: 'running'} : null;
+    if (fix) {
+      check.fix = fix;
+      log('Forma fixes these on its own (one revision), then the art director looks.', {level: 'step'});
+    }
+    await history.update(entry.id, {output: {...entry.output, check}}).catch(() => {});
+    return fix ? {...fix, entry: {...entry, output: {...entry.output, check}}, stage, problems: check.problems, sel} : null;
+  }
+
+  // Runs the fix after the build's own run has ended, as a revision with the problems as its message.
+  function startAutoFix(fix) {
+    const req = {body: {
+      message: fixMessage(fix.problems), requestId: fix.requestId, autoFixOf: fix.entry.id,
+      mode: fix.sel.mode, billing: fix.sel.billing, model: fix.sel.model, effort: fix.sel.effort,
+    }};
+    const res = new EventEmitter();
+    Object.assign(res, {writableFinished: false, status() { return res; }, json(body) { res.body = body; res.writableFinished = true; return res; }});
+    const mark = async (status, extra = {}) => {
+      const cur = await history.get(fix.entry.id).catch(() => null);
+      if (cur?.output?.check) await history.update(cur.id, {output: {...cur.output, check: {...cur.output.check, fix: {...cur.output.check.fix, status, ...extra}}}}).catch(() => {});
+    };
+    setTimeout(() => {
+      reviseCampaignEntry(req, res, fix.entry)
+        .then(() => mark('done', {entryId: res.body?.historyId || fix.requestId}))
+        .catch(err => { console.error('[check] the fix failed:', err.message); return mark('failed', {error: err.message}); });
+    }, 0);
+  }
 
   async function reviseCampaignEntry(req, res, parent) {
     const campaign = await requireCampaign(parent.campaign);
@@ -2489,6 +2639,7 @@ export function registerCampaignRoutes(app, {
 
     let runStatus = 'done';
     let entryId = null;
+    let pendingFix = null;
     try {
       await fs.writeFile(workFile, source);
       let html, rawReply;
@@ -2506,6 +2657,11 @@ export function registerCampaignRoutes(app, {
           media: (media.images || media.video) ? media : null,
           editing: true,
         });
+        // The frames the check rendered after the parent was built: the designer sees what the client sees.
+        const frames = [];
+        for (const sh of parent.output?.check?.sheets || []) {
+          if (await fs.access(path.join(assets, sh.rel)).then(() => true, () => false)) frames.push(sh);
+        }
         const prompt = revisionMessage({
           workFile,
           files,
@@ -2517,6 +2673,7 @@ export function registerCampaignRoutes(app, {
           stage,
           scenario: effectiveScenario,
           style: targetVarInit.styles?.direction || campaign.steps.styles.direction,
+          frames,
         });
         ({html, reply: rawReply} = await runModelRevise({
           dir: assets, workFile, files, billing: sel.billing, model: sel.model, effort: sel.effort,
@@ -2601,9 +2758,10 @@ export function registerCampaignRoutes(app, {
           files,
           copyPatch: Object.keys(currentCopyPatch).length ? currentCopyPatch : undefined,
           revision: {parent: parent.id, message, attachments},
+          autoFixOf: validId(req.body?.autoFixOf) ? req.body.autoFixOf : undefined,
         },
         output: {
-          ...parent.output,
+          ...withoutCheck(parent.output),
           revision,
           path: rel,
           reply: cleanReply || 'Done.',
@@ -2637,6 +2795,7 @@ export function registerCampaignRoutes(app, {
         cost: addCost(campaign.cost, job.costs),
       });
 
+      pendingFix = await afterBuild({campaign, entry: newEntry, stage, sel, log});
       res.json({
         url: previewURL + rel,
         formats: parent.output.formats || [parent.output.format],
@@ -2654,8 +2813,9 @@ export function registerCampaignRoutes(app, {
     } finally {
       await finishCampaignRun(campaign.id, requestId, job, {status: runStatus, entryId});
       await fs.rm(work, {recursive: true, force: true}).catch(() => {});
+      if (pendingFix && runStatus === 'done') startAutoFix(pendingFix);
     }
   }
 
-  return {reviseCampaignEntry};
+  return {reviseCampaignEntry, createClientCampaign};
 }

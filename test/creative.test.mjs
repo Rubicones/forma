@@ -63,6 +63,10 @@ describe('creative.mjs: prompts P0–P9 and message builders', () => {
       missingCuts: [6, 15],
     }));
     assert.equal(cutsMsg.notes, 'Add cuts for these lengths: 6, 15 s. Keep all existing lines, translations and cuts unchanged.');
+
+    const briefed = JSON.parse(scenarioMessage({files: [], setup: sampleSetup, brief: 'Promote: the family plan', notes: 'Shorter hook'}));
+    assert.deepEqual([briefed.brief, briefed.notes], ['Promote: the family plan', 'Shorter hook']);
+    assert.equal(JSON.parse(scenarioMessage({files: [], setup: sampleSetup, brief: 'x', missingCuts: [6]})).brief, undefined);
   });
 
   it('builds P3 scenarioRepairMessage and P5 translatePrompt / translateMessage', () => {

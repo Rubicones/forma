@@ -1099,6 +1099,8 @@ export function createSupabaseStore({
     driver,
     status,
     registerProject,
+    // The raw Supabase client, for modules that read tables Forma does not own (the client dashboard's, studio.mjs).
+    db,
     history: {
       open,
       openHistory: open,
@@ -1162,6 +1164,37 @@ export function createPreviewReadThrough({dataDir, blobs}) {
     }
   };
 
+  // Byte ranges: browsers fetch MP4 with Range and can only seek a video whose server answers 206.
+  // Without it, FORMA.syncVideo's currentTime jumps fail, the clip snaps back to its start and looks frozen.
+  function byteRange(req, size) {
+    const m = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers?.range || '').trim());
+    if (!m || (!m[1] && !m[2])) return null;
+    let start, end;
+    if (!m[1]) { start = Math.max(0, size - Number(m[2])); end = size - 1; }
+    else { start = Number(m[1]); end = m[2] ? Math.min(Number(m[2]), size - 1) : size - 1; }
+    if (start > end || start >= size) return 'unsatisfiable';
+    return {start, end};
+  }
+
+  function sendRange(req, res, size, range) {
+    res.set('Accept-Ranges', 'bytes');
+    if (range === 'unsatisfiable') {
+      res.set('Content-Range', `bytes */${size}`);
+      res.status(416).end();
+      return null;
+    }
+    if (range) {
+      res.status(206);
+      res.set('Content-Range', `bytes ${range.start}-${range.end}/${size}`);
+      res.set('Content-Length', String(range.end - range.start + 1));
+    } else {
+      res.status(200);
+      res.set('Content-Length', String(size));
+    }
+    if (req.method === 'HEAD') { res.end(); return null; }
+    return range || {start: 0, end: size - 1};
+  }
+
   // Serves one data-relative path: local cache first, then `projects/<rel>` from the blob store. false = not found.
   async function serveRel(rel, req, res) {
     const localFile = path.resolve(root, rel);
@@ -1171,12 +1204,10 @@ export function createPreviewReadThrough({dataDir, blobs}) {
     const st = await fs.stat(localFile).catch(() => null);
     if (st?.isFile()) {
       res.set('Content-Type', contentType);
-      res.set('Content-Length', String(st.size));
-      if (req.method === 'HEAD') {
-        res.status(200).end();
-        return true;
-      }
-      const rs = createReadStream(localFile);
+      const span = sendRange(req, res, st.size, byteRange(req, st.size));
+      if (!span) return true;
+      if (st.size === 0) { res.end(); return true; }
+      const rs = createReadStream(localFile, {start: span.start, end: span.end});
       rs.on('error', () => {
         if (!res.headersSent) res.sendStatus(404);
         else res.end();
@@ -1196,9 +1227,8 @@ export function createPreviewReadThrough({dataDir, blobs}) {
     await fs.rename(partFile, localFile);
 
     res.set('Content-Type', contentType);
-    res.set('Content-Length', String(buf.length));
-    if (req.method === 'HEAD') res.status(200).end();
-    else res.status(200).end(buf);
+    const span = sendRange(req, res, buf.length, byteRange(req, buf.length));
+    if (span) res.end(buf.subarray(span.start, span.end + 1));
     return true;
   }
 }

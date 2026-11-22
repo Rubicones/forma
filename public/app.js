@@ -54,8 +54,11 @@ import {
 
 import {$, el} from './dom.js';
 import {campaignCard, libraryCard, listBrands, listBrandCampaigns, saveBrand} from './brand-library.js';
+import {fetchBoard, boardSummary, renderBoard, figmaPanel} from './brand-board.js';
+import {renderClientBanner, decorateClientCampaigns} from './client-banner.js';
 import {fetchBrandNotes, saveBrandNotes, rewriteBrandNotes, rememberDecision, notesStatusText, renderNotes, decideQuestion, withoutOpenQuestions} from './brand-notes.js';
 import {reviewEntry, listReviews, reviewRevisionMessage, isReviewMessage, PRIORITY_LABEL} from './review.js';
+import {openClientsPage, startClientsPolling, clientsPath} from './clients.js';
 const items = new Map();
 let busy = false;
 let busyStep = null;
@@ -388,7 +391,7 @@ drop.ondrop = async e => {
 };
 
 function showLibraryPage(page, title = '') {
-  for (const id of ['brandsPage', 'campaignsPage', 'brandEditor', 'pipelinePage']) {
+  for (const id of ['brandsPage', 'campaignsPage', 'brandEditor', 'pipelinePage', 'clientsPage']) {
     $('#' + id).hidden = id !== page;
   }
   if (page !== 'campaignsPage') $('#campaignCards').replaceChildren();
@@ -404,6 +407,17 @@ function showLibraryPage(page, title = '') {
 function renderBrandCards() {
   const cards = brandLibrary.map(b => libraryCard(b.name, 'Files: ' + b.files.length, () => openBrand(b.id), true));
   $('#brandCards').replaceChildren(...(cards.length ? cards : [el('p', 'library-empty', 'Add your first brand to start a campaign with its materials.')]));
+}
+
+// The studio's inbox for the client dashboard (public/clients.js).
+function openClients(parts = []) {
+  ++brandNavigation;
+  setCampaign(null);
+  editingSetup = false;
+  closeBrandEditor();
+  showLibraryPage('clientsPage', 'Clients');
+  window.scrollTo(0, 0);
+  openClientsPage(parts, {onUrl: () => syncUrl(), provider: () => currentProviderObject()}).catch(err => { status.textContent = err.message; });
 }
 
 function openBrands() {
@@ -430,6 +444,7 @@ async function openBrand(id) {
   $('#editBrand').hidden = $('#addCampaign').hidden = !brand;
   notesEditing = false;
   loadBrandNotes(brand?.id, request);
+  loadBrandBoard(brand?.id, request);
   $('#campaignCards').replaceChildren(el('p', 'library-empty', 'Loading campaigns…'));
   window.scrollTo(0, 0);
   try {
@@ -438,10 +453,82 @@ async function openBrand(id) {
     const cards = list.map(c => campaignCard(c,
       [KIND_NAMES[c.kind], c.updatedAt && when(c.updatedAt)].filter(Boolean).join(' · '), state.config, () => openCampaign(c.id)));
     $('#campaignCards').replaceChildren(...(cards.length ? cards : [el('p', 'library-empty', 'No campaigns yet.')]));
+    decorateClientCampaigns($('#campaignCards'));
   } catch (err) {
     if (request === brandNavigation) $('#campaignCards').replaceChildren(el('p', 'library-empty', err.message));
   }
 }
+
+// ---- The client's answer put to work (public/client-response.js) ----
+const clientActions = {
+  // Approved: the comments go into the chat of the approved direction's preview, ready to send as a revision.
+  onUseComments: async (text, variantId) => {
+    if (variantId && state.campaign?.variants?.some(v => v.id === variantId)) await handleSwitchVariant(variantId, {targetStep: 2});
+    chatInput.value = text;
+    chatInput.dispatchEvent(new Event('input', {bubbles: true}));
+    chatInput.focus();
+    status.textContent = 'The client’s comments are in the chat. Check them and send to revise the preview.';
+  },
+  // Rebuild: the reason and comments become the feedback for reworking all three directions.
+  onUseRebuild: async text => {
+    if (state.campaign) state.activeStep = 2;
+    reviseTarget = 'all';
+    renderWorkspace();
+    $('#styleFeedback').value = text;
+    if ($('#styleReviseBox').hidden) {
+      try { await navigator.clipboard.writeText(text); } catch { /* shown below anyway */ }
+      status.textContent = 'The feedback is copied. Open the visual directions of this campaign to rework them with it.';
+    } else {
+      $('#styleFeedback').focus();
+      status.textContent = 'The client’s feedback is in “What should change”. Rework all three directions with it.';
+    }
+  },
+};
+
+// ---- Brand book board on the brand page (public/brand-board.js): for people, never read by a step ----
+let boardData = null;
+const boardOpenKey = 'forma.brandBoardOpen';
+const boardOpen = () => { try { return localStorage.getItem(boardOpenKey) === '1'; } catch { return false; } };
+
+async function loadBrandBoard(id, request) {
+  boardData = null;
+  $('#brandBoard').hidden = !id;
+  $('#brandBoardBody').replaceChildren();
+  $('#brandFigma').replaceChildren();
+  if (!id) return;
+  $('#brandBoardSummary').textContent = 'Loading…';
+  try {
+    const board = await fetchBoard(id);
+    if (request !== brandNavigation) return;
+    boardData = board;
+    $('#brandBoardSummary').textContent = boardSummary(board) + '. For the team: no step and no model reads this view.';
+    $('#brandFigma').replaceChildren(figmaPanel(board, {
+      provider: () => currentProviderObject(),
+      onRead: async (_result, message) => {
+        brandLibrary = await listBrands();
+        loadBrandNotes(id, brandNavigation);
+        await loadBrandBoard(id, brandNavigation);
+        $('#brandFigma .board-figma-box > p[aria-live]')?.replaceChildren(message);
+      },
+    }));
+    showBrandBoard(boardOpen());
+  } catch (err) {
+    if (request === brandNavigation) $('#brandBoardSummary').textContent = err.message;
+  }
+}
+
+function showBrandBoard(open) {
+  $('#brandBoardToggle').setAttribute('aria-expanded', String(open));
+  $('#brandBoardToggle').textContent = open ? 'Hide' : 'Show';
+  $('#brandBoardBody').hidden = !open;
+  if (open && boardData && !$('#brandBoardBody').childElementCount) $('#brandBoardBody').replaceChildren(renderBoard(boardData));
+}
+
+$('#brandBoardToggle').onclick = () => {
+  const open = $('#brandBoardToggle').getAttribute('aria-expanded') !== 'true';
+  try { localStorage.setItem(boardOpenKey, open ? '1' : '0'); } catch { /* only a convenience */ }
+  showBrandBoard(open);
+};
 
 // ---- Brand notes on the brand page ----
 let notesState = null, notesEditing = false, notesTimer = null, notesBusy = false;
@@ -505,7 +592,7 @@ function renderBrandNotes() {
   $('#brandNotesEditActions').hidden = !notesEditing;
   $('#brandNotesEdit').hidden = notesEditing || !n.text || writing;
   $('#brandNotesRewrite').hidden = notesEditing || writing;
-  $('#brandNotesRewrite').textContent = n.text ? 'Rewrite' : 'Write notes';
+  $('#brandNotesRewrite').textContent = n.status === 'missing' ? 'Write notes' : 'Rewrite';
   for (const id of ['#brandNotesEdit', '#brandNotesRewrite', '#brandNotesSave', '#brandNotesCancel']) $(id).disabled = notesBusy;
   $('#brandNotesInput').disabled = notesBusy;
 }
@@ -570,13 +657,14 @@ $('#brandNotesRewrite').onclick = async () => {
 let routerReady = false, routeApplying = false;
 
 function visiblePage() {
-  return ['pipelinePage', 'brandEditor', 'campaignsPage', 'brandsPage'].find(id => !$('#' + id).hidden) || 'brandsPage';
+  return ['pipelinePage', 'brandEditor', 'campaignsPage', 'clientsPage', 'brandsPage'].find(id => !$('#' + id).hidden) || 'brandsPage';
 }
 
 function routeUrl() {
   const page = visiblePage();
   const brandSeg = activeBrandId ? encodeURIComponent(activeBrandId) : 'unassigned';
   if (page === 'brandsPage') return '/';
+  if (page === 'clientsPage') return clientsPath();
   if (page === 'campaignsPage') return '/brands/' + brandSeg;
   if (page === 'brandEditor') {
     if (editingBrand) return '/brands/' + encodeURIComponent(editingBrand.id) + '/edit';
@@ -644,7 +732,9 @@ async function applyRoute() {
   try {
     const parts = location.pathname.split('/').filter(Boolean).map(decodeURIComponent);
     const q = new URLSearchParams(location.search);
-    if (parts[0] === 'campaigns' && parts[1]) {
+    if (parts[0] === 'clients') {
+      openClients(parts.slice(1));
+    } else if (parts[0] === 'campaigns' && parts[1]) {
       await openCampaignFromUrl(parts[1], q);
     } else if (parts[0] === 'brands' && parts[1] === 'new') {
       editBrand(null);
@@ -698,6 +788,7 @@ async function openCampaign(id) {
 }
 
 $('#brandsHome').onclick = openBrands;
+$('#clientsOpen').onclick = () => { if (!busy) openClients(); };
 $('#brandBack').onclick = () => openBrand(activeBrandId);
 $('#legacyCampaigns').onclick = () => openBrand('');
 $('#addCampaign').onclick = () => { ++brandNavigation; beginCampaign(); };
@@ -1633,6 +1724,7 @@ function renderWorkspace() {
   syncReviews();
   if (c) activeBrandId = c.brandId || '';
   showLibraryPage('pipelinePage', c?.name || 'New campaign');
+  renderClientBanner($('#clientBanner'), c, clientActions);
   $('#newCampaignBtn').hidden = !selectedBrand();
   $('#importBrand').hidden = !c || Boolean(c.brandId);
   $('#newCampaignNameGroup').hidden = Boolean(c);
@@ -2620,10 +2712,11 @@ function renderReviewCard() {
       ? 'Style notes on the preview, while it can still change. ' + (auto ? 'They are applied automatically, once.' : 'Untick what you disagree with, then apply.')
       : 'An execution check of the final in every format and language. Its notes are applied automatically, once; a new look waits for your click.';
 
-  const errs = r?.problems?.errors || [], flat = r?.problems?.blank || [];
+  const errs = r?.problems?.errors || [], flat = r?.problems?.blank || [], green = r?.problems?.green || [];
   const problemText = [
     errs.length ? 'The browser reported ' + errs.length + (errs.length === 1 ? ' error' : ' errors') + ': ' + errs[0].message + (errs.length > 1 ? ' …' : '') : '',
     flat.length ? 'Flat frames: ' + flat.slice(0, 3).join(', ') + (flat.length > 3 ? ' …' : '') : '',
+    green.length ? 'Chroma green left: ' + green.slice(0, 3).join(', ') + (green.length > 3 ? ' …' : '') : '',
   ].filter(Boolean).join(' · ');
   $('#reviewSummary').hidden = !r?.summary && !problemText;
   $('#reviewSummary').textContent = [problemText, r?.summary || ''].filter(Boolean).join(' — ');
@@ -2716,7 +2809,7 @@ async function runReview(target, {auto = false, afterBuild = false} = {}) {
   if (r) reviewList = [r, ...reviewList.filter(x => x.id !== r.id)];
   renderReviewCard();
   if (!r) return null;
-  const broken = Boolean(r.problems?.errors?.length || r.problems?.blank?.length);
+  const broken = Boolean(r.problems?.errors?.length || r.problems?.blank?.length || r.problems?.green?.length);
   const apply = r.notes.length > 0 && (auto || (afterBuild && broken));
   status.textContent = r.notes.length
     ? 'The art director left ' + r.notes.length + (r.notes.length === 1 ? ' note.' : ' notes.') + (apply ? (broken && !auto ? ' The frames had render errors, so they are applied now…' : ' Applying them…') : '')
@@ -2745,10 +2838,19 @@ async function applyReview(r, {auto = false} = {}) {
 }
 
 // One look after every build; the notes are applied once when that step is set to apply them.
+const waitedFixes = new Set();   // fixes already waited for: a fix that failed is not waited for twice
 function lookAfterBuild(stage) {
   const c = state.campaign;
   const target = reviewTarget();
   if (!c || !target || (target.type === 'preview') !== (stage === 'preview')) return;
+  // The server checked the frames right after the build; broken ones are being fixed by a revision of its own.
+  const check = target.output?.check;
+  if (check?.fix?.status === 'running' && !waitedFixes.has(check.fix.requestId)) {
+    waitedFixes.add(check.fix.requestId);
+    status.textContent = 'The check found broken frames (' + (check.hard || []).join(' · ') + '). Forma is fixing them, then the art director looks.';
+    attachReadonlyRun({id: check.fix.requestId, campaignId: c.id, step: stage, author: 'Forma'}, {graceMs: 20000, onDone: () => lookAfterBuild(stage)});
+    return;
+  }
   if (c.setup?.provider?.mode === 'codex') return;
   runReview(target, {auto: stage === 'final' || Boolean(c.setup?.review?.autoApplyPreview), afterBuild: true});
 }
@@ -3202,8 +3304,11 @@ const STEP_LABELS = {
 
 let readonlyRunTracker = null;
 
-async function attachReadonlyRun(run) {
+// onDone: called once the run ends. graceMs: how long a run that has not started yet may be "missing"
+// (a fix Forma starts on its own begins a moment after the build that asked for it).
+async function attachReadonlyRun(run, {onDone = null, graceMs = 0} = {}) {
   if (busy) return;
+  const attachedAt = Date.now();
   if (readonlyRunTracker) {
     await readonlyRunTracker.stop().catch(() => {});
     readonlyRunTracker = null;
@@ -3234,6 +3339,7 @@ async function attachReadonlyRun(run) {
       const r = await fetch('/api/render-progress/' + run.id + '?since=' + trackerState.since, {cache: 'no-store'});
       if (!r.ok) return;
       const p = await r.json();
+      if (p.missing && Date.now() - attachedAt < graceMs) return;
       applyProgress(p, taskKind, trackerState);
       if (p.done || p.missing) {
         stopped = true;
@@ -3245,6 +3351,7 @@ async function attachReadonlyRun(run) {
             syncRightPaneToCampaign();
           }
         }
+        if (onDone) onDone();
       }
     } catch {}
   };
@@ -3408,6 +3515,7 @@ addEventListener('click', e => {
     updateModels();
     refreshHistory();
     pollActiveRuns();
+    startClientsPolling().catch(() => {});
 
   } catch (err) {
     $('#brandMessage').textContent = err.message;

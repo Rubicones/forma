@@ -3,6 +3,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {existsSync} from 'node:fs';
+import {spawn} from 'node:child_process';
+import {tmpdir} from 'node:os';
 import {formats as allFormats} from './motion.mjs';
 
 const CANDIDATES = {
@@ -71,7 +73,8 @@ function momentsInPage() {
     const p = F.loop.period;
     return [{t: 0, label: 'start'}, {t: round(p / 3), label: '⅓ loop'}, {t: round((2 * p) / 3), label: '⅔ loop'}, {t: round(p - 0.04), label: 'seam'}];
   }
-  const out = [];
+  // The first frame is the thumbnail and what a feed shows before playback: it is always looked at.
+  const out = [{t: 0, label: 'first frame'}];
   const wins = F.cut?.scenes || [];
   wins.forEach((w, i) => {
     const dur = w.end - w.start;
@@ -79,24 +82,38 @@ function momentsInPage() {
     if (i < wins.length - 1) out.push({t: round(w.end - 0.12), label: w.id + ' → ' + wins[i + 1].id});
   });
   out.push({t: round(F.length - 0.2), label: 'end hold'});
-  return out.length ? out : [{t: 0, label: 'start'}, {t: round(F.length / 2), label: 'middle'}, {t: round(F.length - 0.2), label: 'end'}];
+  return out.length > 1 ? out : [{t: 0, label: 'first frame'}, {t: round(F.length / 2), label: 'middle'}, {t: round(F.length - 0.2), label: 'end'}];
 }
 
-async function openFrame(page, url) {
+// readyMs: how long the creative's own setup may take (a clip analysed in FORMA.setup can take a minute or more).
+export const READY_MS = {review: 120000, export: 240000};
+async function openFrame(page, url, readyMs = READY_MS.review) {
   await page.evaluateOnNewDocument(() => {
     window.__formaReady = false;
     addEventListener('message', e => { if (e.data && e.data.type === 'forma:time') window.__formaReady = true; });
   });
-  await page.goto(url, {waitUntil: 'load', timeout: 45000});
+  await page.goto(url, {waitUntil: 'load', timeout: 60000});
   // A creative that never reports ready is still shot: its frames and its errors are what the art director needs to see.
-  return page.waitForFunction(() => window.__formaReady === true, {timeout: 30000}).then(() => true, () => false);
+  return page.waitForFunction(() => window.__formaReady === true, {timeout: readyMs, polling: 250}).then(() => true, () => false);
 }
 
+// Draws moment t. A clip the frame asked to seek shows its new frame only after 'seeked', so the frame is drawn again
+// then: creatives that paint video into a canvas or WebGL (keying, 3D screens) would otherwise show the previous frame.
 async function drawAt(page, t) {
   await page.evaluate(async time => {
-    try { window.renderFrame?.(time); } catch (e) { console.error(e); }
-    const videos = [...document.querySelectorAll('video')].filter(v => v.seeking);
-    await Promise.all(videos.map(v => new Promise(r => { v.addEventListener('seeked', r, {once: true}); setTimeout(r, 1500); })));
+    const draw = () => { try { window.renderFrame?.(time); } catch (e) { console.error(e); } };
+    draw();
+    const settle = v => new Promise(r => {
+      if (!v.seeking && v.readyState >= 2) return r();
+      const done = () => r();
+      v.addEventListener('seeked', done, {once: true});
+      v.addEventListener('loadeddata', done, {once: true});
+      setTimeout(done, 3000);
+    });
+    const videos = [...document.querySelectorAll('video')];
+    const waited = videos.filter(v => v.seeking || v.readyState < 2);
+    await Promise.all(waited.map(settle));
+    if (waited.length) draw();
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
   }, t);
 }
@@ -171,7 +188,7 @@ async function shoot({url, shots, scale = 0.5, onProgress = () => {}}) {
       await fresh.setViewport({width: f.w, height: f.h, deviceScaleFactor: scale});
       let ready = false;
       try { ready = await openFrame(fresh, u); } catch (e) { add('The creative did not load: ' + e.message); continue; }
-      if (!ready) add('The creative never reported it was ready (its setup did not finish within 30 s).');
+      if (!ready) add('The creative never reported it was ready (its setup did not finish within 2 minutes).');
       const times = shot.times === 'auto' || !shot.times ? await fresh.evaluate(momentsInPage).catch(() => [{t: 0, label: 'frame'}]) : shot.times;
       for (const m of times) {
         await drawAt(fresh, m.t);
@@ -205,7 +222,8 @@ const tileSize = fr => {
   return {w: Math.round(fr.w * k), h: Math.round(fr.h * k)};
 };
 
-// Writes one sheet. Returns the labels of frames that came out a single flat colour (nothing drawn, or the scene failed).
+// Writes one sheet. Returns the labels of frames that came out a single flat colour (nothing drawn, or the scene failed)
+// and of frames that still show pure chroma green (a screen surface the interface layer did not cover).
 async function composeSheet(frames, title, file) {
   const b = await browser();
   const page = await b.newPage();
@@ -224,22 +242,30 @@ async function composeSheet(frames, title, file) {
     </style></head><body><h1>${escapeHtml(title)}</h1><div class="grid">${tiles}</div></body></html>`;
     await page.setViewport({width: 1560, height: 800, deviceScaleFactor: 1});
     await page.setContent(html, {waitUntil: 'load'});
-    const blank = await page.evaluate(() => [...document.querySelectorAll('img[data-frame="1"]')].filter(img => {
-      const c = document.createElement('canvas');
-      c.width = 48; c.height = 48;
-      const x = c.getContext('2d');
-      x.drawImage(img, 0, 0, 48, 48);
-      const d = x.getImageData(0, 0, 48, 48).data;
-      let sum = 0, sq = 0;
-      for (let i = 0; i < d.length; i += 4) { const l = 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]; sum += l; sq += l * l; }
-      const n = d.length / 4, mean = sum / n;
-      return Math.sqrt(Math.max(0, sq / n - mean * mean)) < 4;
-    }).map(img => img.dataset.label)).catch(() => []);
+    const {blank, green} = await page.evaluate(() => {
+      const blank = [], green = [];
+      for (const img of document.querySelectorAll('img[data-frame="1"]')) {
+        const c = document.createElement('canvas');
+        c.width = 96; c.height = 96;
+        const x = c.getContext('2d');
+        x.drawImage(img, 0, 0, 96, 96);
+        const d = x.getImageData(0, 0, 96, 96).data;
+        let sum = 0, sq = 0, chroma = 0;
+        for (let i = 0; i < d.length; i += 4) {
+          const l = 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]; sum += l; sq += l * l;
+          if (d[i + 1] > 200 && d[i] < 90 && d[i + 2] < 90) chroma++;
+        }
+        const n = d.length / 4, mean = sum / n;
+        if (Math.sqrt(Math.max(0, sq / n - mean * mean)) < 4) blank.push(img.dataset.label);
+        else if (chroma / n > 0.004) green.push(img.dataset.label);
+      }
+      return {blank, green};
+    }).catch(() => ({blank: [], green: []}));
     const width = await page.evaluate(() => Math.ceil(document.body.getBoundingClientRect().width));
     await page.setViewport({width: Math.min(1560, Math.max(400, width)), height: 800, deviceScaleFactor: 1});
     await fs.mkdir(path.dirname(file), {recursive: true});
     await page.screenshot({path: file, type: 'png', fullPage: true});
-    return blank;
+    return {blank, green};
   } finally {
     await page.close().catch(() => {});
   }
@@ -276,6 +302,7 @@ export async function renderSheets({url, stage, setup, scenario, outDir, publicB
   const shots = planShots({stage, setup, scenario});
   let done = 0;
   const {frames, problems} = await shoot({url, shots, onProgress: () => { done++; if (done % 3 === 0 || done === shots.length) log('Rendered ' + done + ' of ' + shots.length + ' views'); }});
+  problems.green = [];
   const groups = new Map();
   for (const fr of frames) {
     if (!groups.has(fr.sheet)) groups.set(fr.sheet, []);
@@ -297,13 +324,101 @@ export async function renderSheets({url, stage, setup, scenario, outDir, publicB
       const name = base + (pages.length > 1 ? '-' + (i + 1) : '');
       const pageTitle = title + (pages.length > 1 ? ' · ' + (i + 1) + '/' + pages.length : '');
       const file = path.join(outDir, name + '.png');
-      const blank = await composeSheet(pages[i], pageTitle, file);
+      const {blank, green} = await composeSheet(pages[i], pageTitle, file);
       const fmt = key === 'preview' ? setup.formats?.[0] : key === 'languages' ? null : key;
       for (const label of blank) problems.blank.push((fmt ? fmtOf(fmt).label + ' · ' : '') + label);
+      for (const label of green) problems.green.push((fmt ? fmtOf(fmt).label + ' · ' : '') + label);
       sheets.push({name, title: pageTitle, file, url: publicBase + '/' + name + '.png', frames: pages[i].length});
     }
   }
   if (problems.errors.length) log('The browser reported ' + problems.errors.length + ' problem' + (problems.errors.length === 1 ? '' : 's') + ': ' + problems.errors[0].message, {level: 'warn'});
   if (problems.blank.length) log('Frames that came out a flat colour: ' + problems.blank.join(', '), {level: 'warn'});
+  if (problems.green.length) log('Frames with chroma green left: ' + problems.green.join(', '), {level: 'warn'});
   return Object.assign(sheets, {problems});
+}
+
+// ---------- export: the final as the client downloads it (export.mjs) ----------
+// A video is the creative drawn frame by frame with renderFrame(t) and encoded by ffmpeg; a still is one frame.
+// Both at the format's native size, deviceScaleFactor 1, one format, language and length per document.
+
+
+export async function findFfmpeg() {
+  if (process.env.FORMA_FFMPEG) return existsSync(process.env.FORMA_FFMPEG) ? process.env.FORMA_FFMPEG : null;
+  try {
+    const bundled = (await import('ffmpeg-static')).default;
+    if (bundled && existsSync(bundled)) return bundled;
+  } catch { /* not installed: try the one on PATH */ }
+  return 'ffmpeg';
+}
+
+async function openForExport({url, format, lang, length, problems}) {
+  const f = fmtOf(format);
+  const q = new URLSearchParams({f: f.id, l: lang, paused: '1', t: '0'});
+  if (length) q.set('d', String(length));
+  const page = await (await browser()).newPage();
+  watch(page, f.label + ' · ' + lang + (length ? ' · ' + length + ' s' : ''), problems);
+  await page.setViewport({width: f.w, height: f.h, deviceScaleFactor: 1});
+  if (!await openFrame(page, url + (url.includes('?') ? '&' : '?') + q, READY_MS.export)) problems.errors.push({message: 'The creative never reported it was ready.', where: [f.label]});
+  return {page, f};
+}
+
+// The moment a still shows: the poster itself, a third into a loop, or the end hold of a story (offer and CTA).
+function stillMoment() {
+  const F = window.FORMA || {};
+  if (F.kind === 'poster' || !(F.length > 0)) return 0;
+  if (F.loop?.period) return Math.round(F.loop.period / 3 * 100) / 100;
+  return Math.max(0, Math.round((F.length - 0.2) * 100) / 100);
+}
+
+export async function renderStill({url, format, lang, length = 0}) {
+  const problems = {errors: []};
+  const {page, f} = await openForExport({url, format, lang, length, problems});
+  try {
+    const t = await page.evaluate(stillMoment).catch(() => 0);
+    await drawAt(page, t);
+    const bytes = await page.screenshot({type: 'png'});
+    return {bytes: Buffer.from(bytes), width: f.w, height: f.h, problems};
+  } finally {
+    await page.close().catch(() => {});
+  }
+}
+
+export async function renderVideo({url, format, lang, length, fps = 30, ffmpeg, onProgress = () => {}, signal}) {
+  const problems = {errors: []};
+  const bin = ffmpeg || await findFfmpeg();
+  const {page, f} = await openForExport({url, format, lang, length, problems});
+  const frames = Math.max(1, Math.round(length * fps));
+  // MP4 with its index at the front needs a seekable output: a temporary file, read back at the end.
+  const file = path.join(tmpdir(), 'forma-export-' + process.pid + '-' + Date.now() + '-' + Math.random().toString(36).slice(2) + '.mp4');
+  let stderr = '';
+  // H.264 for every platform the client posts to: yuv420p, even sizes, the index at the front for streaming.
+  const proc = spawn(bin, ['-hide_banner', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(fps), '-c:v', 'mjpeg', '-i', 'pipe:0',
+    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-pix_fmt', 'yuv420p', '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2',
+    '-r', String(fps), '-movflags', '+faststart', '-y', file], {stdio: ['pipe', 'ignore', 'pipe']});
+  const done = new Promise((resolve, reject) => {
+    proc.on('error', err => reject(Object.assign(Error(err.code === 'ENOENT'
+      ? 'ffmpeg was not found: run npm install in the project folder, or set FORMA_FFMPEG in .env.' : 'ffmpeg failed: ' + err.message), {status: 503})));
+    proc.on('close', code => (code === 0 ? resolve() : reject(Error('ffmpeg stopped (' + code + '): ' + stderr.trim().slice(-300)))));
+  });
+  done.catch(() => {});
+  proc.stderr.on('data', c => { stderr += c; });
+  proc.stdin.on('error', () => {});   // ffmpeg quit early: its own error says why
+  try {
+    for (let i = 0; i < frames; i++) {
+      if (signal?.aborted) throw Error('Export stopped.');
+      await drawAt(page, i / fps);
+      const jpg = await page.screenshot({type: 'jpeg', quality: 92});
+      if (!proc.stdin.write(jpg)) await new Promise(r => proc.stdin.once('drain', r));
+      if (i % fps === 0) onProgress(i / frames);
+    }
+    proc.stdin.end();
+    await done;
+    return {bytes: await fs.readFile(file), width: f.w - (f.w % 2), height: f.h - (f.h % 2), problems};
+  } catch (err) {
+    proc.kill('SIGKILL');
+    throw err;
+  } finally {
+    await page.close().catch(() => {});
+    await fs.rm(file, {force: true}).catch(() => {});
+  }
 }

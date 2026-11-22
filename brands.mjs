@@ -6,18 +6,20 @@ import {pipeline} from 'node:stream/promises';
 import {createWriteStream} from 'node:fs';
 import express from 'express';
 import {store} from './store/index.mjs';
-import {classifyProjectFile, streamToBuffer} from './store/supabase.mjs';
+import {classifyProjectFile, streamToBuffer, contentTypeForPath} from './store/supabase.mjs';
+import {buildBoard, extractColours, readsColours, BOARD_TEXT_LIMIT} from './brand-board.mjs';
+import {readFigma, figmaStatus, figmaToken} from './figma.mjs';
 import {tmpdir} from 'node:os';
 import {createJob, logger, finishJob} from './jobs.mjs';
 import {settings} from './models.mjs';
-import {BRAND_NOTES_FILE, brandNotesPrompt, brandNotesMessage, composeBrandNotes, splitClientDecisions, addClientDecision, extractBrandNotes, decideOpenQuestion, openQuestions} from './creative.mjs';
+import {BRAND_NOTES_FILE, brandNotesPrompt, brandNotesMessage, composeBrandNotes, splitClientDecisions, addClientDecision, extractBrandNotes, notesHaveBody, decideOpenQuestion, openQuestions} from './creative.mjs';
 
 const manifests = 'brands/versions/';
 const files = 'brands/files/';
 const uuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
 const invalid = (message, status = 400) => Object.assign(Error(message), {status});
 // OS and VCS clutter that folder drops bring along (.DS_Store, __MACOSX, Thumbs.db, hidden dirs): dropped, not rejected.
-const isJunkPath = name => name.split('/').some(seg => (seg.startsWith('.') && seg !== '.' && seg !== '..') || seg === '__MACOSX' || /^(thumbs\.db|desktop\.ini)$/i.test(seg));
+export const isJunkPath = name => name.split('/').some(seg => (seg.startsWith('.') && seg !== '.' && seg !== '..') || seg === '__MACOSX' || /^(thumbs\.db|desktop\.ini)$/i.test(seg));
 
 async function latestVersions() {
   const keys = await store.blobs.list(manifests);
@@ -88,7 +90,7 @@ export async function brandNotesStatus(brand) {
   const text = await brandNotesText(brand);
   return {
     brand: {id:brand.id, version:brand.version, name:brand.name},
-    status: state?.status || (text ? 'ready' : 'missing'),
+    status: state?.status || (notesHaveBody(text) ? 'ready' : 'missing'),
     error: state?.error || null,
     text,
     source: brand.notes?.source || (text ? 'supplied' : null),
@@ -160,7 +162,7 @@ export function startBrandNotes(id, provider, deps = {}, {force = false} = {}) {
       const latest = await latestBrand(id);
       if (!latest) throw invalid('Brand not found.', 404);
       const before = await brandNotesText(latest);
-      if (before && !force) { notesState.delete(id); return; }
+      if (notesHaveBody(before) && !force) { notesState.delete(id); return; }
       let text;
       if (mode === 'demo') {
         text = demoNotes(latest);
@@ -197,7 +199,7 @@ export function startBrandNotes(id, provider, deps = {}, {force = false} = {}) {
       // Re-read: someone may have supplied or edited notes while the model was writing.
       const now = await latestBrand(id);
       const current = await brandNotesText(now);
-      if (current && !force && current !== before) { notesState.delete(id); return; }
+      if (notesHaveBody(current) && !force && current !== before) { notesState.delete(id); return; }
       const {decisions} = splitClientDecisions(current || before);
       await saveBrandNotes(id, composeBrandNotes(text, decisions), {
         source:'generated', at:new Date().toISOString(), basedOn:brandFilesHash(now.files),
@@ -214,6 +216,65 @@ export function startBrandNotes(id, provider, deps = {}, {force = false} = {}) {
     }
   })();
   return state;
+}
+
+// A brand the studio makes from files it already holds (stage 3: an approved client questionnaire). Idempotent on id:
+// when the brand exists it is returned as it is. The client decisions go into BRAND-NOTES.md at once, so they hold
+// even before (or without) the notes being written; the writer keeps them and fills in the rest.
+export async function createBrandFromFiles({id, name, files: input = [], decisions = [], origin = null}) {
+  if (!uuid.test(String(id))) throw invalid('Invalid brand id.');
+  const existing = await latestBrand(id);
+  if (existing) return existing;
+  const title = brandName(name);
+  const list = [];
+  for (const file of input) list.push({name:file.name, hash:await saveFile(file.bytes)});
+  const brand = {id, version:1, name:title, files:list, ...(origin ? {origin} : {})};
+  if (decisions.length) {
+    const hash = await saveFile(Buffer.from(composeBrandNotes(`# ${title} — brand notes\n`, decisions), 'utf8'));
+    brand.notes = {source:'questionnaire', at:new Date().toISOString(), basedOn:brandFilesHash(list)};
+    brand.files = [...list, {name:BRAND_NOTES_FILE, hash}];
+  }
+  try {
+    await writeVersion(brand);
+  } catch (err) {
+    if (err.status === 409) return latestBrand(id);
+    throw err;
+  }
+  return brand;
+}
+
+// Files read from a Figma file (figma.mjs) as the next brand version. A new read of the same file replaces what the
+// previous read added; everything else, the notes included, stays. brand.figma remembers each file read.
+export async function addFigmaFiles(id, read) {
+  const hashed = [];
+  for (const file of read.files) hashed.push({name:file.name, hash:await saveFile(file.bytes)});
+  const entry = {key:read.key, url:read.url, fileName:read.fileName, folder:read.folder, at:new Date().toISOString(),
+    frames:read.frames, styles:read.styles, ...(read.skipped?.length ? {skipped:read.skipped.slice(0, 50)} : {})};
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const latest = await latestBrand(id);
+    if (!latest) throw invalid('Brand not found.', 404);
+    const previous = (latest.figma || []).find(f => f.key === read.key);
+    const drop = [read.folder, previous?.folder].filter(Boolean).map(f => f + '/');
+    const kept = latest.files.filter(f => !drop.some(d => f.name.startsWith(d)));
+    const names = new Set(hashed.map(f => f.name));
+    const brand = {...latest, version:latest.version + 1, files:[...kept.filter(f => !names.has(f.name)), ...hashed],
+      figma:[...(latest.figma || []).filter(f => f.key !== read.key), entry]};
+    try {
+      await writeVersion(brand);
+      return brand;
+    } catch (err) {
+      if (err.status !== 409 || attempt) throw err;
+    }
+  }
+}
+
+// After new files arrive: write the notes if there are none yet (only client decisions count as none); otherwise the
+// notes are marked outdated by brandNotesStatus and the team chooses to rewrite.
+export async function notesAfterNewFiles(brand, provider, deps = {}) {
+  if (brandNotesWriting(brand.id)) return 'writing';
+  if (notesHaveBody(await brandNotesText(brand))) return 'outdated';
+  if (!provider?.mode || provider.mode === 'demo') return 'missing';
+  return startBrandNotes(brand.id, provider, deps) ? 'writing' : 'missing';
 }
 
 // Adds a client decision to the brand's latest notes (creating the notes file if there is none yet).
@@ -316,7 +377,7 @@ export function registerBrandRoutes(app, deps = {}) {
         previous = latest;
       }
     }
-    const brand = {id, version:(previous?.version || 0) + 1, name:title, files:nextFiles};
+    const brand = {id, version:(previous?.version || 0) + 1, name:title, files:nextFiles, ...(previous?.origin ? {origin:previous.origin} : {}), ...(previous?.figma ? {figma:previous.figma} : {})};
     const notesFile = brand.files.find(f => f.name === BRAND_NOTES_FILE);
     if (notesFile) {
       const kept = previous?.files.find(f => f.name === BRAND_NOTES_FILE)?.hash === notesFile.hash;
@@ -354,6 +415,59 @@ export function registerBrandRoutes(app, deps = {}) {
     const imported = await readBrand(id, 1);
     if (req.body?.provider?.mode && req.body.provider.mode !== 'demo' && !imported.files.some(f => f.name === BRAND_NOTES_FILE)) startBrandNotes(id, req.body.provider, deps);
     res.json(imported);
+  });
+
+  // The brand book board (brand-board.mjs): for people only, never part of a step or a model's input.
+  app.get('/api/brands/:id/board', async (req,res) => {
+    const brand = await latestBrand(req.params.id);
+    if (!brand) throw invalid('Brand not found.', 404);
+    const texts = [];
+    for (const f of brand.files.filter(f => readsColours(f.name)).slice(0, 200)) {
+      const body = await store.blobs.get(files + f.hash);
+      if (!body) continue;
+      const buf = await streamToBuffer(body);
+      if (buf.length <= BOARD_TEXT_LIMIT) texts.push({name:f.name, text:buf.toString('utf8')});
+    }
+    res.set('Cache-Control','no-store').json(buildBoard(brand, {colours:extractColours(texts), figmaConfigured:Boolean(figmaToken())}));
+  });
+
+  app.get('/api/figma/status', async (_req,res) => {
+    res.set('Cache-Control','no-store').json(await figmaStatus());
+  });
+
+  // "Read Figma": the file's frames and styles become brand files (figma.mjs). Notes are written if there are none yet.
+  app.post('/api/brands/:id/figma', async (req,res) => {
+    const latest = await latestBrand(req.params.id);
+    if (!latest) throw invalid('Brand not found.', 404);
+    const read = await readFigma(req.body?.url, {log:message => console.log('[figma] ' + message)});
+    if (!read.files.length) throw invalid('Nothing could be read from this file' + (read.skipped[0] ? ': ' + read.skipped[0].reason : '.'), 422);
+    const brand = await addFigmaFiles(latest.id, read);
+    const notes = await notesAfterNewFiles(brand, req.body?.provider, deps);
+    res.json({brand, read:{fileName:read.fileName, frames:read.frames, styles:read.styles, skipped:read.skipped}, notes});
+  });
+
+  // One brand file, by version and path. Versions are immutable, so the browser may keep it.
+  app.get('/api/brands/:id/file', async (req,res) => {
+    const name = typeof req.query.name === 'string' ? req.query.name : '';
+    const brand = await readBrand(req.params.id, Number(req.query.v));
+    const file = brand.files.find(f => f.name === name);
+    if (!file) throw invalid('File not found.', 404);
+    const body = await store.blobs.get(files + file.hash);
+    if (!body) throw invalid('The file is missing from storage.', 404);
+    const buf = await streamToBuffer(body);
+    const type = /\.pdf$/i.test(name) ? 'application/pdf' : /\.(md|txt)$/i.test(name) ? 'text/plain; charset=utf-8' : contentTypeForPath(name);
+    const inline = /\.(png|jpe?g|gif|webp|avif|svg|pdf|mp4|mov|webm|m4v|md|txt|ttf|otf|woff2?)$/i.test(name) && req.query.download !== '1';
+    res.set({'Content-Type':type, 'Accept-Ranges':'bytes', 'Cache-Control':'private, max-age=86400, immutable', 'X-Content-Type-Options':'nosniff',
+      'Content-Disposition':`${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(path.posix.basename(name))}`});
+    if (/\.svg$/i.test(name)) res.set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox");
+    const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '');
+    if (range && (range[1] || range[2])) {
+      let start = range[1] ? Number(range[1]) : Math.max(0, buf.length - Number(range[2]));
+      let end = range[1] && range[2] ? Math.min(Number(range[2]), buf.length - 1) : buf.length - 1;
+      if (start >= buf.length || start > end) return res.status(416).set('Content-Range', `bytes */${buf.length}`).end();
+      return res.status(206).set({'Content-Range':`bytes ${start}-${end}/${buf.length}`, 'Content-Length':String(end - start + 1)}).end(buf.subarray(start, end + 1));
+    }
+    res.set('Content-Length', String(buf.length)).end(buf);
   });
 
   app.get('/api/brands/:id/notes', async (req,res) => {

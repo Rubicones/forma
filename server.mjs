@@ -17,6 +17,7 @@ import {mediaKey, imageModel, videoModel, mediaLimits} from './media.mjs';
 import {models, settings} from './models.mjs';
 import {registerBrandRoutes} from './brands.mjs';
 import {registerCampaignRoutes} from './campaigns.mjs';
+import {registerStudioRoutes} from './studio.mjs';
 const root=path.dirname(fileURLToPath(import.meta.url));
 const data=path.resolve(process.env.DATA_DIR || path.join(root,'data'));
 const port=Number(process.env.PORT || 4317), host=process.env.HOST || '127.0.0.1';
@@ -46,6 +47,7 @@ const runModelText = async ({mode, billing, model, effort, dir, system, user, ta
   return generate({dir, files: [], billing, task, media: null, model, effort, controller, log, onText, prompt: {system, user}});
 };
 registerBrandRoutes(app, {runModelText, checkProvider});
+registerStudioRoutes(app, {store, deps:{runModelText, checkProvider, previewURL, createClientCampaign:(...args) => campaignRoutes.createClientCampaign(...args)}});
 // Each sign-in check runs a CLI (up to 10 s) and the store check is a database round trip; the page polls /api/status,
 // so their answers are kept for a while and refreshed in the background (the first call waits, later ones never do).
 const cachedCheck=(fn,ms)=>{let value,at=0,pending=null;return()=>{
@@ -163,7 +165,7 @@ app.post('/api/projects/:id/render',async(req,res)=>{
    finishJob(job);
  }
 });
-const {reviseCampaignEntry} = registerCampaignRoutes(app, {
+const campaignRoutes = registerCampaignRoutes(app, {
   root,
   dataDir: data,
   previewURL,
@@ -186,6 +188,7 @@ const {reviseCampaignEntry} = registerCampaignRoutes(app, {
     return revise({dir, workFile, files, billing, model, effort, systemPrompt, prompt, media, controller, log, onEdit, stage});
   },
 });
+const {reviseCampaignEntry} = campaignRoutes;
 
 app.get('/api/history',async(req,res)=>{
  const {type,project,before,limit,path:outputPath,campaign,author,excludeAuthor}=req.query;
@@ -295,7 +298,7 @@ app.post('/api/history/import-local',async(req,res)=>{
 app.use('/shared',express.static(path.join(root,'shared')));
 app.use(express.static(path.join(root,'public')));
 // Pages of the studio are real addresses: the app answers them and routes on the client.
-app.get(/^\/(?:brands|campaigns)(?:\/.*)?$/,(req,res)=>res.sendFile(path.join(root,'public','index.html')));
+app.get(/^\/(?:brands|campaigns|clients)(?:\/.*)?$/,(req,res)=>res.sendFile(path.join(root,'public','index.html')));
 preview.use((req,res,next)=>{
  res.set({'Access-Control-Allow-Origin':'*','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Content-Security-Policy':"sandbox allow-scripts; default-src 'none'; script-src 'self' 'unsafe-inline' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' blob:; connect-src 'self'; worker-src blob:; base-uri 'none'; form-action 'none'"}); next();
 });

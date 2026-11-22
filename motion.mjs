@@ -273,9 +273,42 @@ function runtimeV2(resolveFn, data) {
     '--safe-right': safe.right + 'px',
   };
   for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
+  // The page runs in an opaque sandbox origin: a picture or clip loaded without CORS taints any canvas or WebGL that
+  // reads it (empty 3D, green keying). Everything the creative makes in code asks for CORS; the server allows it.
+  const NativeImage = window.Image;
+  if (typeof NativeImage === 'function') {
+    window.Image = function Image(w, h) { const img = new NativeImage(w, h); img.crossOrigin = 'anonymous'; return img; };
+    window.Image.prototype = NativeImage.prototype;
+  }
+  if (typeof Document !== 'undefined' && Document.prototype?.createElement) {
+    const createElement = Document.prototype.createElement;
+    Document.prototype.createElement = function (name, options) {
+      const el = createElement.call(this, name, options);
+      if (/^(img|video|audio)$/i.test(String(name))) el.crossOrigin = 'anonymous';
+      return el;
+    };
+  }
+  // Pixel density for WebGL and canvas: ?pr= when Forma asks; otherwise 2 on a real GPU (smooth edges), 1 on the
+  // software renderer of headless review (four times fewer pixels), and never past 4096 px on the long side.
+  let pixelRatio = null;
+  const findPixelRatio = () => {
+    const asked = Number(params.get('pr'));
+    let pr = asked > 0 ? asked : 2;
+    if (!(asked > 0)) {
+      try {
+        const gl = document.createElement('canvas').getContext('webgl');
+        const info = gl && gl.getExtension('WEBGL_debug_renderer_info');
+        const name = info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : '';
+        if (!gl || /swiftshader|llvmpipe|software/i.test(name)) pr = 1;
+        gl?.getExtension('WEBGL_lose_context')?.loseContext();
+      } catch { pr = 1; }
+    }
+    return Math.max(1, Math.min(pr, 4096 / Math.max(state.width, state.height)));
+  };
   const setups = [];
   window.FORMA = {
     ...state,
+    get pixelRatio() { if (pixelRatio === null) pixelRatio = findPixelRatio(); return pixelRatio; },
     playing: false,
     setup(fn) { setups.push(fn); },
     _setups: setups,
@@ -317,8 +350,10 @@ function runtimeV2(resolveFn, data) {
         if (video.paused) video.play().catch(() => {});
         if (Math.abs(video.currentTime - target) > .25) video.currentTime = target;
       } else {
+        // Paused (seeking, frame-by-frame review and export): every frame asks for its own moment of the clip.
+        // A coarser threshold skips every other video frame at 30 fps and makes exported clips stutter.
         if (!video.paused) video.pause();
-        if (Math.abs(video.currentTime - target) > .04) video.currentTime = target;
+        if (Math.abs(video.currentTime - target) > .001) video.currentTime = target;
       }
     },
     // Pins an element to four points, e.g. the corners of a screen in a picture, with a perspective transform.
@@ -444,6 +479,9 @@ function controllerV2() {
 
 const json = value => JSON.stringify(value).replaceAll('<', '\\u003c');
 
+// <img>, <video> and <audio> without a crossorigin attribute get crossorigin="anonymous".
+export const withCors = html => String(html).replace(/<(img|video|audio)\b(?![^>]*\bcrossorigin\b)/gi, '<$1 crossorigin="anonymous"');
+
 export function inject(html, {
   stage = 'legacy',
   kind,
@@ -473,6 +511,8 @@ export function inject(html, {
     duration,
     scenario,
   };
+  // Pictures and clips in the markup ask for CORS too (the runtime covers the ones made in code).
+  html = withCors(html);
   const head = '<script>(' + runtimeV2.toString() + ')(' + resolveRuntime.toString() + ',' + json(payload) + ')</script>' + libs;
   html = /<head\b[^>]*>/i.test(html)
     ? html.replace(/<head\b[^>]*>/i, m => m + head)

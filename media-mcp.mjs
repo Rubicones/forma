@@ -5,7 +5,7 @@ import {fileURLToPath} from 'node:url';
 import {createInterface} from 'node:readline';
 import {appendFileSync} from 'node:fs';
 import {z} from 'zod';
-import {mediaSession, imageShape, videoShape, toolText, asToolResult} from './media.mjs';
+import {mediaSession, imageShape, videoShape, trackShape, toolText, asToolResult} from './media.mjs';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 try { process.loadEnvFile(path.join(root, '.env')); } catch {}
@@ -23,6 +23,7 @@ const schema = shape => { const {$schema, ...rest} = z.toJSONSchema(z.object(sha
 const tools = [];
 if (allow.images) tools.push({name:'generate_image', description:toolText.image, inputSchema:schema(imageShape)});
 if (allow.video) tools.push({name:'generate_video', description:toolText.video, inputSchema:schema(videoShape)});
+tools.push({name:'track_screen', description:toolText.track, inputSchema:schema(trackShape)});
 
 const send = message => process.stdout.write(JSON.stringify({jsonrpc:'2.0', ...message}) + '\n');
 createInterface({input:process.stdin}).on('line', async line => {
@@ -37,7 +38,7 @@ createInterface({input:process.stdin}).on('line', async line => {
     case 'tools/list': return reply({tools});
     case 'tools/call': {
       const {name, arguments:args} = msg.params || {};
-      const fn = name === 'generate_image' && allow.images ? session.image : name === 'generate_video' && allow.video ? session.video : null;
+      const fn = name === 'generate_image' && allow.images ? session.image : name === 'generate_video' && allow.video ? session.video : name === 'track_screen' ? session.track : null;
       if (!fn) return reply({isError:true, content:[{type:'text', text:'Unknown tool ' + name}]});
       return reply(await asToolResult(() => fn(args || {})));
     }

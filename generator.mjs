@@ -5,11 +5,11 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 
 import {instructions, briefMessage, output, revisionInstructions, revisionMessage} from './creative.mjs';
-import {mediaSession, imageShape, videoShape, toolText, asToolResult} from './media.mjs';
+import {mediaSession, imageShape, videoShape, trackShape, toolText, asToolResult} from './media.mjs';
 import {claudeCost, usd} from './pricing.mjs';
 
 const short = (text, n = 200) => { const s = String(text ?? '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
-const toolLabel = name => ({mcp__media__generate_image:'image generation', mcp__media__generate_video:'video generation'})[name] || name;
+const toolLabel = name => ({mcp__media__generate_image:'image generation', mcp__media__generate_video:'video generation', mcp__media__track_screen:'screen tracking'})[name] || name;
 
 function mediaServer({dir, media, controller, log}) {
   const mcpServers = {}, mediaTools = [];
@@ -18,6 +18,7 @@ function mediaServer({dir, media, controller, log}) {
     const tools = [];
     if (media.images) tools.push(tool('generate_image', toolText.image, imageShape, args => asToolResult(() => session.image(args))));
     if (media.video) tools.push(tool('generate_video', toolText.video, videoShape, args => asToolResult(() => session.video(args))));
+    tools.push(tool('track_screen', toolText.track, trackShape, args => asToolResult(() => session.track(args))));
     mcpServers.media = createSdkMcpServer({name:'media', version:'1.0.0', tools});
     mediaTools.push(...tools.map(t => 'mcp__media__' + t.name));
   }

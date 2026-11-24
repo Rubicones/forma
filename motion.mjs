@@ -306,9 +306,141 @@ function runtimeV2(resolveFn, data) {
     return Math.max(1, Math.min(pr, 4096 / Math.max(state.width, state.height)));
   };
   const setups = [];
+  const pendingScreens = [];
+  // ---- screens in clips: FORMA.screen(video, ui, {offset}) ----
+  // Normal: the clip baked with this interface for this language plays instead (assets/screens/<rev>.json lists them).
+  // No bake: the interface is pinned live to the track (<clip>.track.json), without occlusion, and the console says so.
+  // ?bake=<clip>: Forma's bake renders only that interface, flat, frame by frame (FORMA._bakeFrame). ?bake=list lists them.
+  // ?debug=track: the track's corners are drawn over the clip.
+  const bakeParam = params.get('bake'), debugTrack = params.get('debug') === 'track';
+  const clipKey = src => String(src || '').split(/[?#]/)[0].replace(/^\.\//, '').replace(/^.*\/p\/[^/]+\//, '');
+  const revName = (String(location.pathname || '').split('/').pop() || '').replace(/\.html$/, '');
+  let manifest = null;
+  const loadManifest = () => manifest || (manifest = fetch('assets/screens/' + encodeURIComponent(revName) + '.json', {cache: 'no-store'})
+    .then(r => (r.ok ? r.json() : {})).catch(() => ({})));
+  const screens = [];
+  const screenOf = new Map();   // video → screen
+  // Maps a point in a picture's own pixels to CSS px in its offsetParent, honouring object-fit and object-position.
+  const mapper = (el, nw, nh) => {
+    const bw = el.clientWidth, bh = el.clientHeight, cs = getComputedStyle(el), fit = cs.objectFit;
+    let sx = bw / nw, sy = bh / nh;
+    if (fit === 'cover') sx = sy = Math.max(bw / nw, bh / nh);
+    else if (fit === 'contain' || fit === 'scale-down') sx = sy = Math.min(bw / nw, bh / nh);
+    else if (fit === 'none') sx = sy = 1;
+    const pos = cs.objectPosition.split(' ');
+    const frac = (v, free) => v.endsWith('%') ? parseFloat(v) / 100 * free : v.endsWith('px') ? parseFloat(v) : free / 2;
+    const ox = frac(pos[0] || '50%', bw - nw * sx), oy = frac(pos[1] || pos[0] || '50%', bh - nh * sy);
+    return ([x, y]) => [el.offsetLeft + ox + x * sx, el.offsetTop + oy + y * sy];
+  };
+  const quadAt = (track, t) => {
+    const f = track.frames, x = Math.max(0, Math.min(f.length - 1, t * track.source.fps)), i = Math.floor(x), j = Math.min(f.length - 1, i + 1), k = x - i;
+    const a = f[i], b = f[j];
+    if (!a.q && !b.q) return null;
+    if (!a.q || !b.q) { const c = a.q ? a : b; return {q: c.q, v: c.v}; }
+    return {q: a.q.map((p, n) => [p[0] + (b.q[n][0] - p[0]) * k, p[1] + (b.q[n][1] - p[1]) * k]), v: a.v + (b.v - a.v) * k};
+  };
+  const drawScreen = (sc, clipTime) => {
+    if (!sc.track) return;
+    const at = quadAt(sc.track, clipTime);
+    const map = mapper(sc.video, sc.track.source.width, sc.track.source.height);
+    if (sc.mode === 'live') {
+      if (!at || at.v <= 0.01) { sc.ui.style.opacity = '0'; }
+      else {
+        const [tl, tr, br, bl] = at.q.map(map);
+        window.FORMA.pin(sc.ui, {tl, tr, br, bl});
+        sc.ui.style.opacity = String(at.v);
+      }
+    }
+    if (sc.overlay) {
+      const poly = sc.overlay.firstChild;
+      poly.setAttribute('points', at ? at.q.map(map).map(p => p.join(',')).join(' ') : '');
+      poly.setAttribute('stroke', at && at.v > 0.5 ? '#ff00d4' : '#ffb000');
+    }
+  };
   window.FORMA = {
     ...state,
     get pixelRatio() { if (pixelRatio === null) pixelRatio = findPixelRatio(); return pixelRatio; },
+    get screens() { return screens.map(sc => ({clip: sc.clip, size: sc.size, offset: sc.offset, mode: sc.mode})); },
+    // Puts an interface on the green screen inside a clip. Call it in FORMA.setup with the <video> and the element
+    // that holds the interface (data-forma-screen, data-size="1440x900": the screen's own pixels). offset: when the
+    // clip starts on the timeline, as in FORMA.syncVideo. Keep calling FORMA.syncVideo(video, t, offset) every frame.
+    screen(video, ui, {offset = 0} = {}) {
+      if (!video || !ui) { console.error('FORMA.screen: needs the <video> and the interface element'); return Promise.resolve(null); }
+      const clip = clipKey(video.getAttribute('src') || video.currentSrc);
+      const [w, h] = String(ui.dataset.size || '1280x800').split('x').map(Number);
+      const sc = {video, ui, clip, offset: Number(offset) || 0, size: [w > 0 ? w : 1280, h > 0 ? h : 800], mode: 'pending', track: null, overlay: null};
+      screens.push(sc);
+      screenOf.set(video, sc);
+      ui.dataset.formaScreen = ui.dataset.formaScreen || clip;
+      if (bakeParam) {
+        sc.mode = 'bake';
+        if (bakeParam === clip) {
+          ui.setAttribute('data-forma-baking', '');
+          document.documentElement.classList.add('forma-bake');
+          const css = document.createElement('style');
+          css.textContent = 'html.forma-bake,html.forma-bake body{background:transparent!important}html.forma-bake body *{visibility:hidden!important;animation-play-state:paused!important}'
+            + 'html.forma-bake [data-forma-baking],html.forma-bake [data-forma-baking] *{visibility:visible!important}'
+            // a parent that fades, moves or clips the interface on the timeline must not do it to the flat bake
+            + 'html.forma-bake body *:has([data-forma-baking]){opacity:1!important;transform:none!important;filter:none!important;clip-path:none!important;mask:none!important;contain:none!important;will-change:auto!important;perspective:none!important;backdrop-filter:none!important}'
+            + 'html.forma-bake [data-forma-baking]{position:fixed!important;left:0!important;top:0!important;width:' + sc.size[0] + 'px!important;height:' + sc.size[1] + 'px!important;transform:none!important;opacity:1!important;display:block!important;margin:0!important;z-index:2147483647!important}';
+          document.head.append(css);
+        }
+        return Promise.resolve(sc);
+      }
+      const ready = (async () => {
+        const list = await loadManifest();
+        const baked = list?.clips?.[clip]?.[state.lang];
+        if (baked) {
+          sc.mode = 'baked';
+          ui.style.display = 'none';
+          video.crossOrigin = 'anonymous';
+          video.src = baked;
+          video.load();
+          await new Promise(r => { if (video.readyState >= 1) r(); else { video.addEventListener('loadedmetadata', r, {once: true}); video.addEventListener('error', r, {once: true}); setTimeout(r, 20000); } });
+        }
+        if (sc.mode !== 'baked' || debugTrack) {
+          try {
+            const r = await fetch(clip.replace(/\.[a-z0-9]+$/i, '') + '.track.json', {cache: 'no-store'});
+            if (r.ok) sc.track = await r.json();
+          } catch {}
+        }
+        if (sc.mode !== 'baked') {
+          if (sc.track?.found) {
+            sc.mode = 'live';
+            const box = video.offsetParent || document.body;
+            if (ui.parentElement !== box) box.append(ui);
+            ui.style.width = sc.size[0] + 'px'; ui.style.height = sc.size[1] + 'px';
+            ui.style.zIndex = ui.style.zIndex || '1';
+            console.warn('FORMA.screen: no baked clip for ' + clip + ' (' + state.lang + '): the interface is pinned live, without occlusion.');
+          } else {
+            sc.mode = 'missing';
+            ui.style.display = 'none';
+            console.error('FORMA.screen: ' + clip + ' has no screen track (' + clip.replace(/\.[a-z0-9]+$/i, '') + '.track.json). Track it with the track_screen tool.');
+          }
+        }
+        if (debugTrack && sc.track) {
+          const box = video.offsetParent || document.body;
+          const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+          svg.setAttribute('style', 'position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:2147483646;overflow:visible');
+          const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+          poly.setAttribute('fill', 'none'); poly.setAttribute('stroke-width', '3');
+          svg.append(poly);
+          box.append(svg);
+          sc.overlay = svg;
+        }
+        return sc;
+      })();
+      pendingScreens.push(ready);
+      return ready;
+    },
+    // The bake: one flat frame of the interface at clip time tau (renderFrame at offset + tau).
+    _bakeFrame(tau) {
+      const sc = screens.find(x => x.clip === bakeParam);
+      window.FORMA.playing = false;
+      try { window.renderFrame?.((sc?.offset || 0) + tau); } catch (e) { console.error(e); }
+      return Boolean(sc);
+    },
+    _screensReady: () => Promise.all(pendingScreens),
     playing: false,
     setup(fn) { setups.push(fn); },
     _setups: setups,
@@ -355,6 +487,8 @@ function runtimeV2(resolveFn, data) {
         if (!video.paused) video.pause();
         if (Math.abs(video.currentTime - target) > .001) video.currentTime = target;
       }
+      const sc = screenOf.get(video);
+      if (sc && (sc.mode === 'live' || sc.overlay)) drawScreen(sc, target);
     },
     // Pins an element to four points, e.g. the corners of a screen in a picture, with a perspective transform.
     // The element is absolutely positioned at left:0; top:0 of the same container the points are measured in (CSS px).
@@ -438,7 +572,7 @@ function controllerV2() {
     });
     const loaded = document.readyState === 'complete' ? Promise.resolve() : new Promise(r => addEventListener('load', r, {once:true}));
     Promise.all([loaded, document.fonts.ready])
-      .then(async () => { for (const fn of F._setups) await fn(); })
+      .then(async () => { for (const fn of F._setups) await fn(); await F._screensReady?.(); })
       .catch(e => console.error(e))
       .then(() => { F.playing = false; draw(); });
     return;
@@ -472,7 +606,7 @@ function controllerV2() {
   });
   const loaded = document.readyState === 'complete' ? Promise.resolve() : new Promise(r => addEventListener('load', r, {once:true}));
   Promise.all([loaded, document.fonts.ready])
-    .then(async () => { for (const fn of F._setups) await fn(); })
+    .then(async () => { for (const fn of F._setups) await fn(); await F._screensReady?.(); })
     .catch(e => console.error(e))
     .then(() => { started = true; F.playing = playing; draw(); if (playing) play(); });
 }

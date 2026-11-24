@@ -24,6 +24,7 @@ import {
   reviewPrompt, reviewMessage, parseReview,
 } from './creative.mjs';
 import {renderSheets as defaultRenderSheets} from './render.mjs';
+import {bakeScreens as defaultBakeScreens} from './screen-bake.mjs';
 import {settings} from './models.mjs';
 import {mediaKey} from './media.mjs';
 
@@ -71,6 +72,7 @@ export function hardProblems(problems = {}) {
   if (errors.length) out.push(errors.length + (errors.length === 1 ? ' browser error' : ' browser errors') + ' (' + errors[0].message.slice(0, 120) + ')');
   if (problems.blank?.length) out.push('flat frames: ' + problems.blank.join(', '));
   if (problems.green?.length) out.push('chroma green left in: ' + problems.green.join(', '));
+  if (problems.screens?.length) out.push('screens in clips: ' + problems.screens[0].slice(0, 160) + (problems.screens.length > 1 ? ' (+' + (problems.screens.length - 1) + ')' : ''));
   return out;
 }
 
@@ -80,12 +82,14 @@ export function fixMessage(problems = {}) {
   for (const e of (problems.errors || []).filter(e => HARD_ERROR.test(e.message))) lines.push(`- ${e.message} (${(e.where || []).join(', ')})`);
   if (problems.blank?.length) lines.push(`- These frames came out a single flat colour (nothing drawn, or a scene failed): ${problems.blank.join(', ')}.`);
   if (problems.green?.length) lines.push(`- Pure chroma green #00FF00 is visible in: ${problems.green.join(', ')}. The surface must be covered by the interface layer (keyed or pinned) in every frame, from the first one.`);
+  for (const p of problems.screens || []) lines.push(`- Screen in a clip: ${p}`);
+  if (problems.screens?.length) lines.push('- For a screen the tracker got wrong, call track_screen with rough corners at those moments (open its contact sheet first). A clip without a usable green screen cannot carry an interface: generate it again with screen: true, or show the interface another way.');
   if ((problems.errors || []).some(e => /securityerror|tainted/i.test(e.message))) lines.push('- A tainted canvas means a picture or clip was read without CORS: keep crossorigin="anonymous" on it (the runtime sets it) and read it only after it has loaded.');
   lines.push('- Never hide an error in an empty catch; let it reach the console.');
   return lines.join('\n');
 }
 
-const withoutCheck = (output = {}) => { const {check, ...rest} = output; return rest; };
+const withoutCheck = (output = {}) => { const {check, screens, ...rest} = output; return rest; };   // both belong to the build they were made for
 
 export function validateSetup(raw = {}) {
   if (!raw || typeof raw !== 'object') {
@@ -807,6 +811,7 @@ export function registerCampaignRoutes(app, {
   runModelHtml,
   runModelRevise,
   renderSheets = defaultRenderSheets,
+  bakeScreens = defaultBakeScreens,
 }) {
   setJobRunSink(store.runs);
 
@@ -2519,18 +2524,53 @@ export function registerCampaignRoutes(app, {
     }
   }
 
-  // Stores the check on the entry and decides on a fix: once per chain, never for a fix itself, unless turned off.
+  // Screens in clips (FORMA.screen): the interface baked into each clip per language before anything looks at the
+  // build, so the check, the art director, the client and the exports all see the finished clip. FORMA_BAKE=0 turns it off.
+  async function bakeBuild(campaign, entry, stage, log) {
+    if (process.env.FORMA_BAKE === '0') return null;
+    const rev = entry.output.revision || String(entry.output.path || '').split('/').pop().replace(/\.html$/, '');
+    const langs = campaign.setup.languages?.length ? campaign.setup.languages : ['en'];
+    try {
+      const r = await bakeScreens({
+        projectDir: folder(campaign.project), url: previewURL + entry.output.path, rev,
+        langs: stage === 'preview' ? langs.slice(0, 1) : langs, formats: campaign.setup.formats, log,
+      });
+      if (!r.screens.length && !r.problems.length) return null;
+      const made = r.screens.filter(x => !x.cached).length;
+      log(r.problems.length ? 'Screens in clips: ' + r.problems.join(' · ') : 'Screens baked into ' + r.screens.length + ' clip' + (r.screens.length > 1 ? 's' : '') + (made < r.screens.length ? ' (' + (r.screens.length - made) + ' unchanged)' : ''),
+        {level: r.problems.length ? 'warn' : 'done'});
+      return {at: new Date().toISOString(), baked: r.screens.map(({clip, lang, file, cached}) => ({clip, lang, file, cached})), problems: r.problems};
+    } catch (err) {
+      log('The screens could not be baked: ' + err.message, {level: 'warn'});
+      return {at: new Date().toISOString(), baked: [], problems: ['The screen bake failed: ' + err.message]};
+    }
+  }
+
+  // Bakes screens, stores the check on the entry and decides on a fix: once per chain, never for a fix itself, unless turned off.
   async function afterBuild({campaign, entry, stage, sel, log}) {
-    if (!checkEnabled(sel)) return null;
+    if (sel.mode === 'demo') return null;
+    const screens = await bakeBuild(campaign, entry, stage, log);
+    if (!checkEnabled(sel)) {
+      if (screens) {
+        await store.sync.up(campaign.project, {dataDir}).catch(() => {});
+        await history.update(entry.id, {output: {...entry.output, screens}}).catch(() => {});
+      }
+      return null;
+    }
     const check = await checkBuild(campaign, entry, stage, log);
+    if (screens?.problems.length) {
+      check.problems.screens = screens.problems;
+      check.hard = hardProblems(check.problems);
+    }
     const fix = check.hard.length && campaign.setup.review?.autoFix !== false && !entry.input?.autoFixOf
       ? {requestId: randomUUID(), status: 'running'} : null;
     if (fix) {
       check.fix = fix;
       log('Forma fixes these on its own (one revision), then the art director looks.', {level: 'step'});
     }
-    await history.update(entry.id, {output: {...entry.output, check}}).catch(() => {});
-    return fix ? {...fix, entry: {...entry, output: {...entry.output, check}}, stage, problems: check.problems, sel} : null;
+    const output = {...entry.output, check, ...(screens ? {screens} : {})};
+    await history.update(entry.id, {output}).catch(() => {});
+    return fix ? {...fix, entry: {...entry, output}, stage, problems: check.problems, sel} : null;
   }
 
   // Runs the fix after the build's own run has ended, as a revision with the problems as its message.

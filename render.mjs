@@ -35,7 +35,7 @@ export function findChrome() {
 }
 
 let browserPromise = null;
-async function browser() {
+export async function browser() {
   if (browserPromise) {
     const b = await browserPromise.catch(() => null);
     if (b?.connected) return b;
@@ -87,7 +87,7 @@ function momentsInPage() {
 
 // readyMs: how long the creative's own setup may take (a clip analysed in FORMA.setup can take a minute or more).
 export const READY_MS = {review: 120000, export: 240000};
-async function openFrame(page, url, readyMs = READY_MS.review) {
+export async function openFrame(page, url, readyMs = READY_MS.review) {
   await page.evaluateOnNewDocument(() => {
     window.__formaReady = false;
     addEventListener('message', e => { if (e.data && e.data.type === 'forma:time') window.__formaReady = true; });

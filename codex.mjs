@@ -108,6 +108,7 @@ export async function generateCodex({dir, files, scenario, style, billing="api",
       // A build has no interactive approval channel. Authorize only the media the designer enabled.
       ...(media.images ? ['-c','mcp_servers.forma_media.tools.generate_image.approval_mode="approve"'] : []),
       ...(media.video ? ['-c','mcp_servers.forma_media.tools.generate_video.approval_mode="approve"'] : []),
+      '-c','mcp_servers.forma_media.tools.track_screen.approval_mode="approve"',
       '-c','mcp_servers.forma_media.tool_timeout_sec=900'] : []),
     '--model',model,'-c','model_reasoning_effort="'+effort+'"','--output-last-message',resultFile,'-'];
   const stopTail = useMedia ? tailFile(mediaLog, log) : async()=>{};

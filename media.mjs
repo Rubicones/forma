@@ -46,9 +46,19 @@ export const videoShape = {
   first_frame: refPath.optional().describe('Image to start from (image-to-video). Best results: generate and inspect a still first, then animate it.'),
   last_frame: refPath.optional().describe('Optional image to end on. Models that take one keyframe refuse first_frame and last_frame together: pass one of them.'),
   references: z.array(refPath).max(3).default([]).describe('Style or product references when no first_frame is given.'),
+  screen: z.boolean().default(false).describe('The clip shows a flat #00FF00 screen (laptop, phone, monitor, billboard) that the creative will put an interface on with FORMA.screen. Forma then tracks the screen right after the clip arrives and returns how sure the track is plus a contact sheet to open.'),
+};
+const corners = z.array(z.tuple([z.number(), z.number()])).length(4);
+export const trackShape = {
+  clip: refPath.describe('The MP4 with the green screen, relative to the materials folder.'),
+  hints: z.array(z.object({
+    t: z.number().min(0).describe('Clip time in seconds.'),
+    corners: corners.describe('Rough corners of the screen at that moment, in the clip\'s own pixels, in the order top-left, top-right, bottom-right, bottom-left. Within 5% is enough: the tracker snaps them to the real edges.'),
+  })).max(12).default([]).describe('Where the screen is at moments the last track got wrong or was unsure about (see the contact sheet). Leave empty for a first track.'),
 };
 export const toolText = {
   image: 'Generate a still image (photography, illustration, texture, product scene or cutout) with ' + 'OpenRouter and save it into the materials folder. Returns its local file name, URL and pixel size. Open the file afterwards to check it against the art direction; regenerate with the previous result in references to correct it.',
+  track: 'Track the green screen in a clip again, with rough corners for the moments the last track got wrong. Free (runs on this computer). Saves <clip>.track.json, which FORMA.screen uses, and returns how sure the track is, the unsure moments and a contact sheet (PNG) of the corners to open and check.',
   video: 'Generate a short silent video clip with OpenRouter (use it for the one move code cannot make: a hero shot or a change between two scenes) and save it as MP4 in the materials folder. Returns its local file name and URL. Play it in the creative with FORMA.syncVideo(video, t, startSecond).',
 };
 
@@ -227,7 +237,59 @@ export function mediaSession({dir, signal, log = () => {}, allow = {images:true,
     }
   }
 
-  return {image, video, used, limits};
+  // Tracks a clip's green screen (screen-track.mjs) and draws a contact sheet; the result tells the model what to check.
+  async function track(input, {firstFrame} = {}) {
+    let args;
+    try { args = z.object(trackShape).parse(input); }
+    catch (error) { log('track_screen: invalid arguments', {level:'warn', detail:error.message}); throw error; }
+    const file = inside(dir, args.clip);
+    if (!/\.(mp4|mov|webm|m4v)$/i.test(file)) throw Error('track_screen takes a video clip: ' + args.clip);
+    const {trackScreen, probeVideo, readFrames, findScreen, keyColour, trackSummary} = await import('./screen-track.mjs');
+    const {trackPath, trackSheet} = await import('./screen-bake.mjs');
+    const started = Date.now();
+    const info = await probeVideo(file);
+    const hints = args.hints.map(h => ({t: h.t, quad: h.corners}));
+    // A clip made from a still starts where the still's screen is: the still's corners are the first frame's hint.
+    if (!hints.length && firstFrame) {
+      try {
+        const img = inside(dir, firstFrame);
+        const w = 480, h = Math.max(2, Math.round(info.height * w / info.width / 2) * 2);
+        let rgb = null;
+        await readFrames(img, {width: w, height: h, onFrame: f => { rgb ||= f; }});
+        const size = imageSize(await fs.readFile(img));
+        const sameShape = size.width && Math.abs(size.width / size.height - info.width / info.height) < 0.02;
+        const found = rgb && sameShape ? findScreen(rgb, w, h, {key: keyColour(rgb, w, h)}) : null;
+        if (found?.conf > 0.5) hints.push({t: 0, quad: found.quad.map(([x, y]) => [x * info.width / w, y * info.height / h])});
+      } catch (error) { log('The first frame could not be read for the screen track', {level:'warn', detail:error.message}); }
+    }
+    log('Tracking the screen in ' + args.clip + (hints.length ? ' · ' + hints.length + ' hint' + (hints.length > 1 ? 's' : '') : ''), {level:'step'});
+    const result = await trackScreen(file, {hints});
+    await fs.writeFile(trackPath(file), JSON.stringify(result));
+    const sheet = args.clip.replace(/\.[a-z0-9]+$/i, '') + '.track.png';
+    const times = await trackSheet(file, result, path.join(dir, sheet));
+    const summary = trackSummary(result, {file: args.clip});
+    const sure = result.found && summary.confidence >= 0.6 && !result.low.length;
+    log('Screen track ' + (result.found ? (sure ? '✓' : '· unsure') : '✗') + ' ' + args.clip + ' · ' + summary.seen + ' · confidence ' + summary.confidence + ' · ' + ((Date.now() - started) / 1000).toFixed(1) + ' s',
+      {level: result.found && sure ? 'done' : 'warn', detail: result.warnings.join(' ') || undefined});
+    return {
+      ...summary, size: [info.width, info.height], sheet, sheet_times: times,
+      next: !result.found
+        ? 'No green screen was found in this clip. Open the sheet: if the screen is there, call track_screen with its corners at one or two moments; if not, the clip cannot carry an interface.'
+        : sure ? 'Open the sheet once: magenta corners should sit on the screen\'s corners. FORMA.screen will use this track.'
+        : 'Open the sheet: amber corners are unsure. Where they are off the screen, call track_screen again with rough corners for those moments (clip pixels).',
+    };
+  }
+
+  // A clip asked for with screen: true is tracked as soon as it arrives; a failed track never loses the clip.
+  async function videoWithScreen(input) {
+    const result = await video(input);
+    if (!input?.screen) return result;
+    try { result.screen = await track({clip: result.file}, {firstFrame: input.first_frame}); }
+    catch (error) { log('Screen track failed', {level:'warn', detail:error.message}); result.screen = {found: false, error: error.message, next: 'Call track_screen for this clip.'}; }
+    return result;
+  }
+
+  return {image, video: videoWithScreen, track, used, limits};
 }
 
 // Wraps a session call as an MCP tool result.

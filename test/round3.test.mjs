@@ -59,7 +59,7 @@ test('runtime exposes FORMA.pin and FORMA.findSurface', () => {
   assert.match(html, /pin\(el, quad\)/);
 });
 
-import {hardProblems, fixMessage} from '../campaigns.mjs';
+import {hardProblems, fixMessage, videoProblems} from '../campaigns.mjs';
 
 test('check after build: hard problems are breakage, not taste; the fix message names causes', () => {
   const problems = {
@@ -75,6 +75,23 @@ test('check after build: hard problems are breakage, not taste; the fix message 
   assert.match(msg, /tainted canvas means a picture or clip was read without CORS/);
   assert.match(msg, /#00FF00 is visible in: 1:1 · s1 in/);
   assert.doesNotMatch(msg, /deprecated API/);
+});
+
+test('check after build (round 8): a spot that does not move and a video that never came are breakage', () => {
+  const failed = {level: 'error', msg: 'OpenRouter ✗ video “s1-pour”', detail: 'OpenRouter 404: No endpoints found for minimax/hailuo-3-max.'};
+  const html = '<video src="assets/generated/s1-pour.mp4"></video><img src="assets/logo.svg"><script>const v = "https://cdn.example/x.mp4"; FORMA.screen(v, ui)</script>';
+  const none = videoProblems({events: [failed, failed], html, assets: ['logo.svg']});
+  assert.equal(none.length, 2);
+  assert.match(none[0], /^No clip was generated: 2 video requests failed \(last: OpenRouter 404: No endpoints found/);
+  assert.match(none[1], /plays assets\/generated\/s1-pour\.mp4, which is not in the materials/);
+  assert.deepEqual(videoProblems({events: [failed, {level: 'done', msg: 'OpenRouter ✓', media: {kind: 'video', file: 'generated/s1-pour.mp4'}}], html, assets: ['logo.svg', 'generated/s1-pour.mp4']}), [], 'a retry that worked');
+  assert.deepEqual(videoProblems({events: [], html: '<video src="./assets/brand/film.mp4?v=2">', assets: ['brand/film.mp4']}), []);
+  assert.deepEqual(videoProblems({events: [], html: "src: 'assets/screens/ab12.mp4'", assets: []}), [], 'bakes are made after the build');
+  const hard = hardProblems({errors: [], blank: [], green: [], still: ['9:16', '1:1'], video: none});
+  assert.deepEqual(hard.map(h => h.split(':')[0]), ['the video does not move in', 'no video']);
+  const msg = fixMessage({still: ['9:16'], video: none});
+  assert.match(msg, /same picture at every moment in: 9:16/);
+  assert.match(msg, /never pass stills off as the video/);
 });
 
 import {stageRevisionPrompt, revisionMessage} from '../creative.mjs';

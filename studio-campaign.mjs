@@ -312,6 +312,9 @@ export async function finalOf(campaign, approvedItemId, getEntry, {setup = {}, t
   };
   if (!PATH_OK.test(final.path)) problems.push('The final has no valid preview path.');
   if (variant.final.stale) problems.push('The final is older than the latest preview or script. Build it again in step 3.');
+  // a spot without its video, or one that does not play, is not a final (the check after the build found it)
+  const broken = [...(out.check?.problems?.video || []), ...(out.check?.problems?.still?.length ? ['The video does not move in ' + out.check.problems.still.join(', ') + '.'] : [])];
+  if (broken.length) problems.push('The final is broken: ' + broken[0] + ' Fix it with a revision in step 3 or build it again.');
   const missing = {
     formats: list(setup.formats).filter(f => !final.formats.includes(f)),
     langs: list(setup.languages).filter(l => !final.langs.includes(l)),

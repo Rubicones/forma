@@ -18,7 +18,7 @@ import {
   SCHEMA_NOT_READY_MSG,
 } from '../store/supabase.mjs';
 import {registerBrandRoutes} from '../brands.mjs';
-import {upgradeCampaign, registerCampaignRoutes} from '../campaigns.mjs';
+import {upgradeCampaign, registerCampaignRoutes, runningJob} from '../campaigns.mjs';
 import * as history from '../history.mjs';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -1018,6 +1018,15 @@ describe('Runs locking, heartbeat, event flushing, render-progress fallback & FO
     assert.equal(activeRes.body.runs[0].campaignId, cid);
     assert.equal(activeRes.body.runs[0].author, 'Дмитрий');
     assert.equal(activeRes.body.runs[0].task, 'scenario');
+
+    // A step this server holds that the store no longer lists (a swept heartbeat) still shows, marked local
+    const ghostCampaign = randomUUID(), ghostRun = randomUUID();
+    runningJob.set(ghostCampaign, ghostRun);
+    try {
+      const withGhost = await req('GET', '/api/runs/active', null, {author: 'Анна'});
+      const ghost = withGhost.body.runs.find(r => r.id === ghostRun);
+      assert.deepEqual([ghost?.campaignId, ghost?.local, ghost?.status], [ghostCampaign, true, 'running']);
+    } finally { runningJob.delete(ghostCampaign); }
 
     // Colleague render-progress fallback for a run not in local jobs map
     const fakeRemoteRunId = randomUUID();

@@ -287,6 +287,8 @@ test('final: the approved direction’s final, with what blocks sending it', asy
   assert.equal((await finalOf(withFinal('fThin'), 'v2', finalEntry, {setup})).problems[0],
     'The final lacks what the client asked for: formats 1:1; languages sr-Latn; lengths 15 s.');
   assert.match((await finalOf(withFinal('f2'), 'gone', finalEntry, {setup})).problems[0], /not in this Forma campaign/);
+  finalEntries.fBroken = {id: 'fBroken', output: {...finalEntries.f2.output, check: {problems: {errors: [], still: ['9:16'], video: []}, hard: ['the video does not move in: 9:16']}}};
+  assert.match((await finalOf(withFinal('fBroken'), 'v2', finalEntry, {setup})).problems[0], /^The final is broken: The video does not move in 9:16\./);
   const snap = buildFinalSnapshot(ok.final, {title: '  Bold: Night Run, final  '});
   assert.equal(snap.final.title, 'Night Run, final');
   assert.deepEqual(buildFinalSnapshot({...ok.final, kind: 'poster'}).final.lengths, []);

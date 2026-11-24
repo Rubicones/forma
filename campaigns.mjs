@@ -72,6 +72,8 @@ export function hardProblems(problems = {}) {
   if (errors.length) out.push(errors.length + (errors.length === 1 ? ' browser error' : ' browser errors') + ' (' + errors[0].message.slice(0, 120) + ')');
   if (problems.blank?.length) out.push('flat frames: ' + problems.blank.join(', '));
   if (problems.green?.length) out.push('chroma green left in: ' + problems.green.join(', '));
+  if (problems.still?.length) out.push('the video does not move in: ' + problems.still.join(', '));
+  if (problems.video?.length) out.push('no video: ' + problems.video[0].slice(0, 160));
   if (problems.screens?.length) out.push('screens in clips: ' + problems.screens[0].slice(0, 160) + (problems.screens.length > 1 ? ' (+' + (problems.screens.length - 1) + ')' : ''));
   return out;
 }
@@ -82,11 +84,33 @@ export function fixMessage(problems = {}) {
   for (const e of (problems.errors || []).filter(e => HARD_ERROR.test(e.message))) lines.push(`- ${e.message} (${(e.where || []).join(', ')})`);
   if (problems.blank?.length) lines.push(`- These frames came out a single flat colour (nothing drawn, or a scene failed): ${problems.blank.join(', ')}.`);
   if (problems.green?.length) lines.push(`- Pure chroma green #00FF00 is visible in: ${problems.green.join(', ')}. The surface must be covered by the interface layer (keyed or pinned) in every frame, from the first one.`);
+  if (problems.still?.length) lines.push(`- The video shows the same picture at every moment in: ${problems.still.join(', ')}. It does not play: usually renderFrame stops early (an error, or setup waiting for a clip that never loads). Make every moment drawn by renderFrame(t), and a clip that cannot load an error in the console, not a frozen frame.`);
+  for (const p of problems.video || []) lines.push(`- ${p}`);
+  if (problems.video?.length) lines.push('- Generate the clip again (generate_video), reading the error: shorter or simpler prompt, another keyframe, no keyframe for people. If video stays impossible, say so in your reply: never pass stills off as the video.');
   for (const p of problems.screens || []) lines.push(`- Screen in a clip: ${p}`);
   if (problems.screens?.length) lines.push('- For a screen the tracker got wrong, call track_screen with rough corners at those moments (open its contact sheet first). A clip without a usable green screen cannot carry an interface: generate it again with screen: true, or show the interface another way.');
   if ((problems.errors || []).some(e => /securityerror|tainted/i.test(e.message))) lines.push('- A tainted canvas means a picture or clip was read without CORS: keep crossorigin="anonymous" on it (the runtime sets it) and read it only after it has loaded.');
   lines.push('- Never hide an error in an empty catch; let it reach the console.');
   return lines.join('\n');
+}
+
+// Video the build needed and did not get (round 8: every clip refused, the final built from stills and called done):
+// clip requests that all failed while no clip plays, and clips the code plays that are not in the materials.
+const CLIP_REF = /["'(`]\s*(?:\.\/)?((?:assets\/)?[\w\-./]+\.(?:mp4|webm|mov|m4v))(?=[?#"'`)\s])/gi;
+export function videoProblems({events = [], html = '', assets = []} = {}) {
+  const have = new Set(assets.map(a => a.replace(/\\/g, '/')));
+  const refs = [...new Set([...String(html).matchAll(CLIP_REF)].map(m => m[1].replace(/^assets\//, '')))]
+    .filter(r => !/^(?:https?:)?\/\//.test(r) && !r.startsWith('screens/'));
+  const missing = refs.filter(r => !have.has(r));
+  const failed = events.filter(e => e.level === 'error' && /^OpenRouter ✗ video/.test(e.msg || ''));
+  const made = events.some(e => e.media?.kind === 'video');
+  const out = [];
+  if (failed.length && !made && !refs.some(r => have.has(r))) {
+    const why = String(failed.at(-1).detail || failed.at(-1).msg).replace(/\s+/g, ' ').slice(0, 200);
+    out.push(`No clip was generated: ${failed.length} video request${failed.length > 1 ? 's' : ''} failed (last: ${why}). The spot shows stills where its direction needs video.`);
+  }
+  for (const r of missing.slice(0, 3)) out.push(`The code plays assets/${r}, which is not in the materials: that clip was never made or was renamed.`);
+  return out;
 }
 
 const withoutCheck = (output = {}) => { const {check, screens, ...rest} = output; return rest; };   // both belong to the build they were made for
@@ -823,13 +847,34 @@ export function registerCampaignRoutes(app, {
     authorStorage.run(author, next);
   });
 
+  // What holds a campaign right now. The store's runs, plus every step this server is still running that the store
+  // does not list (round 8: the check after a build answered 409 while the list was empty), each with what it is
+  // doing (job.status: "Checking the frames…", "Baking the interface…"). Campaign names are cached: the list is polled.
+  const campaignNames = new Map();
+  const campaignName = async id => {
+    const hit = campaignNames.get(id);
+    if (hit && Date.now() - hit.at < 300000) return hit.name;
+    const name = (await history.get(id).catch(() => null))?.name || null;
+    campaignNames.set(id, {name, at: Date.now()});
+    return name;
+  };
   app.get('/api/runs/active', async (_req, res) => {
-    const raw = await store.runs.active();
-    const runs = await Promise.all(raw.map(async r => {
-      const c = r.campaignId ? await history.get(r.campaignId).catch(() => null) : null;
-      return {...r, campaignName: c?.name || null};
-    }));
-    res.set('Cache-Control', 'no-store').json({runs});
+    const raw = await Promise.race([store.runs.active(), new Promise(r => setTimeout(() => r(null), 8000))]).catch(() => null);
+    const list = raw ? [...raw] : [];
+    const known = new Set(list.map(r => r.id));
+    for (const [campaignId, requestId] of runningJob) {
+      const job = getJob(requestId);
+      if (known.has(requestId)) {
+        const r = list.find(x => x.id === requestId);
+        if (job?.status) r.statusText = job.status;   // fresher than the last heartbeat
+        continue;
+      }
+      list.push({id: requestId, campaignId, projectId: job?.project || null, task: job?.task || 'step', author: null, status: 'running',
+        statusText: job?.status || '', costs: job?.costs, startedAt: job ? new Date(job.started).toISOString() : null,
+        elapsed: job ? Date.now() - job.started : null, local: true});
+    }
+    const runs = await Promise.all(list.map(async r => ({...r, campaignName: r.campaignId ? await campaignName(r.campaignId) : null})));
+    res.set('Cache-Control', 'no-store').json({runs, ...(raw ? {} : {partial: 'The store did not answer within 8 s: only this server\'s own steps are listed.'})});
   });
 
   app.get('/api/render-progress/:requestId', async (req, res) => {
@@ -2041,7 +2086,7 @@ export function registerCampaignRoutes(app, {
         cost: addCost(campaign.cost, job.costs),
       });
 
-      pendingFix = await afterBuild({campaign, entry, stage: 'preview', sel, log});
+      pendingFix = await afterBuild({campaign, entry, stage: 'preview', sel, log, job});
       res.json({
         url: previewURL + rel,
         format: primaryFormatId,
@@ -2234,7 +2279,7 @@ export function registerCampaignRoutes(app, {
         cost: addCost(campaign.cost, job.costs),
       });
 
-      pendingFix = await afterBuild({campaign, entry, stage: 'final', sel, log});
+      pendingFix = await afterBuild({campaign, entry, stage: 'final', sel, log, job});
       res.json({
         url: previewURL + rel,
         formats: campaign.setup.formats,
@@ -2524,6 +2569,16 @@ export function registerCampaignRoutes(app, {
     }
   }
 
+  async function buildVideoProblems(campaign, entry, job) {
+    try {
+      const dir = folder(campaign.project);
+      const rev = entry.output?.revision || String(entry.output?.path || '').split('/').pop().replace(/\.html$/, '');
+      const html = await fs.readFile(path.join(dir, rev + '.src.html'), 'utf8').catch(() => fs.readFile(path.join(dir, rev + '.html'), 'utf8').then(uninject));
+      const assets = await listAssets(path.join(dir, 'assets')).catch(() => []);
+      return videoProblems({events: job?.events || [], html, assets});
+    } catch { return []; }
+  }
+
   // Screens in clips (FORMA.screen): the interface baked into each clip per language before anything looks at the
   // build, so the check, the art director, the client and the exports all see the finished clip. FORMA_BAKE=0 turns it off.
   async function bakeBuild(campaign, entry, stage, log) {
@@ -2547,10 +2602,16 @@ export function registerCampaignRoutes(app, {
   }
 
   // Bakes screens, stores the check on the entry and decides on a fix: once per chain, never for a fix itself, unless turned off.
-  async function afterBuild({campaign, entry, stage, sel, log}) {
+  async function afterBuild({campaign, entry, stage, sel, log, job}) {
     if (sel.mode === 'demo') return null;
+    const video = await buildVideoProblems(campaign, entry, job);
+    if (video.length) log('Video: ' + video.join(' · '), {level: 'warn'});
     const screens = await bakeBuild(campaign, entry, stage, log);
     if (!checkEnabled(sel)) {
+      if (video.length) {
+        await history.update(entry.id, {output: {...entry.output, check: {at: new Date().toISOString(), sheets: [], problems: {errors: [], blank: [], green: [], video}, hard: hardProblems({video})}, ...(screens ? {screens} : {})}}).catch(() => {});
+        return null;
+      }
       if (screens) {
         await store.sync.up(campaign.project, {dataDir}).catch(() => {});
         await history.update(entry.id, {output: {...entry.output, screens}}).catch(() => {});
@@ -2558,10 +2619,9 @@ export function registerCampaignRoutes(app, {
       return null;
     }
     const check = await checkBuild(campaign, entry, stage, log);
-    if (screens?.problems.length) {
-      check.problems.screens = screens.problems;
-      check.hard = hardProblems(check.problems);
-    }
+    if (screens?.problems.length) check.problems.screens = screens.problems;
+    if (video.length) check.problems.video = video;
+    if (screens?.problems.length || video.length) check.hard = hardProblems(check.problems);
     const fix = check.hard.length && campaign.setup.review?.autoFix !== false && !entry.input?.autoFixOf
       ? {requestId: randomUUID(), status: 'running'} : null;
     if (fix) {
@@ -2843,7 +2903,7 @@ export function registerCampaignRoutes(app, {
         cost: addCost(campaign.cost, job.costs),
       });
 
-      pendingFix = await afterBuild({campaign, entry: newEntry, stage, sel, log});
+      pendingFix = await afterBuild({campaign, entry: newEntry, stage, sel, log, job});
       res.json({
         url: previewURL + rel,
         formats: parent.output.formats || [parent.output.format],

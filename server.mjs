@@ -13,7 +13,7 @@ import {subscriptionReady} from './claude-auth.mjs';
 import {generate, revise} from './generator.mjs';
 import {generateCodex, codexKey, chatLogin} from './codex.mjs';
 import {inject, uninject, formats, defaultFormats, durations, pickFormats, pickDuration} from './motion.mjs';
-import {mediaKey, imageModel, videoModel, mediaLimits} from './media.mjs';
+import {mediaKey, imageModel, videoModel, videoFallback, mediaLimits, mediaCredits} from './media.mjs';
 import {models, settings} from './models.mjs';
 import {registerBrandRoutes} from './brands.mjs';
 import {registerCampaignRoutes} from './campaigns.mjs';
@@ -60,10 +60,10 @@ const isLocal=['127.0.0.1','localhost','::1'].includes(host);
 const localChatLogin=cachedCheck(()=>isLocal && chatLogin(),60000);
 const localClaudeLogin=cachedCheck(()=>isLocal && subscriptionReady(),60000);
 const storeStatus=cachedCheck(()=>store.status(),30000);
-app.get('/api/status',async(req,res)=>{const [claudeSubscription,chatReady,storeState]=await Promise.all([localClaudeLogin(),localChatLogin(),storeStatus()]);res.json({ready:ready(),claudeSubscription,codexReady:Boolean(codexKey()),chatReady,models,previewURL,
+app.get('/api/status',async(req,res)=>{const [claudeSubscription,chatReady,storeState,credits]=await Promise.all([localClaudeLogin(),localChatLogin(),storeStatus(),mediaCredits().catch(()=>null)]);res.json({ready:ready(),claudeSubscription,codexReady:Boolean(codexKey()),chatReady,models,previewURL,
  formats:Object.values(formats),defaultFormats,durations,
  store:storeState,
- media:{ready:Boolean(mediaKey()),imageModel:imageModel(),videoModel:videoModel(),limits:mediaLimits()}})});
+ media:{ready:Boolean(mediaKey()),imageModel:imageModel(),videoModel:videoModel(),videoFallback:videoFallback(),limits:mediaLimits(),credits}})});
 app.post('/api/projects',async(req,res)=>{
  const id=randomUUID(); await fs.mkdir(path.join(folder(id),'assets'),{recursive:true});
  await store.registerProject(id);

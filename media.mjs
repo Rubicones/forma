@@ -17,7 +17,46 @@ const range = (a, b) => Array.from({length: b - a + 1}, (_, i) => a + i);
 const VIDEO_CAPS = {
   'minimax/hailuo-3-max': {durations: range(5, 15), resolutions: ['768p', '480p'], ratios: ['21:9', '16:9', '4:3', '1:1', '3:4', '9:16'], audio: false, keyframes: 1},
   'minimax/hailuo-3': {durations: range(5, 15), resolutions: ['2K'], ratios: ['21:9', '16:9', '4:3', '1:1', '3:4', '9:16'], audio: true},
+  // Seedance: first and last frame together; the first resolution listed is the default (720p: sharp enough for a
+  // layer of the frame, a fraction of 1080p's time). It refuses a keyframe that looks like a real person (realPerson).
+  'bytedance/seedance-2.0-fast': {durations: range(4, 15), resolutions: ['720p', '480p'], ratios: ['16:9', '9:16', '1:1', '4:3', '3:4', '21:9', '9:21'], audio: true, keyframes: 2, realPerson: true},
+  'bytedance/seedance-2.0-mini': {durations: range(4, 15), resolutions: ['720p', '480p'], ratios: ['16:9', '9:16', '1:1', '4:3', '3:4', '21:9', '9:21'], audio: true, keyframes: 2, realPerson: true},
+  'bytedance/seedance-2.0': {durations: range(4, 15), resolutions: ['720p', '1080p', '480p', '4K'], ratios: ['16:9', '9:16', '1:1', '4:3', '3:4', '21:9', '9:21'], audio: true, keyframes: 2, realPerson: true},
+  'bytedance/seedance-2.5-flash': {durations: range(4, 30), resolutions: ['720p', '480p'], ratios: ['16:9', '9:16', '1:1', '4:3', '3:4', '21:9'], audio: true, keyframes: 2, realPerson: true},
+  'bytedance/seedance-2.5': {durations: range(4, 30), resolutions: ['720p', '1080p', '480p'], ratios: ['16:9', '9:16', '1:1', '4:3', '3:4', '21:9'], audio: true, keyframes: 2, realPerson: true},
 };
+const REAL_PERSON = /real person|real people|likeness|portrait rights/i;
+// Used when OpenRouter cannot route the chosen model for this account. OPENROUTER_VIDEO_FALLBACK=0 turns it off.
+export const videoFallback = () => { const v = process.env.OPENROUTER_VIDEO_FALLBACK; return v === '0' || v === '' ? null : v || 'bytedance/seedance-2.0-fast'; };
+// Clips in progress across every build on this computer: OpenRouter reserves credit for each until it ends.
+const inFlight = {videos: 0}, settledWaiters = [];
+const videosSettled = signal => new Promise((resolve, reject) => {
+  const check = () => (inFlight.videos <= 1 ? resolve() : settledWaiters.push(check));
+  signal?.addEventListener('abort', () => reject(signal.reason ?? Error('aborted')), {once: true});
+  check();
+});
+// What is left to spend: the key's own limit (any key) and, with OPENROUTER_MANAGEMENT_KEY, the account balance.
+let creditsCache = null;
+export async function mediaCredits() {
+  if (!mediaKey()) return null;
+  if (creditsCache && Date.now() - creditsCache.at < 60000) return creditsCache.value;
+  const get = async (url, key) => {
+    const res = await fetch(url, {headers: {Authorization: 'Bearer ' + key}, signal: AbortSignal.timeout(4000)});
+    return res.ok ? (await res.json()).data : null;
+  };
+  const [keyInfo, account] = await Promise.all([
+    get(API + '/key', mediaKey()).catch(() => null),
+    process.env.OPENROUTER_MANAGEMENT_KEY ? get(API + '/credits', process.env.OPENROUTER_MANAGEMENT_KEY).catch(() => null) : null,
+  ]);
+  const value = {
+    keyRemaining: typeof keyInfo?.limit_remaining === 'number' ? Math.round(keyInfo.limit_remaining * 100) / 100 : null,
+    keyUsage: typeof keyInfo?.usage === 'number' ? Math.round(keyInfo.usage * 100) / 100 : null,
+    balance: account ? Math.round((account.total_credits - account.total_usage) * 100) / 100 : null,
+    checked: Boolean(keyInfo || account),
+  };
+  creditsCache = {at: Date.now(), value};
+  return value;
+}
 export const videoCaps = (model = videoModel()) => VIDEO_CAPS[model.replace(/-\d{8}$/, '')] || null;
 // Gemini image models ("Nano Banana") cannot output alpha.
 const supportsTransparency = model => !/gemini|nano-banana/i.test(model);
@@ -173,35 +212,65 @@ export function mediaSession({dir, signal, log = () => {}, allow = {images:true,
     // Only a clip that comes back counts against the budget: a refused or failed request costs a retry, not a clip.
     if (used.videos + pending.videos >= limits.videos) { log('Video limit reached (' + limits.videos + ')', {level:'warn'}); throw Error('Video budget for this build is used up (' + limits.videos + ').'); }
     if (used.videoFailures >= 3) throw Error('Three video requests failed in this build. Continue without the clip and say why in your reply.');
-    const model = videoModel(), started = Date.now();
-    const caps = videoCaps(model);
+    const started = Date.now();
+    let model = videoModel(), caps = videoCaps(model);
     if (caps?.keyframes === 1 && args.first_frame && args.last_frame) {
       throw Error(model + ' takes one keyframe: pass first_frame or last_frame, not both. This did not use the video budget; ask again with one.');
     }
     pending.videos++;
+    inFlight.videos++;
     try {
+    const frameImages = [];
+    if (args.first_frame) frameImages.push({type:'image_url', image_url:{url:await dataURL(dir, args.first_frame)}, frame_type:'first_frame'});
+    if (args.last_frame) frameImages.push({type:'image_url', image_url:{url:await dataURL(dir, args.last_frame)}, frame_type:'last_frame'});
+    const references = !frameImages.length && args.references.length ? await Promise.all(args.references.map(async r => ({type:'image_url', image_url:{url:await dataURL(dir, r)}}))) : null;
     // Fit the request to what the model accepts: the nearest allowed length at or above the ask, a ratio and resolution it lists,
     // and generate_audio only where the model has audio (the clip plays muted anyway).
-    const duration = caps ? (caps.durations.find(d => d >= args.duration) ?? caps.durations.at(-1)) : args.duration;
-    const aspect = caps && !caps.ratios.includes(args.aspect_ratio) ? '16:9' : args.aspect_ratio;
-    const body = {model, prompt:args.prompt, aspect_ratio:aspect, duration};
-    if (!caps || caps.audio) body.generate_audio = false;
-    const resolution = process.env.OPENROUTER_VIDEO_RESOLUTION;
-    if (resolution && (!caps || caps.resolutions.includes(resolution))) body.resolution = resolution;
-    else if (caps) body.resolution = caps.resolutions[0];
-    if (resolution && caps && !caps.resolutions.includes(resolution)) log(model + ' has no ' + resolution + '; using ' + body.resolution, {level:'warn'});
-    if (duration !== args.duration) log(model + ' makes ' + caps.durations[0] + '–' + caps.durations.at(-1) + ' s clips; asking for ' + duration + ' s instead of ' + args.duration + ' s');
-    const frames = [];
-    if (args.first_frame) frames.push({type:'image_url', image_url:{url:await dataURL(dir, args.first_frame)}, frame_type:'first_frame'});
-    if (args.last_frame) frames.push({type:'image_url', image_url:{url:await dataURL(dir, args.last_frame)}, frame_type:'last_frame'});
-    if (frames.length) body.frame_images = frames;
-    else if (args.references.length) body.input_references = await Promise.all(args.references.map(async r => ({type:'image_url', image_url:{url:await dataURL(dir, r)}})));
-    log('OpenRouter → video “' + args.name + '” · ' + model + ' · ' + body.aspect_ratio + ' · ' + body.duration + ' s' + (body.resolution ? ' · ' + body.resolution : '') +
-      (args.first_frame ? ' · first frame: ' + args.first_frame : '') + (args.last_frame ? ' · last frame: ' + args.last_frame : '') + (!frames.length ? refs(args.references) : ''),
-      {level:'step', detail:args.prompt});
-    let job;
-    try { job = await (await call(API + '/videos', {method:'POST', body:JSON.stringify(body)}, signal)).json(); }
-    catch (error) { log('OpenRouter ✗ video “' + args.name + '”', {level:'error', detail:error.message}); throw error; }
+    const fit = () => {
+      const duration = caps ? (caps.durations.find(d => d >= args.duration) ?? caps.durations.at(-1)) : args.duration;
+      const aspect = caps && !caps.ratios.includes(args.aspect_ratio) ? '16:9' : args.aspect_ratio;
+      const body = {model, prompt:args.prompt, aspect_ratio:aspect, duration};
+      if (!caps || caps.audio) body.generate_audio = false;
+      const resolution = process.env.OPENROUTER_VIDEO_RESOLUTION;
+      if (resolution && (!caps || caps.resolutions.includes(resolution))) body.resolution = resolution;
+      else if (caps) body.resolution = caps.resolutions[0];
+      if (resolution && caps && !caps.resolutions.includes(resolution)) log(model + ' has no ' + resolution + '; using ' + body.resolution, {level:'warn'});
+      if (duration !== args.duration) log(model + ' makes ' + caps.durations[0] + '–' + caps.durations.at(-1) + ' s clips; asking for ' + duration + ' s instead of ' + args.duration + ' s');
+      const frames = caps?.keyframes === 1 && frameImages.length > 1 ? frameImages.slice(0, 1) : frameImages;
+      if (frames.length < frameImages.length) log(model + ' takes one keyframe: the last frame is left out', {level:'warn'});
+      if (frames.length) body.frame_images = frames;
+      else if (references) body.input_references = references;
+      log('OpenRouter → video “' + args.name + '” · ' + model + ' · ' + body.aspect_ratio + ' · ' + body.duration + ' s' + (body.resolution ? ' · ' + body.resolution : '') +
+        (args.first_frame ? ' · first frame: ' + args.first_frame : '') + (frames.length > 1 || (!args.first_frame && args.last_frame) ? ' · last frame: ' + args.last_frame : '') + (!frames.length ? refs(args.references) : ''),
+        {level:'step', detail:args.prompt});
+      return body;
+    };
+    let body = fit(), job, tries = {person: 0, credits: 0, fallback: 0};
+    for (;;) {
+      try { job = await (await call(API + '/videos', {method:'POST', body:JSON.stringify(body)}, signal)).json(); break; }
+      catch (error) {
+        const msg = String(error.message);
+        // The real-person filter is not deterministic on the same picture: one more try often passes (round 8, Grit).
+        if (error.status === 400 && REAL_PERSON.test(msg) && !tries.person++) { log(model + ' saw a real person in the keyframe; trying once more', {level:'warn', detail:msg}); continue; }
+        // 402 counts the credits other running requests have reserved: wait for this computer's other clips, then once more.
+        if (error.status === 402 && !tries.credits++ && inFlight.videos > 1) {
+          log('OpenRouter credits are reserved by ' + (inFlight.videos - 1) + ' other clip' + (inFlight.videos > 2 ? 's' : '') + ' in progress; waiting for them, then trying again', {level:'warn', detail:msg});
+          await videosSettled(signal);
+          continue;
+        }
+        // A model OpenRouter lists but cannot route for this account (round 8: "No endpoints found" for MiniMax): the fallback model.
+        const fallback = videoFallback();
+        if (error.status === 404 && /no endpoints/i.test(msg) && fallback && fallback !== model && !tries.fallback++) {
+          log(model + ' is not available on OpenRouter for this account (' + msg.slice(0, 120) + '); using ' + fallback + ' instead. Check the providers and privacy settings in OpenRouter.', {level:'warn'});
+          model = fallback; caps = videoCaps(model); body = fit();
+          continue;
+        }
+        log('OpenRouter ✗ video “' + args.name + '”', {level:'error', detail:msg});
+        if (error.status === 400 && REAL_PERSON.test(msg)) throw Object.assign(Error(msg + ' — ' + model + ' refuses keyframes that look like a photo of a real person. Ask again without first_frame/last_frame (people described in the prompt), or from a keyframe where people are seen from behind, at a distance, or as hands only.'), {status: error.status});
+        if (error.status === 402) throw Object.assign(Error('OpenRouter has too little credit left for this clip (' + msg.slice(0, 160) + '). Top up at openrouter.ai/settings/credits. Continue without the clip and say so in your reply.'), {status: 402});
+        throw error;
+      }
+    }
     log('Video queued · job ' + job.id);
     const deadline = Date.now() + Number(process.env.MEDIA_VIDEO_TIMEOUT_MS || 12 * 60 * 1000);
     let state = job, lastStatus = job.status;
@@ -234,6 +303,8 @@ export function mediaSession({dir, signal, log = () => {}, allow = {images:true,
       throw Object.assign(Error(String(error?.message || error) + ' (This did not use the video budget: ' + left + ' left.)', {cause: error}), error?.status ? {status: error.status} : {});
     } finally {
       pending.videos--;
+      inFlight.videos--;
+      for (const fn of settledWaiters.splice(0)) fn();
     }
   }
 

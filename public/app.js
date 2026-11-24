@@ -1909,7 +1909,8 @@ function refreshUI() {
           ' videos. Models: ' +
           cfg.media.imageModel +
           ($('#mediaVideo').checked ? ', ' + cfg.media.videoModel : '') +
-          '.'
+          '.' +
+          creditsNote(cfg.media.credits)
         : ''
       : 'Add OPENROUTER_API_KEY to .env and restart the server.';
 
@@ -1919,6 +1920,13 @@ function refreshUI() {
   document.body.classList.toggle('busy', busy);
   validateSetupForm();
   renderStepper({busyStep});
+}
+
+// What is left on OpenRouter (the account balance with a management key, else the key's own limit): video fails with 402 when it runs out.
+function creditsNote(c) {
+  const left = c?.balance ?? c?.keyRemaining;
+  if (typeof left !== 'number') return '';
+  return ' OpenRouter: $' + left.toFixed(2) + ' left' + (left < 5 ? ' — top up before a video build.' : '.');
 }
 
 // ---- Setup Form Submit (Start or Patch Campaign) ----
@@ -2719,7 +2727,9 @@ function renderReviewCard() {
       : 'An execution check of the final in every format and language. Its notes are applied automatically, once; a new look waits for your click.';
 
   const errs = r?.problems?.errors || [], flat = r?.problems?.blank || [], green = r?.problems?.green || [];
+  const check = target.output?.check;
   const problemText = [
+    check?.hard?.length && check.fix?.status !== 'running' ? 'The check after the build still finds: ' + check.hard.join(' · ') : '',
     errs.length ? 'The browser reported ' + errs.length + (errs.length === 1 ? ' error' : ' errors') + ': ' + errs[0].message + (errs.length > 1 ? ' …' : '') : '',
     flat.length ? 'Flat frames: ' + flat.slice(0, 3).join(', ') + (flat.length > 3 ? ' …' : '') : '',
     green.length ? 'Chroma green left: ' + green.slice(0, 3).join(', ') + (green.length > 3 ? ' …' : '') : '',

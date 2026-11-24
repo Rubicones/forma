@@ -161,7 +161,13 @@ function watch(page, where, problems) {
   const short = u => u.split('?')[0].split('/').slice(-2).join('/');
   page.on('pageerror', e => add('Script error: ' + (e?.message || e)));
   page.on('console', m => { if (m.type() === 'error') add('Console error: ' + m.text()); });
-  page.on('requestfailed', r => add('Failed to load ' + short(r.url()) + ': ' + (r.failure()?.errorText || 'failed')));
+  // Chrome aborts a clip's range requests itself while it seeks (net::ERR_ABORTED): not a failed load. A clip that
+  // really fails shows as an HTTP error, a media error in the console, or a frame that does not move.
+  page.on('requestfailed', r => {
+    const why = r.failure()?.errorText || 'failed';
+    if (why === 'net::ERR_ABORTED' && ['media', 'other'].includes(r.resourceType())) return;
+    add('Failed to load ' + short(r.url()) + ': ' + why);
+  });
   page.on('response', r => { if (r.status() >= 400) add('HTTP ' + r.status() + ' for ' + short(r.url())); });
   return add;
 }
@@ -230,7 +236,7 @@ async function composeSheet(frames, title, file) {
   try {
     const tiles = frames.map(fr => {
       const {w, h} = tileSize(fr);
-      return `<figure style="width:${w}px"><img data-label="${escapeHtml(fr.label)}" data-frame="${fr.detail ? 0 : 1}" src="data:image/jpeg;base64,${Buffer.from(fr.png).toString('base64')}" style="width:${w}px;height:${h}px"><figcaption>${escapeHtml(fr.label)}${fr.t ? ' · ' + fr.t.toFixed(2) + ' s' : ''}</figcaption></figure>`;
+      return `<figure style="width:${w}px"><img data-label="${escapeHtml(fr.label)}" data-frame="${fr.detail ? 0 : 1}" data-i="${frames.indexOf(fr)}" src="data:image/jpeg;base64,${Buffer.from(fr.png).toString('base64')}" style="width:${w}px;height:${h}px"><figcaption>${escapeHtml(fr.label)}${fr.t ? ' · ' + fr.t.toFixed(2) + ' s' : ''}</figcaption></figure>`;
     }).join('');
     const html = `<!doctype html><html><head><style>
       body{margin:0;padding:16px;background:#e9e9e4;font:600 15px/1.3 -apple-system,Helvetica,Arial,sans-serif;color:#1e231d;width:max-content;max-width:1560px}
@@ -242,8 +248,8 @@ async function composeSheet(frames, title, file) {
     </style></head><body><h1>${escapeHtml(title)}</h1><div class="grid">${tiles}</div></body></html>`;
     await page.setViewport({width: 1560, height: 800, deviceScaleFactor: 1});
     await page.setContent(html, {waitUntil: 'load'});
-    const {blank, green} = await page.evaluate(() => {
-      const blank = [], green = [];
+    const {blank, green, sigs} = await page.evaluate(() => {
+      const blank = [], green = [], sigs = {};
       for (const img of document.querySelectorAll('img[data-frame="1"]')) {
         const c = document.createElement('canvas');
         c.width = 96; c.height = 96;
@@ -256,11 +262,16 @@ async function composeSheet(frames, title, file) {
           if (d[i + 1] > 200 && d[i] < 90 && d[i + 2] < 90) chroma++;
         }
         const n = d.length / 4, mean = sum / n;
+        // a 24×24 luminance print of the frame, to tell whether the spot moves at all
+        const sig = [];
+        for (let y = 0; y < 24; y++) for (let x2 = 0; x2 < 24; x2++) { let v = 0; for (let k = 0; k < 16; k++) { const i = ((y * 4 + (k >> 2)) * 96 + x2 * 4 + (k & 3)) * 4; v += 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]; } sig.push(v / 16); }
+        sigs[img.dataset.i] = sig;
         if (Math.sqrt(Math.max(0, sq / n - mean * mean)) < 4) blank.push(img.dataset.label);
         else if (chroma / n > 0.004) green.push(img.dataset.label);
       }
-      return {blank, green};
-    }).catch(() => ({blank: [], green: []}));
+      return {blank, green, sigs};
+    }).catch(() => ({blank: [], green: [], sigs: {}}));
+    for (const [i, sig] of Object.entries(sigs)) frames[i].sig = sig;
     const width = await page.evaluate(() => Math.ceil(document.body.getBoundingClientRect().width));
     await page.setViewport({width: Math.min(1560, Math.max(400, width)), height: 800, deviceScaleFactor: 1});
     await fs.mkdir(path.dirname(file), {recursive: true});
@@ -331,6 +342,18 @@ export async function renderSheets({url, stage, setup, scenario, outDir, publicB
       sheets.push({name, title: pageTitle, file, url: publicBase + '/' + name + '.png', frames: pages[i].length});
     }
   }
+  // A video that shows the same picture at every moment does not play (round 8: stuck on its first frame in every format).
+  problems.still = [];
+  if (stage !== 'preview' && setup.kind !== 'poster') {
+    for (const [key, list] of groups) {
+      if (key === 'preview' || key === 'languages' || key.startsWith('details-')) continue;
+      const seen = list.filter(fr => fr.sig).sort((a, b) => a.t - b.t);
+      if (seen.length < 2 || seen.at(-1).t - seen[0].t < 1.5) continue;
+      const diff = (a, b) => a.reduce((sum, v, i) => sum + Math.abs(v - b[i]), 0) / a.length;
+      if (seen.every(fr => diff(fr.sig, seen[0].sig) < 1.2)) problems.still.push(fmtOf(key).label);
+    }
+  }
+  if (problems.still.length) log('The video does not move in: ' + problems.still.join(', ') + ' (the same picture at every moment)', {level: 'warn'});
   if (problems.errors.length) log('The browser reported ' + problems.errors.length + ' problem' + (problems.errors.length === 1 ? '' : 's') + ': ' + problems.errors[0].message, {level: 'warn'});
   if (problems.blank.length) log('Frames that came out a flat colour: ' + problems.blank.join(', '), {level: 'warn'});
   if (problems.green.length) log('Frames with chroma green left: ' + problems.green.join(', '), {level: 'warn'});

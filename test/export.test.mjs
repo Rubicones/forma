@@ -87,6 +87,27 @@ test('check: chroma green left in a frame is reported, and the first frame is al
     assert.ok(sheets.length >= 1);
     assert.ok(sheets.problems.green.some(l => /first frame/.test(l)), 'green in the first frame: ' + sheets.problems.green.join(', '));
     assert.deepEqual(sheets.problems.blank, []);
+    assert.equal(sheets.problems.still.length, 1, 'renderFrame draws nothing new: the video does not move');
+  } finally {
+    await closeRenderer();
+    await fs.rm(outDir, {recursive: true, force: true});
+  }
+});
+
+test('check: a video whose frames change is not reported as still', {skip: !chrome && 'no Chrome here'}, async () => {
+  const outDir = await fs.mkdtemp(path.join(tmpdir(), 'forma-check-'));
+  const page = path.join(outDir, 'moving.html');
+  await fs.writeFile(page, `<!doctype html><html><body style="margin:0;background:#123">
+<div id="box" style="position:absolute;width:30%;height:30%;background:#ff4f17;left:0;top:35%"></div>
+<script>
+window.FORMA = {kind: 'multi', length: 4, cut: {scenes: [{id: 's1', start: 0, end: 2}, {id: 's2', start: 2, end: 4}]}};
+window.renderFrame = t => { document.getElementById('box').style.left = Math.round(t * 18) + '%'; };
+renderFrame(0);
+setTimeout(() => postMessage({type: 'forma:time', t: 0}, '*'), 50);
+</script></body></html>`);
+  try {
+    const sheets = await renderSheets({url: pathToFileURL(page).href, stage: 'final', setup: {kind: 'multi', formats: ['1x1'], languages: ['en'], lengths: [4]}, scenario: null, outDir, publicBase: '/x'});
+    assert.deepEqual(sheets.problems.still, []);
   } finally {
     await closeRenderer();
     await fs.rm(outDir, {recursive: true, force: true});

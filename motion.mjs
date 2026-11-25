@@ -360,15 +360,17 @@ function runtimeV2(resolveFn, data) {
   window.FORMA = {
     ...state,
     get pixelRatio() { if (pixelRatio === null) pixelRatio = findPixelRatio(); return pixelRatio; },
-    get screens() { return screens.map(sc => ({clip: sc.clip, size: sc.size, offset: sc.offset, mode: sc.mode})); },
+    get screens() { return screens.map(sc => ({clip: sc.clip, size: sc.size, offset: sc.offset, mode: sc.mode, surface: sc.surface})); },
     // Puts an interface on the green screen inside a clip. Call it in FORMA.setup with the <video> and the element
     // that holds the interface (data-forma-screen, data-size="1440x900": the screen's own pixels). offset: when the
     // clip starts on the timeline, as in FORMA.syncVideo. Keep calling FORMA.syncVideo(video, t, offset) every frame.
-    screen(video, ui, {offset = 0} = {}) {
+    // surface: 'screen' (a display: lit, the clear parts dark) or 'print' (paper, a sign, packaging, an imprint: the
+    // clear parts take the material around it and the interface lands as ink).
+    screen(video, ui, {offset = 0, surface = 'screen'} = {}) {
       if (!video || !ui) { console.error('FORMA.screen: needs the <video> and the interface element'); return Promise.resolve(null); }
       const clip = clipKey(video.getAttribute('src') || video.currentSrc);
       const [w, h] = String(ui.dataset.size || '1280x800').split('x').map(Number);
-      const sc = {video, ui, clip, offset: Number(offset) || 0, size: [w > 0 ? w : 1280, h > 0 ? h : 800], mode: 'pending', track: null, overlay: null};
+      const sc = {video, ui, clip, offset: Number(offset) || 0, size: [w > 0 ? w : 1280, h > 0 ? h : 800], surface: surface === 'print' ? 'print' : 'screen', mode: 'pending', track: null, overlay: null};
       screens.push(sc);
       screenOf.set(video, sc);
       ui.dataset.formaScreen = ui.dataset.formaScreen || clip;
@@ -474,11 +476,50 @@ function runtimeV2(resolveFn, data) {
       for (const el of list) el.style.fontSize = best + 'px';
       return best;
     },
+    // Splits an element's text into spans for letter or word animation: {letters, words}. Letters are whole graphemes
+    // (Intl.Segmenter: an umlaut, an accent, an emoji with its marks stay one letter); each word is an unbreakable inline-block, so a
+    // line never breaks inside a word. Scripts whose letters join or combine (Arabic, Hebrew, Indic, Thai) are split
+    // by words only: letters then are the words. Runs once per element (a second call returns the same spans).
+    // Hide letters not yet shown with opacity: accents and umlauts reach above the line, past a parent's overflow clip.
+    letters(el) {
+      if (!el) return {letters: [], words: []};
+      if (el._formaLetters) return el._formaLetters;
+      const text = el.textContent || '';
+      const joined = /[\u0590-\u08FF\u0900-\u0DFF\u0E00-\u0EFF\u1000-\u109F\uFB1D-\uFDFF\uFE70-\uFEFF]/.test(text);
+      let seg = null;
+      try { seg = new Intl.Segmenter(state.lang || undefined, {granularity: 'grapheme'}); } catch { try { seg = new Intl.Segmenter(undefined, {granularity: 'grapheme'}); } catch {} }
+      const graphemes = s => seg ? Array.from(seg.segment(s), x => x.segment) : Array.from(s);
+      const letters = [], words = [];
+      el.textContent = '';
+      for (const part of text.split(/(\s+)/)) {
+        if (!part) continue;
+        if (/^\s+$/.test(part)) { el.append(document.createTextNode(part)); continue; }
+        const word = document.createElement('span');
+        word.className = 'forma-word';
+        word.style.cssText = 'display:inline-block;white-space:nowrap';
+        if (joined) { word.textContent = part; letters.push(word); }
+        else for (const g of graphemes(part)) {
+          const l = document.createElement('span');
+          l.className = 'forma-letter';
+          l.style.display = 'inline-block';
+          l.textContent = g;
+          word.append(l);
+          letters.push(l);
+        }
+        el.append(word);
+        words.push(word);
+      }
+      el.setAttribute('aria-label', text.trim());
+      return (el._formaLetters = {letters, words});
+    },
     syncVideo(video, t, offset = 0) {
       if (!video) return;
       video.muted = true; video.playsInline = true;
-      const target = Math.max(0, Math.min((video.duration || Infinity) - .05, t - offset));
-      if (window.FORMA.playing && t >= offset) {
+      const end = (video.duration || Infinity) - .05;
+      const target = Math.max(0, Math.min(end, t - offset));
+      // Past its end a clip holds its last frame. play() on an ended clip restarts it from 0, the next frame seeks it
+      // back to the end, and a scene longer than its clip flickers between the two (round 9). Paused there too.
+      if (window.FORMA.playing && t >= offset && t - offset < end) {
         if (video.paused) video.play().catch(() => {});
         if (Math.abs(video.currentTime - target) > .25) video.currentTime = target;
       } else {

@@ -8,7 +8,7 @@ import path from 'node:path';
 import {decodePng} from './png.mjs';
 import {compositeFrame, between} from './screen-composite.mjs';
 
-const {plate, out, w, h, fps, frames, key, uiDir, uiIndex, ffmpeg, crf = 17} = workerData;
+const {plate, out, w, h, fps, frames, key, uiDir, uiIndex, ffmpeg, crf = 17, surface = 'screen'} = workerData;
 
 async function run() {
   const size = w * h * 3;
@@ -41,7 +41,7 @@ async function run() {
         if (next) quads.push(between(f.q, next, 1 / 3));
       }
       const ui = uiFor(index);
-      const r = compositeFrame({plate: frame, w, h, ui: ui.data, uw: ui.width, uh: ui.height, quads, key, v: f.v});
+      const r = compositeFrame({plate: frame, w, h, ui: ui.data, uw: ui.width, uh: ui.height, quads, key, v: f.v, surface});
       stats.screenPx += r.screenPx; stats.greenLeft += r.greenLeft;
       const frac = r.screenPx ? r.greenLeft / r.screenPx : 0;
       if (f.v > 0.5 && frac > stats.worst.frac) stats.worst = {t: Math.round(index / fps * 100) / 100, frac: Math.round(frac * 1000) / 1000};

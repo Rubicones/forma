@@ -4,7 +4,7 @@ import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {existsSync} from 'node:fs';
 import {expectedExports, todo, exportKey, exportDelivery, fileKey} from '../export.mjs';
-import {findChrome, renderVideo, renderStill, renderSheets, closeRenderer} from '../render.mjs';
+import {findChrome, renderVideo, renderStill, renderSheets, closeRenderer, browser, openFrame} from '../render.mjs';
 import fs from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 
@@ -109,6 +109,68 @@ setTimeout(() => postMessage({type: 'forma:time', t: 0}, '*'), 50);
     const sheets = await renderSheets({url: pathToFileURL(page).href, stage: 'final', setup: {kind: 'multi', formats: ['1x1'], languages: ['en'], lengths: [4]}, scenario: null, outDir, publicBase: '/x'});
     assert.deepEqual(sheets.problems.still, []);
   } finally {
+    await closeRenderer();
+    await fs.rm(outDir, {recursive: true, force: true});
+  }
+});
+
+test('FORMA.letters: whole graphemes, words never broken, joined scripts by words, once per element', {skip: !chrome && 'no Chrome here'}, async () => {
+  const {inject, pickFormats} = await import('../motion.mjs');
+  const outDir = await fs.mkdtemp(path.join(tmpdir(), 'forma-letters-'));
+  const page = path.join(outDir, 'letters.html');
+  // "Über" with a combining diaeresis (U + U+0308), as text pasted from macOS often is
+  await fs.writeFile(page, inject(`<!doctype html><html><head></head><body>
+<h1 id="de">Über Café 👍🏽</h1><h1 id="ar">مرحبا بالعالم</h1>
+<script>window.renderFrame = () => {}; FORMA.setup(() => {});</script></body></html>`, {stage: 'final', kind: 'single', formats: pickFormats(['1x1']), langs: ['de'], lengths: [6]}));
+  const tab = await (await browser()).newPage();
+  try {
+    await openFrame(tab, pathToFileURL(page).href + '?f=1x1&l=de&paused=1');
+    const r = await tab.evaluate(() => {
+      const de = FORMA.letters(document.getElementById('de')), again = FORMA.letters(document.getElementById('de'));
+      const ar = FORMA.letters(document.getElementById('ar'));
+      return {de: de.letters.map(l => l.textContent), words: de.words.length, same: de === again, text: document.getElementById('de').textContent,
+        ar: ar.letters.map(l => l.textContent), label: document.getElementById('de').getAttribute('aria-label')};
+    });
+    assert.deepEqual(r.de, ['Ü', 'b', 'e', 'r', 'C', 'a', 'f', 'é', '👍🏽']);
+    assert.equal(r.words, 3);
+    assert.equal(r.same, true);
+    assert.equal(r.text, 'Über Café 👍🏽', 'the text reads the same');
+    assert.deepEqual(r.ar, ['مرحبا', 'بالعالم'], 'Arabic letters join: split by words');
+    assert.equal(r.label, 'Über Café 👍🏽');
+  } finally {
+    await tab.close();
+    await closeRenderer();
+    await fs.rm(outDir, {recursive: true, force: true});
+  }
+});
+
+test('a Chrome that cannot decode H.264: the check does not judge clips, exports refuse, favicon is never a problem', {skip: !chrome && 'no Chrome here', timeout: 240000}, async () => {
+  const outDir = await fs.mkdtemp(path.join(tmpdir(), 'forma-noh264-'));
+  const saved = process.env.FORMA_H264_PROBE;
+  await closeRenderer();
+  try {
+    await fs.writeFile(path.join(outDir, 'broken.mp4'), Buffer.from('not a video at all'));
+    process.env.FORMA_H264_PROBE = path.join(outDir, 'broken.mp4');
+    const {videoSupport} = await import('../render.mjs');
+    assert.equal((await videoSupport()).h264, false);
+    // a creative with a clip that does not decode here, frozen like a clip shown black would be, and a console error about it
+    const page = path.join(outDir, 'clip.html');
+    await fs.writeFile(page, `<!doctype html><html><body style="margin:0;background:#202">
+<video src="missing-clip.mp4" muted style="width:100%"></video>
+<script>
+window.FORMA = {kind: 'multi', length: 4, cut: {scenes: [{id: 's1', start: 0, end: 2}, {id: 's2', start: 2, end: 4}]}};
+window.renderFrame = () => {};
+console.error('clip failed to load');
+setTimeout(() => postMessage({type: 'forma:time', t: 0}, '*'), 50);
+</script></body></html>`);
+    const sheets = await renderSheets({url: pathToFileURL(page).href, stage: 'final', setup: {kind: 'multi', formats: ['1x1'], languages: ['en'], lengths: [4]}, scenario: null, outDir, publicBase: '/x'});
+    assert.match(sheets.problems.videoBlind, /cannot play H\.264/);
+    assert.deepEqual(sheets.problems.still, [], 'black clips are not judged as a frozen video');
+    assert.ok(sheets.problems.unverified.some(e => /clip failed to load/.test(e.message)));
+    assert.ok(!sheets.problems.errors.some(e => /clip|favicon/i.test(e.message)), JSON.stringify(sheets.problems.errors));
+    await assert.rejects(renderStill({url: pathToFileURL(page).href, format: '1x1', lang: 'en', length: 4}), /cannot play H\.264/);
+  } finally {
+    if (saved === undefined) delete process.env.FORMA_H264_PROBE; else process.env.FORMA_H264_PROBE = saved;
     await closeRenderer();
     await fs.rm(outDir, {recursive: true, force: true});
   }

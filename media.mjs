@@ -309,7 +309,7 @@ export function mediaSession({dir, signal, log = () => {}, allow = {images:true,
   }
 
   // Tracks a clip's green screen (screen-track.mjs) and draws a contact sheet; the result tells the model what to check.
-  async function track(input, {firstFrame} = {}) {
+  async function track(input, {firstFrame, lastFrame} = {}) {
     let args;
     try { args = z.object(trackShape).parse(input); }
     catch (error) { log('track_screen: invalid arguments', {level:'warn', detail:error.message}); throw error; }
@@ -320,18 +320,23 @@ export function mediaSession({dir, signal, log = () => {}, allow = {images:true,
     const started = Date.now();
     const info = await probeVideo(file);
     const hints = args.hints.map(h => ({t: h.t, quad: h.corners}));
-    // A clip made from a still starts where the still's screen is: the still's corners are the first frame's hint.
-    if (!hints.length && firstFrame) {
+    // A clip made from stills starts and ends where their screens are: the first frame's corners are the hint at 0,
+    // the last frame's at the end (round 9: an imprint that appears only at the end was missed without it).
+    const stillHint = async (file, t, which) => {
       try {
-        const img = inside(dir, firstFrame);
+        const img = inside(dir, file);
         const w = 480, h = Math.max(2, Math.round(info.height * w / info.width / 2) * 2);
         let rgb = null;
         await readFrames(img, {width: w, height: h, onFrame: f => { rgb ||= f; }});
         const size = imageSize(await fs.readFile(img));
         const sameShape = size.width && Math.abs(size.width / size.height - info.width / info.height) < 0.02;
         const found = rgb && sameShape ? findScreen(rgb, w, h, {key: keyColour(rgb, w, h)}) : null;
-        if (found?.conf > 0.5) hints.push({t: 0, quad: found.quad.map(([x, y]) => [x * info.width / w, y * info.height / h])});
-      } catch (error) { log('The first frame could not be read for the screen track', {level:'warn', detail:error.message}); }
+        if (found?.conf > 0.5) hints.push({t, quad: found.quad.map(([x, y]) => [x * info.width / w, y * info.height / h])});
+      } catch (error) { log('The ' + which + ' frame could not be read for the screen track', {level:'warn', detail:error.message}); }
+    };
+    if (!hints.length) {
+      if (firstFrame) await stillHint(firstFrame, 0, 'first');
+      if (lastFrame) await stillHint(lastFrame, Math.max(0, info.duration - 1 / (info.fps || 24)), 'last');
     }
     log('Tracking the screen in ' + args.clip + (hints.length ? ' · ' + hints.length + ' hint' + (hints.length > 1 ? 's' : '') : ''), {level:'step'});
     const result = await trackScreen(file, {hints});
@@ -355,7 +360,7 @@ export function mediaSession({dir, signal, log = () => {}, allow = {images:true,
   async function videoWithScreen(input) {
     const result = await video(input);
     if (!input?.screen) return result;
-    try { result.screen = await track({clip: result.file}, {firstFrame: input.first_frame}); }
+    try { result.screen = await track({clip: result.file}, {firstFrame: input.first_frame, lastFrame: input.last_frame}); }
     catch (error) { log('Screen track failed', {level:'warn', detail:error.message}); result.screen = {found: false, error: error.message, next: 'Call track_screen for this clip.'}; }
     return result;
   }

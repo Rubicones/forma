@@ -367,6 +367,19 @@ describe('motion.mjs: inject & legacy parity', () => {
     for (let i = 0; i < 30; i++) F.syncVideo(video, i / 30, 0);
     assert.equal(seeks.length, 29, 'frame 0 is already there; each of the 29 next ones seeks');
 
+    // Playing a scene longer than its clip: once the clip has ended it holds its last frame. It is never played
+    // again from 0 (round 9: play() on an ended clip restarted it, the next frame seeked back: flicker).
+    let plays = 0, pauses = 0;
+    const ended = {paused: true, duration: 2, _t: 1.95, get currentTime() { return this._t; }, set currentTime(v) { this._t = v; }, pause() { pauses++; }, play() { plays++; return Promise.resolve(); }};
+    F.playing = true;
+    for (let i = 0; i < 60; i++) F.syncVideo(ended, 2 + i / 30, 0);
+    assert.equal(plays, 0);
+    assert.ok(Math.abs(ended.currentTime - 1.95) < 1e-9, 'the last frame is held');
+    const running = {paused: true, duration: 2, _t: 0, get currentTime() { return this._t; }, set currentTime(v) { this._t = v; }, pause() {}, play() { plays++; this.paused = false; return Promise.resolve(); }};
+    F.syncVideo(running, 0.5, 0);
+    assert.equal(plays, 1, 'inside the clip it plays as before');
+    F.playing = false;
+
     // ?pr= sets the pixel density, capped so the long side stays within 4096 px.
     const sandbox2 = {location: {search: '?f=9x16&l=en&d=10&pr=3'}, URLSearchParams, document: {documentElement: {dataset: {}, style: {setProperty() {}}}}, window: {}};
     vm.runInNewContext(match[1], sandbox2);
@@ -377,5 +390,14 @@ describe('motion.mjs: inject & legacy parity', () => {
     const out = inject('<html><head></head><body><img src="assets/a.png"><video src="assets/b.mp4" crossorigin="anonymous"></video></body></html>', {stage: 'final', kind: 'single', formats: pickFormats(['1x1']), langs: ['en'], lengths: [6]});
     assert.match(out, /<img crossorigin="anonymous" src="assets\/a.png">/);
     assert.equal((out.match(/crossorigin=/g) || []).length, 2);
+  });
+});
+
+describe('motion.mjs: the injected runtime survives any page encoding', () => {
+  it('has no non-ASCII character outside comments (a page served without a charset reads it as Latin-1)', () => {
+    const out = inject('<html><head></head><body></body></html>', {stage: 'final', kind: 'single', formats: pickFormats(['1x1']), langs: ['en'], lengths: [6]});
+    const code = out.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').map(line => line.replace(/(^|[^:'"\\])\/\/.*$/, '$1')).join('\n');
+    const bad = [...code.matchAll(/[^\x00-\x7F]/g)].map(m => code.slice(Math.max(0, m.index - 30), m.index + 10));
+    assert.deepEqual(bad, []);
   });
 });

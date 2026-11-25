@@ -58,6 +58,39 @@ export async function browser() {
   return browserPromise;
 }
 
+// Whether this Chrome plays H.264, the codec of every generated clip. Chromium builds without proprietary codecs
+// (Playwright's, most Linux packages) draw every clip black: the check would judge black frames and exports would
+// ship them (round 9). Asked once per browser.
+let supportPromise = null;
+export async function videoSupport() {
+  const b = await browser();
+  if (supportPromise?.browser === b) return supportPromise.value;
+  const value = (async () => {
+    const page = await b.newPage();
+    try {
+      // what the browser claims, then a real decode of one H.264 frame (render-h264-probe.mp4, 16×16, 1.5 KB)
+      // FORMA_H264_PROBE: another file to decode instead (tests use a broken one to stand in for a Chrome without H.264)
+      const probeFile = process.env.FORMA_H264_PROBE || new URL('./render-h264-probe.mp4', import.meta.url);
+      const probe = 'data:video/mp4;base64,' + (await fs.readFile(probeFile)).toString('base64');
+      const h264 = await page.evaluate(src => new Promise(resolve => {
+        const v = document.createElement('video');
+        if (!['video/mp4; codecs="avc1.640028"', 'video/mp4; codecs="avc1.42E01E"'].some(type => v.canPlayType(type) !== '')) return resolve(false);
+        const done = ok => { clearTimeout(timer); resolve(ok); };
+        const timer = setTimeout(() => done(v.readyState >= 2), 5000);
+        v.muted = true;
+        v.onloadeddata = () => done(v.videoWidth > 0);
+        v.onerror = () => done(false);
+        v.src = src;
+      }), probe);
+      return {h264, browser: findChrome()};
+    } catch { return {h264: true, browser: findChrome()}; }   // cannot tell: do not block on it
+    finally { await page.close().catch(() => {}); }
+  })();
+  supportPromise = {browser: b, value};
+  return value;
+}
+export const noH264Message = chrome => `This Chrome cannot play H.264 video (${path.basename(chrome || 'chrome')}), so every clip shows black in its frames. Install Google Chrome or point FORMA_CHROME in .env at it (not a Chromium build without proprietary codecs).`;
+
 export async function closeRenderer() {
   const b = await browserPromise?.catch(() => null);
   browserPromise = null;
@@ -163,12 +196,15 @@ function watch(page, where, problems) {
   page.on('console', m => { if (m.type() === 'error') add('Console error: ' + m.text()); });
   // Chrome aborts a clip's range requests itself while it seeks (net::ERR_ABORTED): not a failed load. A clip that
   // really fails shows as an HTTP error, a media error in the console, or a frame that does not move.
+  // Chrome asks for /favicon.ico on its own; the creative never does (round 9: an auto-fix spent on it).
+  const favicon = u => /\/favicon\.ico(?:[?#]|$)/i.test(u);
   page.on('requestfailed', r => {
+    if (favicon(r.url())) return;
     const why = r.failure()?.errorText || 'failed';
     if (why === 'net::ERR_ABORTED' && ['media', 'other'].includes(r.resourceType())) return;
     add('Failed to load ' + short(r.url()) + ': ' + why);
   });
-  page.on('response', r => { if (r.status() >= 400) add('HTTP ' + r.status() + ' for ' + short(r.url())); });
+  page.on('response', r => { if (r.status() >= 400 && !favicon(r.url())) add('HTTP ' + r.status() + ' for ' + short(r.url())); });
   return add;
 }
 
@@ -195,6 +231,7 @@ async function shoot({url, shots, scale = 0.5, onProgress = () => {}}) {
       let ready = false;
       try { ready = await openFrame(fresh, u); } catch (e) { add('The creative did not load: ' + e.message); continue; }
       if (!ready) add('The creative never reported it was ready (its setup did not finish within 2 minutes).');
+      if (!problems.hasVideo && await fresh.evaluate(() => document.querySelector('video') !== null).catch(() => false)) problems.hasVideo = true;
       const times = shot.times === 'auto' || !shot.times ? await fresh.evaluate(momentsInPage).catch(() => [{t: 0, label: 'frame'}]) : shot.times;
       for (const m of times) {
         await drawAt(fresh, m.t);
@@ -248,8 +285,8 @@ async function composeSheet(frames, title, file) {
     </style></head><body><h1>${escapeHtml(title)}</h1><div class="grid">${tiles}</div></body></html>`;
     await page.setViewport({width: 1560, height: 800, deviceScaleFactor: 1});
     await page.setContent(html, {waitUntil: 'load'});
-    const {blank, green, sigs} = await page.evaluate(() => {
-      const blank = [], green = [], sigs = {};
+    const {blank, green, sigs, blurred} = await page.evaluate(() => {
+      const blank = [], green = [], sigs = {}, blurred = [];
       for (const img of document.querySelectorAll('img[data-frame="1"]')) {
         const c = document.createElement('canvas');
         c.width = 96; c.height = 96;
@@ -268,15 +305,37 @@ async function composeSheet(frames, title, file) {
         sigs[img.dataset.i] = sig;
         if (Math.sqrt(Math.max(0, sq / n - mean * mean)) < 4) blank.push(img.dataset.label);
         else if (chroma / n > 0.004) green.push(img.dataset.label);
+        // Blurred fill bars: a picture or clip of another shape padded with a blurred copy of itself. Both opposite
+        // edges soft but not flat while the middle is sharp (a solid background band, or one soft side, is design).
+        const W = 240, H = Math.max(8, Math.round(240 * img.naturalHeight / Math.max(1, img.naturalWidth)));
+        const c2 = document.createElement('canvas'); c2.width = W; c2.height = H;
+        const x2c = c2.getContext('2d'); x2c.drawImage(img, 0, 0, W, H);
+        const e = x2c.getImageData(0, 0, W, H).data;
+        const lum = (xx, yy) => { const i = (yy * W + xx) * 4; return 0.2126 * e[i] + 0.7152 * e[i + 1] + 0.0722 * e[i + 2]; };
+        const region = (ax, ay, bx, by) => {
+          let g = 0, s1 = 0, s2 = 0, k = 0;
+          for (let yy = Math.max(1, ay); yy < Math.min(H - 1, by); yy++) for (let xx = Math.max(1, ax); xx < Math.min(W - 1, bx); xx++) {
+            const l = lum(xx, yy); g += Math.abs(l - lum(xx - 1, yy)) + Math.abs(l - lum(xx, yy - 1)); s1 += l; s2 += l * l; k++;
+          }
+          const m = s1 / Math.max(1, k);
+          return {g: g / Math.max(1, k), sd: Math.sqrt(Math.max(0, s2 / Math.max(1, k) - m * m))};
+        };
+        const mid = region(W * .25 | 0, H * .25 | 0, W * .75 | 0, H * .75 | 0);
+        const soft = r => mid.g > 6 && r.g < mid.g * 0.18 && r.sd > 6;
+        const bw = Math.max(3, W * .1 | 0), bh = Math.max(3, H * .1 | 0);
+        const sides = [];
+        if (soft(region(0, 0, bw, H)) && soft(region(W - bw, 0, W, H))) sides.push('left and right');
+        if (soft(region(0, 0, W, bh)) && soft(region(0, H - bh, W, H))) sides.push('top and bottom');
+        if (sides.length) blurred.push(img.dataset.label + ' (' + sides.join(', ') + ')');
       }
-      return {blank, green, sigs};
-    }).catch(() => ({blank: [], green: [], sigs: {}}));
+      return {blank, green, sigs, blurred};
+    }).catch(() => ({blank: [], green: [], sigs: {}, blurred: []}));
     for (const [i, sig] of Object.entries(sigs)) frames[i].sig = sig;
     const width = await page.evaluate(() => Math.ceil(document.body.getBoundingClientRect().width));
     await page.setViewport({width: Math.min(1560, Math.max(400, width)), height: 800, deviceScaleFactor: 1});
     await fs.mkdir(path.dirname(file), {recursive: true});
     await page.screenshot({path: file, type: 'png', fullPage: true});
-    return {blank, green};
+    return {blank, green, blurred};
   } finally {
     await page.close().catch(() => {});
   }
@@ -305,6 +364,14 @@ export function planShots({stage, setup, scenario}) {
       for (const format of formats) shots.push({sheet: 'languages', format, lang, length, label: format + ' · ' + lang, times: [{t: end, label: 'end'}]});
     }
   }
+  // Every shorter cut too, in the first format: its own story moments, and its end hold in every language. A short cut
+  // is planned separately and was never looked at before (round 9: the 6 s cuts lost their answer and nobody saw it).
+  if (setup.kind !== 'poster') {
+    for (const short of [...new Set(setup.lengths || [])].filter(l => l > 0 && l < length).sort((a, b) => a - b)) {
+      shots.push({sheet: 'length-' + short, format: formats[0], lang: primaryLang, length: short, times: 'auto', label: short + ' s'});
+      for (const lang of langs.slice(1)) shots.push({sheet: 'languages', format: formats[0], lang, length: short, label: formats[0] + ' · ' + lang + ' · ' + short + ' s', times: [{t: Math.max(0, short - 0.2), label: 'end'}]});
+    }
+  }
   return shots;
 }
 
@@ -312,8 +379,18 @@ export function planShots({stage, setup, scenario}) {
 export async function renderSheets({url, stage, setup, scenario, outDir, publicBase, log = () => {}}) {
   const shots = planShots({stage, setup, scenario});
   let done = 0;
+  const support = await videoSupport();
   const {frames, problems} = await shoot({url, shots, onProgress: () => { done++; if (done % 3 === 0 || done === shots.length) log('Rendered ' + done + ' of ' + shots.length + ' views'); }});
   problems.green = [];
+  problems.blurred = [];
+  // A Chrome without H.264 shows clips black: what it says about clips is not about the creative.
+  if (!support.h264 && problems.hasVideo) {
+    problems.videoBlind = noH264Message(support.browser);
+    const media = /\.(?:mp4|m4v|mov|webm)\b|\bvideo\b|\bclip\b|\bmedia\b|\bfootage\b|MEDIA_ERR|DEMUXER|decode/i;
+    problems.unverified = problems.errors.filter(e => media.test(e.message));
+    problems.errors = problems.errors.filter(e => !media.test(e.message));
+    log(problems.videoBlind + ' Clips are not judged in this check.', {level: 'warn'});
+  }
   const groups = new Map();
   for (const fr of frames) {
     if (!groups.has(fr.sheet)) groups.set(fr.sheet, []);
@@ -323,9 +400,11 @@ export async function renderSheets({url, stage, setup, scenario, outDir, publicB
   const length = setup.kind === 'poster' ? '' : ' · ' + Math.max(...(setup.lengths || [0])) + ' s';
   for (const [key, list] of groups) {
     const isDetail = key.startsWith('details-');
-    const base = key === 'preview' ? 'preview' : key === 'languages' ? 'languages' : isDetail ? key : 'format-' + key;
+    const isLength = key.startsWith('length-');
+    const base = key === 'preview' ? 'preview' : key === 'languages' ? 'languages' : isDetail || isLength ? key : 'format-' + key;
     const title = key === 'preview' ? 'Preview · ' + (setup.formats?.[0] || '') + ' · ' + (setup.languages?.[0] || '')
       : key === 'languages' ? 'End frame in every other language'
+      : isLength ? 'Short cut · ' + key.slice('length-'.length) + ' s · ' + fmtOf(setup.formats?.[0] || '1x1').label + ' · ' + (setup.languages?.[0] || '')
       : isDetail ? 'Text close-ups at full size · ' + fmtOf(key.slice('details-'.length)).label
       : fmtOf(key).label + ' · ' + (setup.languages?.[0] || '') + length;
     // At most four tiles per sheet, so a sheet stays readable without being scaled down.
@@ -335,24 +414,27 @@ export async function renderSheets({url, stage, setup, scenario, outDir, publicB
       const name = base + (pages.length > 1 ? '-' + (i + 1) : '');
       const pageTitle = title + (pages.length > 1 ? ' · ' + (i + 1) + '/' + pages.length : '');
       const file = path.join(outDir, name + '.png');
-      const {blank, green} = await composeSheet(pages[i], pageTitle, file);
-      const fmt = key === 'preview' ? setup.formats?.[0] : key === 'languages' ? null : key;
-      for (const label of blank) problems.blank.push((fmt ? fmtOf(fmt).label + ' · ' : '') + label);
-      for (const label of green) problems.green.push((fmt ? fmtOf(fmt).label + ' · ' : '') + label);
+      const {blank, green, blurred = []} = await composeSheet(pages[i], pageTitle, file);
+      const fmt = key === 'preview' || isLength ? setup.formats?.[0] : key === 'languages' || isDetail ? null : key;
+      const where = label => (fmt ? fmtOf(fmt).label + ' · ' : '') + label;
+      for (const label of blank) problems.blank.push(where(label));
+      for (const label of green) problems.green.push(where(label));
+      for (const label of blurred) problems.blurred.push(where(label));
       sheets.push({name, title: pageTitle, file, url: publicBase + '/' + name + '.png', frames: pages[i].length});
     }
   }
   // A video that shows the same picture at every moment does not play (round 8: stuck on its first frame in every format).
   problems.still = [];
-  if (stage !== 'preview' && setup.kind !== 'poster') {
+  if (stage !== 'preview' && setup.kind !== 'poster' && (support.h264 || !problems.hasVideo)) {
     for (const [key, list] of groups) {
       if (key === 'preview' || key === 'languages' || key.startsWith('details-')) continue;
       const seen = list.filter(fr => fr.sig).sort((a, b) => a.t - b.t);
       if (seen.length < 2 || seen.at(-1).t - seen[0].t < 1.5) continue;
       const diff = (a, b) => a.reduce((sum, v, i) => sum + Math.abs(v - b[i]), 0) / a.length;
-      if (seen.every(fr => diff(fr.sig, seen[0].sig) < 1.2)) problems.still.push(fmtOf(key).label);
+      if (seen.every(fr => diff(fr.sig, seen[0].sig) < 1.2)) problems.still.push(key.startsWith('length-') ? fmtOf(list[0].format).label + ' · ' + key.slice(7) + ' s' : fmtOf(key).label);
     }
   }
+  if (problems.blurred.length) log('Blurred fill at the edges (a picture or clip of another shape padded with a blurred copy): ' + problems.blurred.join(', '), {level: 'warn'});
   if (problems.still.length) log('The video does not move in: ' + problems.still.join(', ') + ' (the same picture at every moment)', {level: 'warn'});
   if (problems.errors.length) log('The browser reported ' + problems.errors.length + ' problem' + (problems.errors.length === 1 ? '' : 's') + ': ' + problems.errors[0].message, {level: 'warn'});
   if (problems.blank.length) log('Frames that came out a flat colour: ' + problems.blank.join(', '), {level: 'warn'});
@@ -382,6 +464,11 @@ async function openForExport({url, format, lang, length, problems}) {
   watch(page, f.label + ' · ' + lang + (length ? ' · ' + length + ' s' : ''), problems);
   await page.setViewport({width: f.w, height: f.h, deviceScaleFactor: 1});
   if (!await openFrame(page, url + (url.includes('?') ? '&' : '?') + q, READY_MS.export)) problems.errors.push({message: 'The creative never reported it was ready.', where: [f.label]});
+  const support = await videoSupport();
+  if (!support.h264 && await page.evaluate(() => document.querySelector('video') !== null).catch(() => false)) {
+    await page.close().catch(() => {});
+    throw fail(noH264Message(support.browser));
+  }
   return {page, f};
 }
 

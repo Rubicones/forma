@@ -30,13 +30,14 @@ const sampleScenario = () => ({
   lines: {
     h1:  {role:'hook',  scene:'s1', maxChars:24, hideIn:[], text:{en:'“I paid last.”',       ru:'«Платил уже я.»'}},
     p1:  {role:'proof', scene:'s2', maxChars:28, hideIn:[], text:{en:'One list. Split fast.', ru:'Один список на всех.'}},
+    a1:  {role:'answer',scene:'s3', maxChars:16, hideIn:[], text:{en:'Settled.',              ru:'Решено.'}},
     o1:  {role:'offer', scene:'s3', maxChars:32, hideIn:[], text:{en:'Free 3 months',         ru:'3 месяца бесплатно'}},
     cta: {role:'cta',   scene:'s3', maxChars:24, hideIn:[], text:{en:'Start budget',          ru:'Начать бюджет'}},
   },
   scenes: [
     {id:'s1', beat:'HOOK',        story:'Two voices claim the same bill.',         lines:['h1']},
     {id:'s2', beat:'PROOF',       story:'The shared list settles who paid what.',  lines:['p1']},
-    {id:'s3', beat:'OFFER + CTA', story:'The offer lands with the brand and CTA.', lines:['o1', 'cta']},
+    {id:'s3', beat:'ANSWER + CTA', story:'Settled; the offer lands with the brand and CTA.', lines:['a1', 'o1', 'cta']},
   ],
   cuts: {
     '4': {
@@ -48,13 +49,34 @@ const sampleScenario = () => ({
     },
     '10': {
       scenes: [
-        {id:'s1', start:0,   end:3.0, lines:['h1']},
-        {id:'s2', start:3.0, end:5.6, lines:['p1']},
-        {id:'s3', start:5.6, end:10,  lines:['o1', 'cta']},
+        {id:'s1', start:0,   end:2.3, lines:['h1']},
+        {id:'s2', start:2.3, end:4.9, lines:['p1']},
+        {id:'s3', start:4.9, end:10,  lines:['a1', 'o1', 'cta']},
       ],
       note: 'Full cut.',
     },
   },
+});
+
+describe('campaigns.mjs: automatic cuts keep the answer (round 9)', () => {
+  it('6 s = hook → answer + CTA; one composition when two windows do not fit; bumpers under 5 s', async () => {
+    const {buildProportionalCuts} = await import('../campaigns.mjs');
+    const {validateScenario} = await import('../scenario.mjs');
+    const sc = sampleScenario();
+    const cuts = buildProportionalCuts(sc, [4, 6, 10], ['en', 'ru']);
+    assert.deepEqual(cuts['6'].scenes.map(w => [w.id, w.lines]), [['s1', ['h1']], ['s3', ['a1', 'cta']]]);
+    assert.deepEqual(cuts['4'].scenes.at(-1).lines, ['cta']);
+    assert.deepEqual(validateScenario({...sc, cuts}, {kind: 'multi', languages: ['en', 'ru'], lengths: [4, 6, 10]}).errors, []);
+    // copy that does not read in two windows in 6 s, but does in one: one composition holds hook, answer and CTA
+    const long = sampleScenario();
+    long.lines.h1.text = {en: 'Who paid last?', ru: 'Кто платил последним?'};
+    long.lines.a1.text = {en: 'One tap settles.', ru: 'Один тап решает.'};
+    const six = buildProportionalCuts(long, [6], ['en', 'ru'])['6'];
+    assert.equal(six.scenes.length, 1);
+    assert.deepEqual(six.scenes[0].lines, ['h1', 'a1', 'cta']);
+    assert.match(six.note, /one composition/);
+    assert.deepEqual(validateScenario({...long, cuts: {6: six}}, {kind: 'multi', languages: ['en', 'ru'], lengths: [6]}).errors, []);
+  });
 });
 
 describe('campaigns.mjs: setup validation, concurrency, invalidation and cost roll-up', () => {
@@ -802,6 +824,7 @@ describe('campaigns.mjs: HTTP endpoints, gating and history integration', () => 
       lines: {
         h1:  {text: {de: '„Ich zahlte zuletzt.”'}},
         p1:  {text: {de: 'Eine Liste für alle.'}},
+        a1:  {text: {de: 'Geklärt.'}},
         o1:  {text: {de: '3 Monate gratis'}},
         cta: {text: {de: 'Budget starten'}},
       },
@@ -816,10 +839,10 @@ describe('campaigns.mjs: HTTP endpoints, gating and history integration', () => 
       const next = structuredClone(trModel.body.scenario);
       next.cuts['6'] = {
         scenes: [
-          {id: 's1', start: 0, end: 2.6, lines: ['h1']},
-          {id: 's3', start: 2.6, end: 6.0, lines: ['cta']},
+          {id: 's1', start: 0, end: 2.5, lines: ['h1']},
+          {id: 's3', start: 2.5, end: 6.0, lines: ['a1', 'cta']},
         ],
-        note: '6s cut: hook → CTA (a proof scene does not fit with time to read).',
+        note: '6s cut: hook → answer and CTA (a proof scene does not fit with time to read).',
       };
       return JSON.stringify(next);
     };

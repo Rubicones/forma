@@ -2730,6 +2730,7 @@ function renderReviewCard() {
   const check = target.output?.check;
   const problemText = [
     check?.hard?.length && check.fix?.status !== 'running' ? 'The check after the build still finds: ' + check.hard.join(' · ') : '',
+    check?.problems?.videoBlind ? 'The check could not see the clips: ' + check.problems.videoBlind : '',
     errs.length ? 'The browser reported ' + errs.length + (errs.length === 1 ? ' error' : ' errors') + ': ' + errs[0].message + (errs.length > 1 ? ' …' : '') : '',
     flat.length ? 'Flat frames: ' + flat.slice(0, 3).join(', ') + (flat.length > 3 ? ' …' : '') : '',
     green.length ? 'Chroma green left: ' + green.slice(0, 3).join(', ') + (green.length > 3 ? ' …' : '') : '',

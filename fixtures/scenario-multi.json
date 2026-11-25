@@ -40,6 +40,16 @@
         "ru": "Один список всем."
       }
     },
+    "a1": {
+      "role": "answer",
+      "scene": "s3",
+      "maxChars": 16,
+      "hideIn": [],
+      "text": {
+        "en": "Settled.",
+        "ru": "Решено."
+      }
+    },
     "o1": {
       "role": "offer",
       "scene": "s3",
@@ -81,9 +91,10 @@
     },
     {
       "id": "s3",
-      "beat": "OFFER + CTA",
-      "story": "The offer lands with the brand and CTA.",
+      "beat": "ANSWER + OFFER + CTA",
+      "story": "The argument is settled in one tap; the offer lands with the brand and CTA.",
       "lines": [
+        "a1",
         "o1",
         "cta"
       ]
@@ -109,52 +120,54 @@
           ]
         }
       ],
-      "note": "PROOF and secondary lines dropped; hook → CTA."
+      "note": "A bumper: hook → CTA; under 5 s there is no time to read the answer."
     },
     "6": {
       "scenes": [
         {
           "id": "s1",
           "start": 0,
-          "end": 2.6,
+          "end": 2.3,
           "lines": [
             "h1"
           ]
         },
         {
           "id": "s3",
-          "start": 2.6,
+          "start": 2.3,
           "end": 6,
           "lines": [
+            "a1",
             "cta"
           ]
         }
       ],
-      "note": "Hook → CTA; the proof scene does not fit 6 s with time to read."
+      "note": "Question → answer: the hook, then the answer with the CTA; proof and offer dropped."
     },
     "10": {
       "scenes": [
         {
           "id": "s1",
           "start": 0,
-          "end": 2.4,
+          "end": 2.2,
           "lines": [
             "h1"
           ]
         },
         {
           "id": "s2",
-          "start": 2.4,
-          "end": 5.0,
+          "start": 2.2,
+          "end": 4.8,
           "lines": [
             "p1"
           ]
         },
         {
           "id": "s3",
-          "start": 5.0,
+          "start": 4.8,
           "end": 10,
           "lines": [
+            "a1",
             "o1",
             "cta"
           ]

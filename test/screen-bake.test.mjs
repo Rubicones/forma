@@ -149,9 +149,31 @@ test('track_screen: tracks a clip in the materials folder, writes the track and 
     logs.length = 0;
     assert.equal((await session.track({clip: 'generated/phone.mp4'}, {firstFrame: 'generated/still.png'})).found, true);
     assert.ok(logs.some(([m]) => /1 hint/.test(m)), 'the still gave the first frame\'s corners');
+    // and the last frame's still gives the corners at the end
+    const last = new Uint8Array(640 * 360 * 3).fill(80);
+    for (let y = 0; y < 360; y++) for (let x = 0; x < 640; x++) if (pointInQuad(B, x + 0.5, y + 0.5)) last.set([20, 235, 30], (y * 640 + x) * 3);
+    await fs.writeFile(path.join(dir, 'generated/last.png'), encodePng(last, 640, 360, 3));
+    logs.length = 0;
+    assert.equal((await session.track({clip: 'generated/phone.mp4'}, {firstFrame: 'generated/still.png', lastFrame: 'generated/last.png'})).found, true);
+    assert.ok(logs.some(([m]) => /2 hints/.test(m)), 'first and last frame corners');
     await assert.rejects(session.track({clip: '../outside.mp4'}), /inside the materials folder/);
     await assert.rejects(session.track({clip: 'generated/phone.mp4', hints: [{t: 0, corners: [[1, 2], [3, 4]]}]}));
   } finally {
+    await fs.rm(dir, {recursive: true, force: true});
+  }
+});
+
+test('bake: the surface a creative asks for reaches the bake (print or screen)', {skip: !chrome && 'no Chrome here', timeout: 120000}, async () => {
+  const {listScreens} = await import('../screen-bake.mjs');
+  const dir = await fs.mkdtemp(path.join(tmpdir(), 'forma-bake-test-'));
+  try {
+    const printPage = page.replace('await FORMA.screen(v, ui);', "await FORMA.screen(v, ui, {surface: 'print'});");
+    assert.notEqual(printPage, page);
+    await fs.writeFile(path.join(dir, 'r1.html'), inject(printPage, {stage: 'final', kind: 'single', formats: ['16x9'], langs: ['en'], duration: 2}));
+    const list = await listScreens({url: pathToFileURL(path.join(dir, 'r1.html')).href, format: '16x9', lang: 'en'});
+    assert.deepEqual(list.map(s => [s.clip, s.surface]), [['plate.mp4', 'print']]);
+  } finally {
+    await closeRenderer();
     await fs.rm(dir, {recursive: true, force: true});
   }
 });

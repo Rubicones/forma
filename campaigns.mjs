@@ -36,6 +36,20 @@ export const PREVIEW_MEDIA = Object.freeze({images: true, video: false, maxImage
 
 // Active running job per campaign: Map<campaignId, requestId>
 export const runningJob = new Map();
+// Steps handed a campaign before their run starts (an auto-fix): Map<requestId, {campaignId, task, status, started}>
+export const reserved = new Map();
+// A finished step passes its campaign straight to the next one (its auto-fix): no moment where it looks free.
+export function handOverJob(campaignId, fromId, toId, info = {}) {
+  if (runningJob.get(campaignId) !== fromId) return false;
+  runningJob.set(campaignId, toId);
+  reserved.set(toId, {...info, campaignId, started: Date.now()});
+  return true;
+}
+export const isHandedTo = (campaignId, requestId) => Boolean(requestId) && runningJob.get(campaignId) === requestId && reserved.has(requestId);
+// A handed-over step that never started its run gives the campaign back.
+export function releaseHandOver(campaignId, requestId) {
+  if (reserved.delete(requestId)) releaseJob(campaignId, requestId);
+}
 
 export function acquireJob(campaignId, requestId) {
   if (runningJob.has(campaignId)) {
@@ -753,17 +767,24 @@ export function buildProportionalCuts(scenario, lengths = [], languages = scenar
     const L = Number(rawLen);
     let chosenScenes;
     if (L <= 6 || scenes.length <= 2) {
-      const hLines = firstScene.lines.slice(0, 1);
+      // Short: question → answer. The hook, then the closing scene saying the answer with the CTA (the offer only when
+      // it reads in time); when two windows do not fit, one window holding hook, answer and CTA together.
+      const hLines = firstScene.lines.filter(k => scenario.lines?.[k]?.role === 'hook').slice(0, 1);
+      if (!hLines.length) hLines.push(...firstScene.lines.slice(0, 1));
       const ctaLines = lastScene.lines.filter(k => scenario.lines?.[k]?.role === 'cta');
       const offerLines = lastScene.lines.filter(k => scenario.lines?.[k]?.role === 'offer');
-      let closeLines = [...offerLines.slice(0, 1), ...(ctaLines.length ? ctaLines : lastScene.lines.slice(-1))];
-      if (minNeedForLines(hLines, false) + minNeedForLines(closeLines, true) > L - 0.1 && ctaLines.length) {
-        closeLines = ctaLines;
-      }
+      const answerLines = L >= 5 ? lastScene.lines.filter(k => scenario.lines?.[k]?.role === 'answer').slice(0, 1) : [];
+      const cta = ctaLines.length ? ctaLines : lastScene.lines.slice(-1);
+      const fits = close => minNeedForLines(hLines, false) + minNeedForLines(close, true) <= L - 0.1;
+      let closeLines = [...answerLines, ...offerLines.slice(0, 1), ...cta];
+      if (!fits(closeLines)) closeLines = [...answerLines, ...cta];
       chosenScenes = [
         {id: firstScene.id, lines: hLines},
         {id: lastScene.id, lines: closeLines},
       ];
+      if (!fits(closeLines) && minNeedForLines([...hLines, ...closeLines], true) <= L - 0.1) {
+        chosenScenes = [{id: lastScene.id, lines: [...hLines, ...closeLines]}];
+      }
     } else if (L <= 10) {
       const mid = midScenes[0];
       chosenScenes = [
@@ -789,7 +810,8 @@ export function buildProportionalCuts(scenario, lengths = [], languages = scenar
     if (sumNeed > L) {
       // Trim non-CTA lines in closing scene if still tight
       const last = chosenScenes[chosenScenes.length - 1];
-      const ctaOnly = last.lines.filter(k => scenario.lines?.[k]?.role === 'cta');
+      const keep = new Set(['cta', ...(L >= 5 ? ['answer'] : [])]);
+      const ctaOnly = last.lines.filter(k => keep.has(scenario.lines?.[k]?.role));
       if (ctaOnly.length) {
         last.lines = ctaOnly;
         needs = chosenScenes.map((s, idx) => minNeedForLines(s.lines, idx === chosenScenes.length - 1));
@@ -813,7 +835,9 @@ export function buildProportionalCuts(scenario, lengths = [], languages = scenar
 
     cuts[String(L)] = {
       scenes: windows,
-      note: L <= 6 ? 'Short cut: hook → offer/CTA.' : L <= 10 ? 'Medium cut: 3 scenes.' : 'Full story.',
+      note: windows.length === 1 ? 'Short cut: one composition with the hook, the answer and the CTA.'
+        : L < 5 ? 'Bumper: hook → CTA (no time to read an answer).'
+        : L <= 6 ? 'Short cut: hook → answer and CTA.' : L <= 10 ? 'Medium cut: ' + windows.length + ' scenes.' : 'Full story.',
     };
   }
   return cuts;
@@ -869,9 +893,11 @@ export function registerCampaignRoutes(app, {
         if (job?.status) r.statusText = job.status;   // fresher than the last heartbeat
         continue;
       }
-      list.push({id: requestId, campaignId, projectId: job?.project || null, task: job?.task || 'step', author: null, status: 'running',
-        statusText: job?.status || '', costs: job?.costs, startedAt: job ? new Date(job.started).toISOString() : null,
-        elapsed: job ? Date.now() - job.started : null, local: true});
+      const r = reserved.get(requestId);
+      const started = job?.started || r?.started;
+      list.push({id: requestId, campaignId, projectId: job?.project || r?.project || null, task: job?.task || r?.task || 'step', author: null, status: 'running',
+        statusText: job?.status || r?.status || '', costs: job?.costs, startedAt: started ? new Date(started).toISOString() : null,
+        elapsed: started ? Date.now() - started : null, local: true});
     }
     const runs = await Promise.all(list.map(async r => ({...r, campaignName: r.campaignId ? await campaignName(r.campaignId) : null})));
     res.set('Cache-Control', 'no-store').json({runs, ...(raw ? {} : {partial: 'The store did not answer within 8 s: only this server\'s own steps are listed.'})});
@@ -890,7 +916,9 @@ export function registerCampaignRoutes(app, {
     return upgradeCampaign(c);
   }
 
-  async function ensureIdle(campaignId) {
+  // requestId: the step asking. A step a finished build handed the campaign to (its auto-fix) may start; nothing else.
+  async function ensureIdle(campaignId, requestId = null) {
+    if (isHandedTo(campaignId, requestId)) return;
     const activeList = await store.runs.active();
     const activeOnCamp = activeList.find(r => r.campaignId === campaignId);
     if (activeOnCamp) {
@@ -902,7 +930,16 @@ export function registerCampaignRoutes(app, {
     }
   }
 
+  // A long step works on the campaign it read when it started; before writing it reads it again, so a change made
+  // meanwhile is not written over (round 9: an approval made while an auto-fix started was lost).
+  async function reloadCampaign(campaign) {
+    const fresh = await requireCampaign(campaign.id);
+    for (const k of Object.keys(campaign)) if (!(k in fresh)) delete campaign[k];
+    return Object.assign(campaign, fresh);
+  }
+
   async function startCampaignRun(campaign, requestId, task) {
+    reserved.delete(requestId);
     await store.runs.start({
       id: requestId,
       campaignId: campaign.id,
@@ -917,8 +954,12 @@ export function registerCampaignRoutes(app, {
     runningJob.set(campaign.id, requestId);
   }
 
-  async function finishCampaignRun(campaignId, requestId, job, {status = 'done', entryId = null} = {}) {
-    releaseJob(campaignId, requestId);
+  // handOver: the auto-fix this build starts. The campaign passes straight to it, with no moment where it looks free
+  // (round 9: a step started in that moment got 409, or wrote over the fix).
+  async function finishCampaignRun(campaignId, requestId, job, {status = 'done', entryId = null, handOver = null} = {}) {
+    const passed = handOver && handOverJob(campaignId, requestId, handOver.requestId,
+      {task: handOver.stage === 'preview' ? 'preview' : 'final', status: 'Fixing what the check found', project: job?.project || null});
+    if (!passed) releaseJob(campaignId, requestId);
     finishJob(job, {status, entryId});
     await store.runs.finish(requestId, {
       status,
@@ -1356,6 +1397,7 @@ export function registerCampaignRoutes(app, {
       });
       entryId = entry.id;
 
+      await reloadCampaign(campaign);   // keep what changed while the step ran (an approval, a rename)
       const variants = structuredClone(campaign.variants);
       const hadDownstream = Boolean(
         campaign.steps.scenario.approvedAt ||
@@ -1493,6 +1535,7 @@ export function registerCampaignRoutes(app, {
       });
       entryId = entry.id;
 
+      await reloadCampaign(campaign);   // keep what changed while the step ran (an approval, a rename)
       const variants = structuredClone(campaign.variants);
       for (const v of variants) {
         if (v.final?.entryId) v.final.stale = true;
@@ -1625,6 +1668,7 @@ export function registerCampaignRoutes(app, {
       });
       entryId = entry.id;
 
+      await reloadCampaign(campaign);   // keep what changed while the step ran (an approval, a rename)
       const variants = structuredClone(campaign.variants);
       for (const v of variants) {
         if (v.final?.entryId) v.final.stale = true;
@@ -1815,6 +1859,7 @@ export function registerCampaignRoutes(app, {
       });
       entryId = entry.id;
 
+      await reloadCampaign(campaign);   // keep what changed while the step ran (an approval, a rename)
       const variants = structuredClone(campaign.variants);
       const targetVar = findTargetVariant(variants, targetVarCheck.id, campaign.activeVariant);
       let activeVariant = targetVar.id;
@@ -2066,6 +2111,7 @@ export function registerCampaignRoutes(app, {
       });
       entryId = entry.id;
 
+      await reloadCampaign(campaign);   // keep what changed while the step ran (an approval, a rename)
       const variants = structuredClone(campaign.variants);
       const targetVar = findTargetVariant(variants, targetVarInit.id, campaign.activeVariant);
       targetVar.styles.direction = directionText;
@@ -2101,7 +2147,7 @@ export function registerCampaignRoutes(app, {
       await history.update(campaign.id, {cost: addCost(campaign.cost, job.costs)}).catch(() => {});
       throw error;
     } finally {
-      await finishCampaignRun(campaign.id, requestId, job, {status: runStatus, entryId});
+      await finishCampaignRun(campaign.id, requestId, job, {status: runStatus, entryId, handOver: runStatus === 'done' ? pendingFix : null});
       if (pendingFix && runStatus === 'done') startAutoFix(pendingFix);
     }
   });
@@ -2265,6 +2311,7 @@ export function registerCampaignRoutes(app, {
       });
       entryId = entry.id;
 
+      await reloadCampaign(campaign);   // keep what changed while the step ran (an approval, a rename)
       const variants = structuredClone(campaign.variants);
       const targetVar = findTargetVariant(variants, targetVarInit.id, campaign.activeVariant);
       targetVar.final = {entryId: entry.id, stale: false};
@@ -2294,7 +2341,7 @@ export function registerCampaignRoutes(app, {
       await history.update(campaign.id, {cost: addCost(campaign.cost, job.costs)}).catch(() => {});
       throw error;
     } finally {
-      await finishCampaignRun(campaign.id, requestId, job, {status: runStatus, entryId});
+      await finishCampaignRun(campaign.id, requestId, job, {status: runStatus, entryId, handOver: runStatus === 'done' ? pendingFix : null});
       if (tempPreviewDir) await fs.rm(tempPreviewDir, {recursive: true, force: true}).catch(() => {});
       if (pendingFix && runStatus === 'done') startAutoFix(pendingFix);
     }
@@ -2493,6 +2540,7 @@ export function registerCampaignRoutes(app, {
         cost: job.costs, log: job.events,
       });
       entryId = rec.id;
+      await reloadCampaign(campaign);   // keep what changed while the step ran (an approval, a rename)
       const variants = structuredClone(campaign.variants);
       const v = variants.find(x => x.id === variant?.id);
       if (v) v.cost = addCost(v.cost, job.costs);
@@ -2648,13 +2696,17 @@ export function registerCampaignRoutes(app, {
     setTimeout(() => {
       reviseCampaignEntry(req, res, fix.entry)
         .then(() => mark('done', {entryId: res.body?.historyId || fix.requestId}))
-        .catch(err => { console.error('[check] the fix failed:', err.message); return mark('failed', {error: err.message}); });
+        .catch(err => { console.error('[check] the fix failed:', err.message); return mark('failed', {error: err.message}); })
+        .finally(() => {
+          // a fix that never got to start its run still holds the campaign it was handed: give it back
+          releaseHandOver(fix.entry.campaign, fix.requestId);
+        });
     }, 0);
   }
 
   async function reviseCampaignEntry(req, res, parent) {
     const campaign = await requireCampaign(parent.campaign);
-    await ensureIdle(campaign.id);
+    await ensureIdle(campaign.id, validId(req.body?.requestId) ? req.body.requestId : null);
 
     const stage = parent.type === 'preview' ? 'preview' : 'final';
     const message = typeof req.body?.message === 'string' ? req.body.message : '';
@@ -2886,6 +2938,7 @@ export function registerCampaignRoutes(app, {
         }
       }
 
+      await reloadCampaign(campaign);   // keep what changed while the step ran (an approval, a rename)
       const variants = structuredClone(campaign.variants);
       const targetVar = findVariantForEntry(variants, parent, campaign.activeVariant);
       if (stage === 'preview') {
@@ -2919,7 +2972,7 @@ export function registerCampaignRoutes(app, {
       await history.update(campaign.id, {cost: addCost(campaign.cost, job.costs)}).catch(() => {});
       throw error;
     } finally {
-      await finishCampaignRun(campaign.id, requestId, job, {status: runStatus, entryId});
+      await finishCampaignRun(campaign.id, requestId, job, {status: runStatus, entryId, handOver: runStatus === 'done' ? pendingFix : null});
       await fs.rm(work, {recursive: true, force: true}).catch(() => {});
       if (pendingFix && runStatus === 'done') startAutoFix(pendingFix);
     }

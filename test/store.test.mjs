@@ -18,7 +18,7 @@ import {
   SCHEMA_NOT_READY_MSG,
 } from '../store/supabase.mjs';
 import {registerBrandRoutes} from '../brands.mjs';
-import {upgradeCampaign, registerCampaignRoutes, runningJob} from '../campaigns.mjs';
+import {upgradeCampaign, registerCampaignRoutes, runningJob, handOverJob, isHandedTo, releaseHandOver} from '../campaigns.mjs';
 import * as history from '../history.mjs';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -817,7 +817,7 @@ describe('R2 blobs, asset index, sync.up/down & preview read-through middleware 
 });
 
 describe('Runs locking, heartbeat, event flushing, render-progress fallback & FORMA_STORE=memory integration (§3.3, §3.4, §10, M5)', () => {
-  let tempDir, app, projectId;
+  let tempDir, app, projectId, reviseGate = null;
 
   before(async () => {
     tempDir = await fs.mkdtemp(path.join(tmpdir(), 'forma-memory-m5-'));
@@ -844,7 +844,7 @@ describe('Runs locking, heartbeat, event flushing, render-progress fallback & FO
       assetURL: (id, f) => `/p/${id}/assets/${f}`,
       runModelText: async () => '{}',
       runModelHtml: async () => '<html><body></body></html>',
-      runModelRevise: async () => ({html: '<html><body></body></html>', reply: 'ok'}),
+      runModelRevise: async () => { if (reviseGate) await reviseGate; return {html: '<html><body></body></html>', reply: 'ok'}; },
     });
     app.post('/api/history/:id/revise', async (req, res) => {
       const parent = await history.get(req.params.id);
@@ -1127,6 +1127,36 @@ describe('Runs locking, heartbeat, event flushing, render-progress fallback & FO
     await req('POST', `/api/campaigns/${cid}/approve`, {step:'preview'});
     const fin3 = await req('POST', `/api/campaigns/${cid}/final`, {media:{images:false,video:false}});
     assert.equal(new Set(fin3.body.campaign.variants.map(v => v.finalPath)).size, 3);
+
+    // Round 9: a build hands its campaign straight to its auto-fix. Nothing else starts in between (409), the list
+    // of running steps shows the fix, and a fix that never starts gives the campaign back.
+    const buildRun = randomUUID(), fixRun = randomUUID();
+    runningJob.set(cid, buildRun);
+    assert.equal(handOverJob(cid, buildRun, fixRun, {task: 'preview', status: 'Fixing what the check found'}), true);
+    assert.equal(handOverJob(cid, buildRun, randomUUID()), false, 'only the holder hands over');
+    assert.equal(isHandedTo(cid, fixRun), true);
+    assert.equal((await req('POST', `/api/campaigns/${cid}/approve`, {step: 'preview'})).status, 409);
+    const shown = (await req('GET', '/api/runs/active')).body.runs.find(r => r.id === fixRun);
+    assert.deepEqual([shown?.campaignId, shown?.statusText, shown?.local], [cid, 'Fixing what the check found', true]);
+    releaseHandOver(cid, fixRun);
+    assert.equal(runningJob.has(cid), false);
+
+    // A change made while a revision runs is kept: the revision reads the campaign again before writing.
+    let openGate;
+    reviseGate = new Promise(r => { openGate = r; });
+    const revising = req('POST', `/api/history/${fin3.body.historyId}/revise`, {message: 'Make the CTA larger by 20%'});
+    await new Promise(r => setTimeout(r, 50));
+    const during = await history.get(cid);
+    const relabelled = structuredClone(during.variants);
+    relabelled[0].label = 'Renamed while a revision ran';
+    await history.update(cid, {variants: relabelled});
+    openGate();
+    const revised = await revising;
+    reviseGate = null;
+    assert.equal(revised.status, 200, JSON.stringify(revised.body));
+    const after = await history.get(cid);
+    assert.equal(after.variants[0].label, 'Renamed while a revision ran');
+    assert.equal(after.variants.find(v => v.final?.entryId === revised.body.historyId)?.final.entryId, revised.body.historyId, 'and the revision is recorded');
 
     // 5. Author B creates a second campaign; verify author/excludeAuthor filters on GET /api/campaigns and store.status() (M6)
     const createdByAnna = await req(

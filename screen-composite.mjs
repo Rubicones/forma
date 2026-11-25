@@ -55,9 +55,35 @@ function sample(ui, uw, uh, u, v, out) {
  * key: the screen's green [r,g,b]. v: visibility 0..1. off: the colour of the screen where the interface is clear.
  * Returns {screenPx, greenLeft}: pixels of screen inside the quad, and how many still look screen-green after.
  */
-export function compositeFrame({plate, w, h, ui, uw, uh, quads, key, v = 1, light = 0.65, off = [12, 12, 14]}) {
+// The material around a printed surface: the median colour of a thin ring just outside the quad, green spill left out.
+export function surroundColour(plate, w, h, quad) {
+  const cx = quad.reduce((s, p) => s + p[0], 0) / 4, cy = quad.reduce((s, p) => s + p[1], 0) / 4;
+  const rs = [], gs = [], bs = [];
+  for (const k of [1.12, 1.2]) {
+    const ring = quad.map(([x, y]) => [cx + (x - cx) * k, cy + (y - cy) * k]);
+    for (let side = 0; side < 4; side++) {
+      const [ax, ay] = ring[side], [bx, by] = ring[(side + 1) % 4];
+      for (let i = 0; i <= 24; i++) {
+        const x = Math.round(ax + (bx - ax) * i / 24), y = Math.round(ay + (by - ay) * i / 24);
+        if (x < 0 || y < 0 || x >= w || y >= h) continue;
+        const o = (y * w + x) * 3, r = plate[o], g = plate[o + 1], b = plate[o + 2];
+        if (g - Math.max(r, b) > 30) continue;
+        rs.push(r); gs.push(g); bs.push(b);
+      }
+    }
+  }
+  if (rs.length < 8) return null;
+  const med = a => a.sort((p, q) => p - q)[a.length >> 1];
+  return [med(rs), med(gs), med(bs)];
+}
+
+// surface 'print': the clear parts of the interface take the material around the quad and the interface is
+// multiplied into it like ink, with no screen glow or glare (round 9: a stamp's imprint baked as a grey plate).
+export function compositeFrame({plate, w, h, ui, uw, uh, quads, key, v = 1, light = 0.65, off = [12, 12, 14], surface = 'screen'}) {
   const quad = quads[0];
   if (!quad || v <= 0.001) return {screenPx: 0, greenLeft: 0};
+  const print = surface === 'print';
+  const paper = print ? surroundColour(plate, w, h, quad) || [235, 232, 225] : null;
   const maps = quads.map(inverseMap).filter(Boolean);
   if (!maps.length) return {screenPx: 0, greenLeft: 0};
   const kg = Math.max(30, key[1] - Math.max(key[0], key[2]));
@@ -113,7 +139,7 @@ export function compositeFrame({plate, w, h, ui, uw, uh, quads, key, v = 1, ligh
     // light: the plate's green against the key green (shadows), and what it holds besides green (reflections)
     const shade = Math.max(0.35, Math.min(1.5, g / Math.max(1, key[1])));
     const lit = 1 + (shade - 1) * light;
-    const spec = Math.max(0, Math.min(r, b) - keyMinRB) * light;
+    const spec = print ? 0 : Math.max(0, Math.min(r, b) - keyMinRB) * light;
     // the interface: averaged over the smear positions when the screen moves
     acc[0] = acc[1] = acc[2] = acc[3] = 0;
     for (const map of maps) {
@@ -122,7 +148,15 @@ export function compositeFrame({plate, w, h, ui, uw, uh, quads, key, v = 1, ligh
       for (let c = 0; c < 4; c++) acc[c] += px[c];
     }
     const ua = acc[3] / maps.length / 255;
-    const ur = (acc[0] / maps.length) * ua + off[0] * (1 - ua), ug = (acc[1] / maps.length) * ua + off[1] * (1 - ua), ub = (acc[2] / maps.length) * ua + off[2] * (1 - ua);
+    let ur, ug, ub;
+    if (print) {
+      // ink: the interface's colour multiplied into the paper; where it is clear, the paper itself
+      ur = paper[0] * (1 - ua + ua * acc[0] / maps.length / 255);
+      ug = paper[1] * (1 - ua + ua * acc[1] / maps.length / 255);
+      ub = paper[2] * (1 - ua + ua * acc[2] / maps.length / 255);
+    } else {
+      ur = (acc[0] / maps.length) * ua + off[0] * (1 - ua); ug = (acc[1] / maps.length) * ua + off[1] * (1 - ua); ub = (acc[2] / maps.length) * ua + off[2] * (1 - ua);
+    }
     const sr = Math.min(255, ur * lit + spec), sg = Math.min(255, ug * lit + spec), sb = Math.min(255, ub * lit + spec);
     // the plate at the edges, without its green
     if (greenish > 0) g = Math.max(r, b) + greenish * 0.15;

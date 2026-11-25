@@ -14,13 +14,14 @@ const validMulti = () => ({
     h1:  {role:'hook',  scene:'s1', maxChars:24, hideIn:[],        text:{en:'“I paid last.”',                 'sr-Latn':'„Ja sam platio.”'}},
     h1b: {role:'hook',  scene:'s1', maxChars:16, hideIn:[],        text:{en:'“No, I did.”',                   'sr-Latn':'„Ne, ja sam.”'}},
     p1:  {role:'proof', scene:'s2', maxChars:28, hideIn:['191x1'], text:{en:'One list. Split fast.',          'sr-Latn':'Jedna lista. Delite.'}},
+    a1:  {role:'answer',scene:'s3', maxChars:16, hideIn:[],        text:{en:'Settled.',                       'sr-Latn':'Rešeno.'}},
     o1:  {role:'offer', scene:'s3', maxChars:32, hideIn:[],        text:{en:'Free 3 months',                  'sr-Latn':'Besplatno 3 meseca'}},
     cta: {role:'cta',   scene:'s3', maxChars:24, hideIn:[],        text:{en:'Start budget',                   'sr-Latn':'Pokreni budžet'}},
   },
   scenes: [
     {id:'s1', beat:'HOOK',        story:'Two voices claim the same bill.',         lines:['h1', 'h1b']},
     {id:'s2', beat:'PROOF',       story:'The shared list settles who paid what.',  lines:['p1']},
-    {id:'s3', beat:'OFFER + CTA', story:'The offer lands with the brand and CTA.', lines:['o1', 'cta']},
+    {id:'s3', beat:'ANSWER + CTA', story:'Settled in one tap; the offer lands with the brand and CTA.', lines:['a1', 'o1', 'cta']},
   ],
   cuts: {
     '4': {
@@ -32,9 +33,9 @@ const validMulti = () => ({
     },
     '10': {
       scenes: [
-        {id:'s1', start:0,   end:2.4, lines:['h1']},
-        {id:'s2', start:2.4, end:5.0, lines:['p1']},
-        {id:'s3', start:5.0, end:10,  lines:['o1', 'cta']},
+        {id:'s1', start:0,   end:2.3, lines:['h1']},
+        {id:'s2', start:2.3, end:4.9, lines:['p1']},
+        {id:'s3', start:4.9, end:10,  lines:['a1', 'o1', 'cta']},
       ],
       note: 'Full story; the reply line is dropped to keep time to read.',
     },
@@ -238,10 +239,34 @@ describe('scenario.mjs: validateScenario', () => {
     assert.ok(resSlow.errors.some(e => /fails reading-time check/i.test(e)));
   });
 
+  it('round 9: every cut of 5 s or more says the answer; a one-window short cut may carry the hook', () => {
+    const noAnswer = validMulti();
+    noAnswer.cuts['10'].scenes[2].lines = ['o1', 'cta'];
+    assert.ok(validateScenario(noAnswer, defaultSetup()).errors.some(e => /Cut 10s: no answer line/.test(e)));
+    const noAnswerLine = validMulti();
+    delete noAnswerLine.lines.a1;
+    noAnswerLine.scenes[2].lines = ['o1', 'cta'];
+    noAnswerLine.cuts['10'].scenes[2].lines = ['o1', 'cta'];
+    assert.ok(validateScenario(noAnswerLine, defaultSetup()).errors.some(e => /closing scene "s3" needs an answer line/.test(e)));
+    // 6 s as one composition: the closing scene shows the hook, the answer and the CTA together
+    const merged = validMulti();
+    merged.cuts['6'] = {scenes: [{id: 's3', start: 0, end: 6, lines: ['h1', 'a1', 'cta']}], note: 'One frame carries the whole idea.'};
+    const res = validateScenario(merged, {...defaultSetup(), lengths: [4, 6, 10]});
+    assert.deepEqual(res.errors, []);
+    assert.equal(res.cells['6'].s3.verdict, 'ok');
+    // ...but only the hook may be borrowed, and only in a one-window cut
+    merged.cuts['6'].scenes[0].lines = ['h1', 'p1', 'a1', 'cta'];
+    assert.ok(validateScenario(merged, {...defaultSetup(), lengths: [4, 6, 10]}).errors.some(e => /line "p1" does not belong/.test(e)));
+    const twoWin = validMulti();
+    twoWin.cuts['10'].scenes[2].lines = ['h1b', 'a1', 'o1', 'cta'];
+    assert.ok(validateScenario(twoWin, defaultSetup()).errors.some(e => /line "h1b" does not belong/.test(e)));
+  });
+
   it('produces warnings for tight windows, maxChars overflow, single-scene length and long poster hooks', () => {
     const sc = validMulti();
     // Make s2 in 10s cut tight: 5 words -> need = 0.4 + 5/2.6 + 0.6 (picture) = 2.923s; have = 2.6s (0.889 >= 0.85 -> tight)
     sc.lines.p1.text.en = 'One shared list settles all';
+    sc.cuts['10'].scenes[0].end = 2.4;
     sc.cuts['10'].scenes[1].start = 2.4;
     sc.cuts['10'].scenes[1].end = 5.0;
     sc.cuts['10'].scenes[2].start = 5.0;

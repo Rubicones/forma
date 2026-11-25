@@ -72,7 +72,8 @@ describe('creative.mjs: prompts P0–P9 and message builders', () => {
   it('builds P3 scenarioRepairMessage and P5 translatePrompt / translateMessage', () => {
     const repair = scenarioRepairMessage(['Missing cut for 6 s', 'Window s1 too short']);
     assert.ok(repair.includes('- Missing cut for 6 s\n- Window s1 too short'));
-    assert.ok(repair.endsWith('Never shorten the time below the need.'));
+    assert.ok(repair.includes('Never shorten the time below the need.'));
+    assert.ok(repair.includes('never drop the hook or the answer'));
 
     const tp = translatePrompt({languages: ['sr-Latn', 'de'], primary: 'en'});
     assert.ok(tp.includes('target languages in an ad scenario: sr-Latn, de. The source of truth is the primary language (en).'));
@@ -273,3 +274,17 @@ describe('media.mjs: per-step picture budget', () => {
   });
 });
 
+
+describe('creative.mjs: the scenario example teaches only what passes', () => {
+  it('the example in the scenario prompt passes validation, its 6 s cut ending on the answer', async () => {
+    const {SCENARIO_SCHEMA} = await import('../creative.mjs');
+    const {validateScenario} = await import('../scenario.mjs');
+    const example = JSON.parse(SCENARIO_SCHEMA.replace(/\/\/.*$/gm, ''));
+    const lengths = Object.keys(example.cuts).map(Number);
+    const res = validateScenario(example, {kind: 'multi', languages: example.languages, lengths});
+    assert.deepEqual(res.errors, []);
+    assert.deepEqual(res.warnings, []);
+    const shortest = example.cuts[String(Math.min(...lengths))].scenes;
+    assert.ok(shortest.at(-1).lines.some(k => example.lines[k].role === 'answer'));
+  });
+});

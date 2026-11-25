@@ -111,6 +111,11 @@ export function validateScenarioClient(scenario, setup) {
   if (reqKind === 'multi') {
     const cuts = scenario.cuts || {};
     const rank = {ok: 0, tight: 1, fail: 2};
+    // the same rules as scenario.mjs: the closing scene says the answer, every cut of 5 s or more shows it
+    const closingScene = scenes[scenes.length - 1];
+    if (closingScene && !(closingScene.lines || []).some(lk => lines[lk]?.role === 'answer')) {
+      errors.push({msg: `The closing scene "${closingScene.id}" needs an answer line: the turn said in words, so every cut can end on it.`, target: '#scenarioScenes'});
+    }
     for (const len of reqLengths) {
       const lenKey = String(len);
       const cut = cuts[lenKey];
@@ -120,6 +125,9 @@ export function validateScenarioClient(scenario, setup) {
         continue;
       }
       const winList = cut.scenes;
+      const usedLines = winList.flatMap(w => w.lines || []);
+      if (!usedLines.some(lk => lines[lk]?.role === 'hook')) errors.push({msg: `${len} s cut: no hook line. Every cut opens on the hook.`, target: '#scenarioCutsTable'});
+      if (len >= 5 && !usedLines.some(lk => lines[lk]?.role === 'answer')) errors.push({msg: `${len} s cut: no answer line. Say the answer in words; the picture alone does not.`, target: '#scenarioCutsTable'});
       let prevIdx = -1;
       for (let i = 0; i < winList.length; i++) {
         const w = winList[i];
@@ -144,7 +152,8 @@ export function validateScenarioClient(scenario, setup) {
         }
         const allowed = new Set(sc.lines || []);
         for (const lk of w.lines || []) {
-          if (!allowed.has(lk)) {
+          // a one-window cut is one composition: its scene may also show the hook line
+          if (!allowed.has(lk) && !(winList.length === 1 && lines[lk]?.role === 'hook')) {
             errors.push({msg: `${len} s cut, scene "${w.id}": line "${lk}" belongs to a different scene.`, target: cellTarget});
           }
         }

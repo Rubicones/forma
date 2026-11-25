@@ -49,7 +49,7 @@ export async function listScreens({url, format, lang}) {
   try {
     await page.setViewport({width: 540, height: 540, deviceScaleFactor: 1});
     await openFrame(page, withQuery(url, {f: format, l: lang, paused: '1', t: '0', bake: 'list'}));
-    return await page.evaluate(() => (window.FORMA?.screens || []).map(s => ({clip: s.clip, size: s.size, offset: s.offset})));
+    return await page.evaluate(() => (window.FORMA?.screens || []).map(s => ({clip: s.clip, size: s.size, offset: s.offset, surface: s.surface || 'screen'})));
   } finally { await page.close().catch(() => {}); }
 }
 
@@ -118,14 +118,15 @@ export async function bakeScreen({projectDir, url, screen, format, lang, log = (
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'forma-bake-'));
   try {
     const ui = await captureUi({url, screen, format, lang, frames: info.frames, fps: info.fps, scale: uiScale, dir, log});
-    const key = createHash('sha1').update(JSON.stringify([BAKE_VERSION, await fileHash(plate), track.frames, track.key, ui.hash, W, H])).digest('hex').slice(0, 16);
+    const surface = screen.surface === 'print' ? 'print' : 'screen';
+    const key = createHash('sha1').update(JSON.stringify([BAKE_VERSION, await fileHash(plate), track.frames, track.key, ui.hash, W, H, surface])).digest('hex').slice(0, 16);
     const rel = 'assets/screens/' + key + '.mp4';
     const out = path.join(projectDir, rel);
     const stats = existsSync(out) ? null : await (async () => {
       await fs.mkdir(path.dirname(out), {recursive: true});
       log(`Baking the interface into ${path.basename(screen.clip)} (${lang}, ${W}×${H})…`);
       return runWorker({
-        plate, out, w: W, h: H, fps: info.fps, key: track.key, uiDir: dir, uiIndex: ui.index, ffmpeg: await findFfmpeg(),
+        plate, out, w: W, h: H, fps: info.fps, key: track.key, uiDir: dir, uiIndex: ui.index, ffmpeg: await findFfmpeg(), surface,
         frames: track.frames.map(f => ({q: f.q ? f.q.map(([x, y]) => [x * k, y * k]) : null, v: f.v})),
       }, m => log(`Baking ${path.basename(screen.clip)} · ${m.done}/${m.total}`));
     })();

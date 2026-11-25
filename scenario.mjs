@@ -2,8 +2,10 @@
 import {z} from 'zod';
 import {windowNeed, verdict} from './shared/reading.mjs';
 
-export const ROLES = ['hook', 'sub', 'proof', 'number', 'label', 'offer', 'cta', 'legal'];
-const NEVER_HIDE_ROLES = new Set(['hook', 'offer', 'cta']);
+// answer: the turn said in words, how the product resolves the hook's tension. Every cut of a spot says it (round 9:
+// short cuts went hook → button, leaving the picture to explain, and lost their sense).
+export const ROLES = ['hook', 'answer', 'sub', 'proof', 'number', 'label', 'offer', 'cta', 'legal'];
+const NEVER_HIDE_ROLES = new Set(['hook', 'answer', 'offer', 'cta']);
 const RANK = {ok:0, tight:1, fail:2};
 
 const lineSchema = z.object({
@@ -192,6 +194,10 @@ export function validateScenario(scenario, setup = {}) {
 
   // Multi-scene cuts validation
   if (sc.kind === 'multi') {
+    const lastScene = sc.scenes[sc.scenes.length - 1];
+    if (lastScene && !lastScene.lines.some(lk => sc.lines[lk]?.role === 'answer')) {
+      errors.push(`The closing scene "${lastScene.id}" needs an answer line (role "answer"): the turn said in words, so every cut, the shortest too, can end on it.`);
+    }
     const cuts = sc.cuts || {};
     const targetLengths = lengths.length ? lengths : Object.keys(cuts).map(Number);
     if (!targetLengths.length) {
@@ -223,6 +229,16 @@ export function validateScenario(scenario, setup = {}) {
       if (!hasCta) {
         errors.push(`Cut ${key}s: last window "${lastWin.id}" lacks the cta line.`);
       }
+      const used = wins.flatMap(w => w.lines);
+      if (!used.some(lk => sc.lines[lk]?.role === 'hook')) {
+        errors.push(`Cut ${key}s: no hook line. Every cut opens on the hook.`);
+      }
+      // under 5 s a cut is a bumper (hook or answer with the CTA): there is no time to read a question and its answer
+      if (Number(len) >= 5 && !used.some(lk => sc.lines[lk]?.role === 'answer')) {
+        errors.push(`Cut ${key}s: no answer line. Every cut of 5 s or more says the answer in words; never leave the picture to explain it.`);
+      }
+      // One window = one composition carrying the whole idea: the closing scene may hold the hook line with its own.
+      const merged = wins.length === 1;
 
       for (let i = 0; i < wins.length; i++) {
         const win = wins[i];
@@ -252,7 +268,7 @@ export function validateScenario(scenario, setup = {}) {
           const line = sc.lines[lk];
           if (!line) {
             errors.push(`Cut ${key}s, window "${win.id}": references unknown line "${lk}".`);
-          } else if (line.scene !== win.id || (sceneObj && !sceneObj.lines.includes(lk))) {
+          } else if ((line.scene !== win.id || (sceneObj && !sceneObj.lines.includes(lk))) && !(merged && line.role === 'hook')) {
             errors.push(`Cut ${key}s, window "${win.id}": line "${lk}" does not belong to scene "${win.id}".`);
           }
         }
